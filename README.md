@@ -95,9 +95,6 @@ conda activate picasso-env
 # GT detection optimization — sweep gradient thresholds
 python gradientsweep.py -c config.yaml --protein HTHTL
 
-# Protein-GT correlation analysis
-python gt_protein_correlation.py -c config.yaml --protein HTHTL --protein-gradient 60000 --gt-gradient 5000
-
 # Cargo exchange analysis
 python cargo_exchange.py -c config.yaml
 
