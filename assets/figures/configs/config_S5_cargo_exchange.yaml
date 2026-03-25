@@ -1,0 +1,36 @@
+# Figure S5 — Cargo Exchange Kinetics
+# Samples: SP520, SP521
+# Run with: python figure_S5_cargo_exchange.py
+
+output_dir: /Volumes/MediumBerth/SalomePaperData/Figure_S5/Results
+
+log_level: INFO
+
+# Colocalization distance threshold (pixels)
+max_dist: 3.0
+
+# Channel suffixes in Picasso HDF5 filenames
+channel_protein:   C1    # 640 nm — JN275 (HaloTag-cySiR)
+channel_vesicle_a: C3    # 515 nm — Atto520 labelled vesicles
+channel_vesicle_b: C4    # 405 nm — Atto425 labelled vesicles
+
+replicates:
+  SP520:
+    picasso_dir: /Volumes/MediumBerth/SalomePaperData/Figure_S5/Cargo_Exchange/19092024_SP520/Picasso
+    slide_timepoints:
+      Slide_02_Mix_onslide:   0.0     # mixed on microscope slide
+      Slide_01_Mix_1h:        1.0
+      Slide_05_Mix_6h:        6.0
+      Slide_06_Mix_24h:       24.0
+      Slide_03_Atto425_HT:    null    # control: Atto425 + unlabelled protein
+      Slide_04_Atto520_JN275: null    # control: Atto520 + JN275, no mixing
+
+  SP521:
+    picasso_dir: /Volumes/MediumBerth/SalomePaperData/Figure_S5/Cargo_Exchange/19092024_SP521/Picasso
+    slide_timepoints:
+      Slide_02_Mix_onslide:   0.0
+      Slide_01_Mix_1h:        1.0
+      Slide_05_Mix_6h:        6.0
+      Slide_06_Mix_24h:       24.0
+      Slide_03_Atto425_HT:    null
+      Slide_04_Atto520_JN275: null

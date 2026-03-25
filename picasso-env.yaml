@@ -1,0 +1,22 @@
+name: picasso-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pyqt
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - h5py
+  - tifffile
+  - pyyaml
+  - optuna
+  - pip
+  - pip:
+      - picassosr
+      - nd2
+      - fcsparser
+      - openpyxl

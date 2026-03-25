@@ -1,0 +1,23 @@
+name: blink2-cuda
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy=1.26.4
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.1  # installs CUDA runtime
+  - pandas
+  - scikit-learn
+  - scipy
+  - matplotlib
+  - matplotlib-venn
+  - torchmetrics
+  - pyyaml
+  - optuna
+  - umap-learn
+  - hdbscan

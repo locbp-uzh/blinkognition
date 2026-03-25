@@ -1,0 +1,147 @@
+# Extraction Pipeline Configuration
+# See docs/extraction_config_example.yaml for detailed annotations
+
+# =============================================================================
+# Pipeline Orchestration
+# =============================================================================
+# Start from specific step: paramfinder, localize, extract, combine, filter, diagnose
+start_from: localize
+resume_run_folder:
+
+# =============================================================================
+# Parameter Optimization (Step 1: paramfinder.py)
+# =============================================================================
+# Bayesian optimization of gradient thresholds
+# Note: boxsize is NOT optimized - it's fixed below to ensure consistent intensity integration
+#
+# mode: "per_experiment" (default) - Optimizes a single gradient for all proteins in each experiment.
+#        Evaluates each candidate gradient on one movie per protein and aggregates scores.
+#        Results stored in: {input_folder}/{Experiment}/optimized_localization_params_{gt|no_gt}.yaml
+#
+# mode: "per_protein" (legacy) - Optimizes gradients independently per protein/experiment.
+#        Results stored in: {input_folder}/{Experiment}/{Protein}/optimized_localization_params_{gt|no_gt}.yaml
+#
+# aggregation: How to combine per-protein scores in per_experiment mode.
+#   "mean" (default) - Average across proteins (balanced compromise)
+#   "min" - Uses worst-performing protein's score (conservative, no protein left behind)
+optimization:
+  mode: "per_experiment"
+  aggregation: "mean"
+  n_trials: 20
+  search_space:
+    gradient_protein_min: 10000
+    gradient_protein_max: 80000
+    gradient_protein_step: 10000
+    gradient_ground_truth_min: 1000        # Ignored if has_ground_truth: false
+    gradient_ground_truth_max: 10000       # Ignored if has_ground_truth: false
+    gradient_ground_truth_step: 1000       # Ignored if has_ground_truth: false
+
+# =============================================================================
+# Analysis Mode
+# =============================================================================
+# Set to true for dual-channel analysis with ground truth labels (IN/OUT)
+# Set to false for single-channel analysis (protein only, no labels)
+has_ground_truth: true
+
+# =============================================================================
+# I/O and Data Organization
+# =============================================================================
+input_folder: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT
+output_folder_base: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/Results
+
+proteins:
+  - HTHTL
+  - snap
+  - HTIA
+  #- scgrx1
+  - Grx1
+  - K20Ac
+
+
+# Channel specification
+protein_channel: "640"           # Protein signal channel
+ground_truth_channel: "488"      # Ground truth channel (ignored if has_ground_truth: false)
+
+# =============================================================================
+# Localization Parameters
+# =============================================================================
+boxsize: 5
+
+drift: 0
+baseline: 79
+sensitivity: 16.0
+gain: 300
+quantum_efficiency: 0.93
+
+# Gradient thresholds (defaults - will be overridden by optimized values if available)
+gradient_protein: 5000              # Default gradient for protein channel
+gradient_ground_truth: 1000         # Default gradient for ground truth channel
+gradient_405: 4000                  # Legacy 405nm channel
+gradient: 10000                     # Generic fallback
+
+# =============================================================================
+# Trace Extraction
+# =============================================================================
+max_distance: 2.0                   # Max distance for linking protein localizations (pixels)
+max_distance_ground_truth: 2.5      # Max distance for clustering ground truth localizations (pixels)
+max_darktime: 4000                  # Max dark frames for linking (frames)
+
+# Background trace extraction (from non-localization pixels)
+# Set to 0 to disable, or N > 0 to extract N background traces per movie
+n_background_traces: 100
+
+# Filter contaminated background traces using two complementary steps:
+#   1. Spatial buffer: reject background ROIs within background_buffer pixels of any protein ROI
+#   2. Robust outlier score: reject traces where (max - median) / MAD > background_rob_threshold
+#      For Gaussian noise with n=6000 the expected score is ~5.6; 7.0 cuts at ~p92 of clean traces
+# Set either to 0 to disable that step.
+background_buffer: 5
+background_rob_threshold: 6.0
+
+overlap_threshold: 3                # Min pixels overlap to flag ROI as overlapping
+min_on_ground_truth: 3              # Min localizations to call a ground truth cluster
+max_dist_closest_ground_truth: 4.0  # Max distance to nearest ground truth for IN label (pixels)
+
+size_FOV: 230                       # Will be detected automatically, this is only a fallback.
+movie_length: 6000
+
+# =============================================================================
+# Preprocessing and Filtering
+# =============================================================================
+gmm_proba_threshold: 0.6        # posterior probability threshold for GMM peak classification
+snr_min_separation: 2.0         # Minimum (signal_mean - noise_mean) / noise_std from GMM to accept a trace; set 0 to disable
+
+threshold_trace_selection: 6
+
+min_peak_number: 3
+min_peak_width: 1
+first_peak_time: 1000
+last_peak_time: 100
+delta_first_second: 1000
+
+# =============================================================================
+# Visualization and QC
+# =============================================================================
+draw_maxprojection_control: True
+draw_coloc_control: True
+
+# =============================================================================
+# Parallel Processing
+# =============================================================================
+# Number of parallel workers (CPUs) to use for processing
+# Options:
+#   -1 or null: Use all available CPUs
+#   1: Sequential processing (no parallelization)
+#   N > 1: Use N worker processes
+# Recommended: Set to number of available CPU cores on HPC
+n_workers: 16  # Use all CPUs by default
+
+# =============================================================================
+# Diagnostics
+# =============================================================================
+# Quality control and trace analysis settings
+diagnostics:
+  enabled: True                        # Run diagnostic analysis after filtering
+  n_examples: 12                       # Number of example traces to plot
+  proteins: null                       # Specific proteins to diagnose (null = all proteins)
+

@@ -1,0 +1,26 @@
+# Figure S6 — Vesicle Occupation (Photobleaching Step Detection)
+# Samples: SP517, SP512
+# Run with: python figure_S6_occupation.py
+
+output_dir: /Volumes/MediumBerth/SalomePaperData/Figure_S6_(S1_copy)/Results
+
+log_level: INFO
+
+# Maximum number of proteins to show as individual bars (≥max_proteins grouped)
+max_proteins: 10
+
+# If True, only include traces where flag == 0 (passed KV quality filter)
+good_flag_only: true
+
+replicates:
+  SP517:
+    traces_dir: /Volumes/MediumBerth/SalomePaperData/Figure_S6_(S1_copy)/Vesicle_occupation/10092024_SP517/TRACES_5000
+    concentrations:
+      - 2uM
+      - 4uM
+      - 8uM
+      - 16uM
+
+  SP512:
+    traces_dir: /Volumes/MediumBerth/SalomePaperData/Figure_S6_(S1_copy)/Vesicle_occupation/16082024_SP512_1/TRACES_5000
+    concentrations: null   # load all found

@@ -1,0 +1,22 @@
+name: blink2-mac
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy=1.26.4
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pandas
+  - scikit-learn
+  - scipy
+  - matplotlib
+  - matplotlib-venn
+  - torchmetrics
+  - pyyaml
+  - optuna
+  - umap-learn
+  - hdbscan
+

@@ -1,0 +1,137 @@
+io:
+  output_root: "../Results/Train"
+  run_name: "resnet_train_minmax_notmirrored"
+
+
+data:
+  #traces_path: "../Data/traces"
+  traces_path: "/Volumes/MediumBerth/March25/Filtered"
+  
+# Available proteins (uncomment to use):
+  dataset:
+    #HTNHS:
+    #  channels: ["minmax", "zscored"]
+    #CLX:
+    #  channels: ["minmax", "zscored"]
+    #blank:
+    #  channels: ["minmax", "zscored"]
+    #HaloTag_ligand:
+    #  channels: ["minmax", "zscored"]
+    #ligand-HMSiR:
+    #  channels: ["minmax", "zscored"]
+    #NHS-HMSiR:
+    #  channels: ["minmax", "zscored"]
+    #Grx1_OUT:
+    #  channels: ["minmax", "zscored"]
+    #Grx1_IN:
+    #  channels: ["minmax"]
+    #K20Ac_OUT:
+    #  channels: ["minmax", "zscored"]
+    #K20Ac_IN:
+    #  channels: ["minmax"]
+    HTHTL_IN:
+      channels: ["minmax"]
+    #HTIA_IN:
+    #  channels: ["minmax"]
+    #scgrx1_IN:
+    #  channels: ["minmax", "zscored"]
+    snap_IN:
+      channels: ["minmax"]
+
+
+  trim_end: 0
+  max_traces_per_class: 2000000
+  balance_train: true
+  balance_val: true   # Balance val set by subsampling majority classes (prevents biased early stopping)
+  balance_test: true  # Balance test set by subsampling majority classes
+
+  # Data augmentation (applied ONLY to training set to prevent data leakage)
+  # Helps improve model generalization and performance, especially with limited data
+  augmentation:
+    enabled: false           # Set to true to enable augmentation
+    aug_factor: 3            # Multiply training set size by this factor (2-5 recommended)
+
+    # Augmentation parameters (conservative defaults for training from scratch)
+    time_warp_sigma: 0.05    # ±% temporal distortion
+    noise_sigma: 0.05        # % Gaussian noise
+    magnitude_jitter: 0.05   # ±% intensity variation
+    include_mirror: false     # add time-reversed copy of every training trace
+
+model:
+  name: "resnet1d"          # one of: orig_conv_gru, conv_gru, resnet1d, resnet1d_selfattn, resnet1d_attnpool, resnet1d_dualattn, tcn
+  # Default parameters are now hardcoded in the model zoo (models.py)
+  # Override specific parameters here if needed, or use HPO for optimal values
+
+optimization:
+  batch_size: 64
+  max_epochs: 500
+  patience_limit: 10
+  lr: 0.0004
+  weight_decay: 0.0004
+
+  # Early stopping configuration
+  # Primary condition: Checkpoint when BOTH are met:
+  # 1. AUC improves by at least auc_min_delta
+  # 2. Loss is within loss_tolerance of the best loss seen
+  # Alternative condition (optional): Checkpoint when BOTH are met:
+  # 1. AUC is within auc_tolerance of best (even if not improving)
+  # 2. Loss improves by at least loss_min_delta
+  # This allows saving checkpoints with slightly lower AUC but better loss (often better accuracy)
+  early_stopping:
+    auc_min_delta: 0.005    # Minimum AUC improvement required (0.5%)
+    loss_mode: "relative"   # "relative", "absolute", or "none"
+    loss_tolerance: 1.10    # For relative: loss <= best_loss * 1.10 (max 10% higher)
+                            # For absolute: loss <= best_loss + tolerance
+    # Alternative checkpoint (uncomment to enable):
+    auc_tolerance: 0.003  # Max AUC drop from best to allow alternative checkpoint
+    loss_min_delta: 0.005  # Min loss improvement required for alternative checkpoint
+
+  # Threshold selection method for binary classification
+  # - "argmax": Use standard argmax (no threshold optimization) - RECOMMENDED for balanced datasets
+  # - "mcc": Optimize Matthews Correlation Coefficient
+  # - "balanced_accuracy": Optimize balanced accuracy across classes
+  # - "f1": Optimize F1 score
+  # - "youden": Optimize Youden's J statistic (sensitivity + specificity - 1)
+  # - "min_recall": Maximize minimum recall across both classes
+  threshold_metric: "argmax"
+
+  # Focal Loss parameters (alternative to cross-entropy for imbalanced datasets)
+  # Set use_focal_loss: true to enable, false to use standard cross-entropy (recommended)
+  use_focal_loss: false
+  focal_gamma: 1.5       # Focusing parameter, higher = more focus on hard examples
+  # focal_alpha: null    # Optional: set to list of per-class weights for class imbalance
+                         # e.g., [0.3, 0.7] for 2 classes where class 0 is majority
+
+# HPO (Hyperparameter Optimization) Configuration
+hpo:
+  enabled: false
+  debug: true
+
+  # Legacy mode: use these if you want to use old single-model databases
+  # storage_by_model:
+  #   tcn: "sqlite:///../Optuna_Databases/optuna_tcn.db"
+  #   resnet1d_dualattn: "sqlite:///../Optuna_Databases/optuna_resnet1d_dualattn.db"
+
+  # New user-dataset-specific system
+  user: "auto"                        # "auto" (detect from path), specific username, or "shared"
+  dataset_scope: "auto"               # "auto" (use current dataset), specific encoded name, or "any"
+  storage_root: "../Optuna_Databases" # root directory for HPO databases
+
+  # Fallback behavior when no HPO results found for current user/dataset
+  fallback_to_shared: true            # look for results in shared databases
+  fallback_to_other_users: true      # look for results from other users (same dataset)
+  fallback_to_other_datasets: true  # look for results from other datasets (same user)
+
+uncertainty:
+  mc_dropout:
+    enabled: true
+    n_mc: 100
+    trace_loss: 50.0              # Maximum trace loss % for auto threshold selection
+    # wasserstein_threshold: 0.1  # Optional: fixed Wasserstein threshold (overrides trace_loss)
+
+system:
+  force_amp: true   # set false to keep safer fp32 on T4 for attention models
+  compile: false
+  num_workers: 4
+  seed: 840410
+  verbose: false    # set true to show sanity checks (confusion matrices, detailed metrics) during training

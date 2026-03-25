@@ -1,0 +1,99 @@
+io:
+  output_root: "../Results/CrossVal"
+  run_name: "crossval_resnet_run_test"
+
+data:
+  #traces_path: "../Data/traces/"
+  traces_path: "/Volumes/MediumBerth/AllTraces_unfiltered"
+  dataset:
+    HTHTL:
+      channels: ["minmax"]
+    snap:
+      channels: ["minmax"]
+
+
+trim_end: 2000
+max_traces_per_class: 1000
+balance_train: true
+balance_val: true   # Balance validation fold by subsampling majority classes (prevents biased early stopping)
+balance_test: true  # Set true to balance validation fold by subsampling majority classes
+
+
+compare:
+  models: ["resnet1d", "tcn"]
+
+
+cv:
+  n_splits: 2
+  shuffle: true
+  seed: 840410
+
+
+optimization:
+  batch_size: 64
+  lr: 0.0004
+  weight_decay: 0.0004
+  max_epochs: 500
+  patience_limit: 10
+  label_smoothing: 0.001
+
+  # Early stopping configuration
+  early_stopping:
+    auc_min_delta: 0.005    # Minimum AUC improvement required (0.5%)
+    loss_mode: "relative"   # "relative", "absolute", or "none"
+    loss_tolerance: 1.10    # For relative: loss <= best_loss * 1.10 (max 10% higher)
+    # Alternative checkpoint (uncomment to enable):
+    auc_tolerance: 0.003  # Max AUC drop from best to allow alternative checkpoint
+    loss_min_delta: 0.005  # Min loss improvement required for alternative checkpoint
+
+  # Threshold selection method for binary classification
+  # - "argmax": Use standard argmax (no threshold optimization) - RECOMMENDED for balanced datasets
+  # - "mcc": Optimize Matthews Correlation Coefficient
+  # - "balanced_accuracy": Optimize balanced accuracy across classes
+  # - "f1": Optimize F1 score
+  # - "youden": Optimize Youden's J statistic (sensitivity + specificity - 1)
+  # - "min_recall": Maximize minimum recall across both classes
+  threshold_metric: "argmax"
+
+  # Focal Loss parameters (alternative to cross-entropy for imbalanced datasets)
+  # Set use_focal_loss: true to enable, false to use standard cross-entropy (recommended)
+  use_focal_loss: false
+  focal_gamma: 2.0       # Focusing parameter, higher = more focus on hard examples
+  # focal_alpha: null    # Optional: set to list of per-class weights for class imbalance
+
+
+hpo:
+  enabled: false
+  storage_root: "../Optuna_Databases"
+  user: "auto"
+  dataset_scope: "auto"
+  fallback_to_other_users: true
+  fallback_to_shared: true
+  fallback_to_other_datasets: true
+
+
+uncertainty:
+  mc_dropout:
+    enabled: true
+    n_mc: 100
+    trace_loss: 50.0              # Maximum trace loss % for auto threshold selection
+    # wasserstein_threshold: 0.1  # Optional: fixed Wasserstein threshold (overrides trace_loss)
+
+
+system:
+  compile: false
+  num_workers: 4
+  seed: 840410
+  n_gpus: 1  # Number of GPUs for parallel augmentation sweep
+
+
+# Augmentation sweep: compare models across different augmentation levels
+# Enable via config or CLI: --aug-factors 0,2,3,5 --n-gpus 4
+augmentation_sweep:
+  enabled: true
+  factors: [0, 3]  # 0 = no augmentation (baseline)
+  augmentation_params:
+    time_warp_sigma: 0.05
+    noise_sigma: 0.05
+    magnitude_jitter: 0.05
+    include_mirror: true
