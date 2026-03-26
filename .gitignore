@@ -2,3 +2,5 @@ CLAUDE.md
 .DS_Store
 Inputs/
 Results/
+__pycache__/
+slurm*
