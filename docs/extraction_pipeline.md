@@ -197,25 +197,26 @@ Combines per-movie traces by protein and applies preprocessing:
 Output filenames include a `gmm` method tag (e.g., `Grx1_IN_gmm_all_raw_traces.pkl`).
 
 **Outputs (with ground truth)**:
-- `{RunFolder}/{Protein}_{IN|OUT}_{method_tag}_all_raw_traces.pkl`
-- `{RunFolder}/{Protein}_{IN|OUT}_{method_tag}_all_bg_rm_traces.pkl`
-- `{RunFolder}/{Protein}_{IN|OUT}_{method_tag}_all_zscored_traces.pkl`
-- `{RunFolder}/{Protein}_{IN|OUT}_{method_tag}_all_minmax_traces.pkl`
-- `{RunFolder}/_{Protein}_uniqueID_{all|IN|OUT}.pkl` - Metadata
+- `{RunFolder}/ProteinTracesIN/AllRaw/{Protein}_IN_raw.pkl`
+- `{RunFolder}/ProteinTracesIN/AllBG/{Protein}_IN_bg_rm.pkl`
+- `{RunFolder}/ProteinTracesIN/AllNorm/{Protein}_IN_zscored.pkl`
+- `{RunFolder}/ProteinTracesIN/AllNorm/{Protein}_IN_minmax.pkl`
+- `{RunFolder}/UniqueIDs/{Protein}_uniqueID_{all|IN|OUT}.pkl` - Metadata
+- (same for `ProteinTracesOUT/`)
 
 **Outputs (no ground truth)**:
-- `{RunFolder}/{Protein}_{method_tag}_all_raw_traces.pkl`
-- `{RunFolder}/{Protein}_{method_tag}_all_bg_rm_traces.pkl`
-- `{RunFolder}/{Protein}_{method_tag}_all_zscored_traces.pkl`
-- `{RunFolder}/{Protein}_{method_tag}_all_minmax_traces.pkl`
-- `{RunFolder}/_{Protein}_uniqueID_{all|single}.pkl` - Metadata
+- `{RunFolder}/ProteinTraces/AllRaw/{Protein}_raw.pkl`
+- `{RunFolder}/ProteinTraces/AllBG/{Protein}_bg_rm.pkl`
+- `{RunFolder}/ProteinTraces/AllNorm/{Protein}_zscored.pkl`
+- `{RunFolder}/ProteinTraces/AllNorm/{Protein}_minmax.pkl`
+- `{RunFolder}/UniqueIDs/{Protein}_uniqueID_{all|single}.pkl` - Metadata
 
 **Outputs (background traces, if enabled)**:
-- `{RunFolder}/{Protein}_background_{method_tag}_all_raw_traces.pkl`
-- `{RunFolder}/{Protein}_background_{method_tag}_all_bg_rm_traces.pkl`
-- `{RunFolder}/{Protein}_background_{method_tag}_all_zscored_traces.pkl`
-- `{RunFolder}/{Protein}_background_{method_tag}_all_minmax_traces.pkl`
-- `{RunFolder}/_{Protein}_uniqueID_background.pkl` - Metadata
+- `{RunFolder}/BackgroundTraces/AllRaw/{Protein}_background_raw.pkl`
+- `{RunFolder}/BackgroundTraces/AllBG/{Protein}_background_bg_rm.pkl`
+- `{RunFolder}/BackgroundTraces/AllNorm/{Protein}_background_zscored.pkl`
+- `{RunFolder}/BackgroundTraces/AllNorm/{Protein}_background_minmax.pkl`
+- `{RunFolder}/UniqueIDs/{Protein}_uniqueID_background.pkl` - Metadata
 
 **Note**: The `_all_` prefix indicates these files contain ALL traces before quality filtering. Background traces are not further filtered after contamination removal.
 
@@ -234,20 +235,17 @@ Quality filtering for machine learning. Operates on the `{method_tag}`-prefixed 
 - Optional: Data augmentation with time-reversal mirroring (`include_mirrored`)
 
 **Outputs (with ground truth)**:
-- `{RunFolder}/{Protein}_{IN|OUT}_{method_tag}_filtered_raw_traces.pkl` - ML-ready
-- `{RunFolder}/{Protein}_{IN|OUT}_{method_tag}_filtered_bg_rm_traces.pkl`
-- `{RunFolder}/{Protein}_{IN|OUT}_{method_tag}_filtered_zscored_traces.pkl`
-- `{RunFolder}/{Protein}_{IN|OUT}_{method_tag}_filtered_minmax_traces.pkl`
-- Optional: `*_{method_tag}_filtered_flattened_{raw|zscored}_traces.pkl` (denoised)
-- Optional: `*_{method_tag}_filtered_{raw|bg_rm|zscored|minmax}_traces_incl_mirrored.pkl` (augmented)
+- `{RunFolder}/ProteinTracesIN/Filtered/{Protein}_IN_filtered_raw.pkl`
+- `{RunFolder}/ProteinTracesIN/Filtered/{Protein}_IN_filtered_bg_rm.pkl`
+- `{RunFolder}/ProteinTracesIN/Filtered/{Protein}_IN_filtered_zscored.pkl` ← ML-ready
+- `{RunFolder}/ProteinTracesIN/Filtered/{Protein}_IN_filtered_minmax.pkl`  ← ML-ready
+- (same for `ProteinTracesOUT/Filtered/`)
 
 **Outputs (no ground truth)**:
-- `{RunFolder}/{Protein}_{method_tag}_filtered_raw_traces.pkl` - ML-ready
-- `{RunFolder}/{Protein}_{method_tag}_filtered_bg_rm_traces.pkl`
-- `{RunFolder}/{Protein}_{method_tag}_filtered_zscored_traces.pkl`
-- `{RunFolder}/{Protein}_{method_tag}_filtered_minmax_traces.pkl`
-- Optional: `*_{method_tag}_filtered_flattened_{raw|zscored}_traces.pkl` (denoised)
-- Optional: `*_{method_tag}_filtered_{raw|bg_rm|zscored|minmax}_traces_incl_mirrored.pkl` (augmented)
+- `{RunFolder}/ProteinTraces/Filtered/{Protein}_filtered_raw.pkl`
+- `{RunFolder}/ProteinTraces/Filtered/{Protein}_filtered_bg_rm.pkl`
+- `{RunFolder}/ProteinTraces/Filtered/{Protein}_filtered_zscored.pkl`
+- `{RunFolder}/ProteinTraces/Filtered/{Protein}_filtered_minmax.pkl`
 
 ### Step 5: Diagnostics (diagnose.py)
 
@@ -275,15 +273,10 @@ When background traces are available, the diagnostic step also:
 - Calculates SNR separation between protein and background
 
 **Outputs**:
-- `{RunFolder}/diagnostics/{Protein}_{IN|OUT}_diagnostic_report.txt` - Summary statistics
-- `{RunFolder}/diagnostics/{Protein}_{IN|OUT}_trace_metrics.csv` - Per-trace metrics
-- `{RunFolder}/diagnostics/{Protein}_{IN|OUT}_trace_examples/` - Visual examples (folder with plot.png + data CSV)
-- `{RunFolder}/diagnostics/{Protein}_{IN|OUT}_metrics_distributions/` - Quality distributions (folder with plot.png + data CSVs)
-
-**Background-specific outputs** (if enabled):
-- `{RunFolder}/diagnostics/{Protein}_background_metrics.csv` - Background trace metrics
-- `{RunFolder}/diagnostics/{Protein}_background_trace_examples/` - Background trace examples
-- `{RunFolder}/diagnostics/{Protein}_background_vs_protein/` - Comparison plots (SNR, std, peaks)
+- `{RunFolder}/Diagnostics/IN/{Protein}_IN_trace_examples/` - Visual examples (plot.pdf + data CSV)
+- `{RunFolder}/Diagnostics/OUT/{Protein}_OUT_trace_examples/`
+- `{RunFolder}/Diagnostics/Background/{Protein}_background_trace_examples/`
+- (No ground truth: `Diagnostics/Protein/` instead of `IN/`/`OUT/`)
 
 **Usage**:
 ```bash
@@ -410,46 +403,56 @@ Data/movies/
 ```
 Results/Extract/Grx1_K20Ac_optparam_001/
 ├── run_info.yaml                      # Run metadata (proteins, channels, etc.)
-├── trace_file_list.pkl                # Successfully processed files
-├── background_file_list.pkl           # Background trace files (if n_background_traces > 0)
-├── failed_file_list.pkl               # Failed files (if any)
 │
-├── Exp1/Grx1/                         # Per-movie outputs
-│   ├── *_locs.hdf5                    # Localizations
-│   ├── *_locs.yaml                    # Metadata
-│   ├── *_traces.pkl                   # Extracted traces
-│   └── *_background_traces.pkl        # Background traces (if enabled)
+├── FileLists/
+│   ├── trace_file_list.pkl            # Successfully processed trace files
+│   ├── background_file_list.pkl       # Background trace files (if n_background_traces > 0)
+│   └── failed_file_list.pkl           # Failed files (if any)
 │
-├── Grx1_IN_gmm_all_raw_traces.pkl         # All traces (before filtering); tag is "gmm" or "binsize500"
-├── Grx1_IN_gmm_all_bg_rm_traces.pkl
-├── Grx1_IN_gmm_all_zscored_traces.pkl
-├── Grx1_IN_gmm_all_minmax_traces.pkl
-├── _Grx1_uniqueID_IN.pkl                  # Trace metadata
+├── UniqueIDs/
+│   ├── Grx1_uniqueID_all.pkl          # All traces with metadata
+│   ├── Grx1_uniqueID_IN.pkl           # IN traces with metadata
+│   ├── Grx1_uniqueID_OUT.pkl
+│   └── Grx1_uniqueID_background.pkl
 │
-├── Grx1_background_gmm_all_raw_traces.pkl # Background traces (if enabled)
-├── Grx1_background_gmm_all_bg_rm_traces.pkl
-├── Grx1_background_gmm_all_zscored_traces.pkl
-├── Grx1_background_gmm_all_minmax_traces.pkl
-├── _Grx1_uniqueID_background.pkl          # Background metadata
+├── Exp1/Grx1/                         # Per-movie outputs (localization + extraction)
+│   ├── *_locs.hdf5
+│   ├── *_locs.yaml
+│   ├── *_traces.pkl
+│   └── *_background_traces.pkl
 │
-├── Grx1_IN_gmm_filtered_raw_traces.pkl    # Quality-filtered traces (ML-ready)
-├── Grx1_IN_gmm_filtered_bg_rm_traces.pkl
-├── Grx1_IN_gmm_filtered_zscored_traces.pkl
-├── Grx1_IN_gmm_filtered_minmax_traces.pkl
-├── Grx1_IN_gmm_filtered_flattened_raw_traces.pkl        # Denoised (optional)
-├── Grx1_IN_gmm_filtered_zscored_traces_incl_mirrored.pkl # Augmented (optional)
+├── ProteinTracesIN/
+│   ├── AllRaw/     Grx1_IN_raw.pkl
+│   ├── AllBG/      Grx1_IN_bg_rm.pkl
+│   ├── AllNorm/    Grx1_IN_zscored.pkl
+│   │               Grx1_IN_minmax.pkl
+│   └── Filtered/   Grx1_IN_filtered_raw.pkl
+│                   Grx1_IN_filtered_bg_rm.pkl
+│                   Grx1_IN_filtered_zscored.pkl    ← ML-ready
+│                   Grx1_IN_filtered_minmax.pkl     ← ML-ready
 │
-├── diagnostics/                       # Quality analysis reports
-│   ├── Grx1_IN_diagnostic_report.txt
-│   ├── Grx1_IN_trace_metrics.csv
-│   ├── Grx1_IN_trace_examples/        # Folder with plot.png + data CSV
-│   ├── Grx1_IN_metrics_distributions/ # Folder with plot.png + data CSVs
-│   ├── Grx1_background_metrics.csv    # Background metrics (if enabled)
-│   ├── Grx1_background_trace_examples/
-│   ├── Grx1_background_vs_protein/    # Comparison plots
-│   └── ... (same for other proteins/labels)
+├── ProteinTracesOUT/
+│   └── (same structure)
 │
-└── ... (same for Grx1_OUT, K20Ac_IN, K20Ac_OUT)
+├── BackgroundTraces/
+│   ├── AllRaw/     Grx1_background_raw.pkl
+│   ├── AllBG/      Grx1_background_bg_rm.pkl
+│   ├── AllNorm/    Grx1_background_zscored.pkl
+│   │               Grx1_background_minmax.pkl
+│   └── Filtered/   Grx1_background_filtered_raw.pkl
+│                   Grx1_background_filtered_bg_rm.pkl
+│                   Grx1_background_filtered_zscored.pkl
+│                   Grx1_background_filtered_minmax.pkl
+│
+├── Diagnostics/
+│   ├── IN/
+│   │   └── Grx1_IN_trace_examples/    # plot.pdf + data_panel_traces.csv
+│   ├── OUT/
+│   │   └── Grx1_OUT_trace_examples/
+│   └── Background/
+│       └── Grx1_background_trace_examples/
+│
+└── ... (same for K20Ac)
 
 Original Data Folders:
 input_folder/Exp1/Grx1/
@@ -462,8 +465,8 @@ input_folder/Exp1/Grx1/
 
 **Key File Naming:**
 - `run_info.yaml` - Run metadata only (no parameters, since they vary by protein)
-- `*_all_*_traces.pkl` - All traces before quality filtering
-- `*_filtered_*_traces.pkl` - Quality-filtered traces only
+- `AllRaw/`, `AllBG/`, `AllNorm/` - All traces before quality filtering
+- `Filtered/` - Quality-filtered (ML-ready) traces
 - Parameters saved in protein folders, not in run folder
 
 ## Common Workflows

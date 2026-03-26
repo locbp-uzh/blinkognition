@@ -108,6 +108,16 @@ def gmm_background_parallel(df_raw: pd.DataFrame, n_jobs: int) -> pd.Series:
     return pd.Series(results, index=df_raw.columns)
 
 
+def _protein_folder(run_folder: Path, gt_label: str) -> Path:
+    """Return the ProteinTraces* root folder for a given GT label."""
+    if gt_label == "IN":
+        return run_folder / "ProteinTracesIN"
+    elif gt_label == "OUT":
+        return run_folder / "ProteinTracesOUT"
+    else:
+        return run_folder / "ProteinTraces"
+
+
 def trace_dict_rearr(traces_df: pd.DataFrame, movie_length: int) -> pd.DataFrame:
     """
     Convert per-trace list format to matrix format.
@@ -179,7 +189,6 @@ def main() -> None:
     compounds = list(run_info["input_data"]["proteins"])
     movie_length = int(cfg["movie_length"])
     gmm_proba_threshold = float(cfg.get("gmm_proba_threshold", 0.8))
-    method_tag = "gmm"
     has_ground_truth = run_info["input_data"].get("has_ground_truth", True)
     n_workers = cfg.get("n_workers", -1)
     if n_workers is None:
@@ -189,10 +198,24 @@ def main() -> None:
     logging.info(f"Proteins: {', '.join(compounds)}")
     logging.info(f"Has ground truth: {has_ground_truth}")
 
+    # Create output folder structure
+    unique_ids_dir = run_folder / "UniqueIDs"
+    unique_ids_dir.mkdir(exist_ok=True)
+    bgf = run_folder / "BackgroundTraces"
+    for sub in ["AllRaw", "AllBG", "AllNorm", "Filtered"]:
+        (bgf / sub).mkdir(parents=True, exist_ok=True)
+    if has_ground_truth:
+        for label in ["IN", "OUT"]:
+            for sub in ["AllRaw", "AllBG", "AllNorm", "Filtered"]:
+                (run_folder / f"ProteinTraces{label}" / sub).mkdir(parents=True, exist_ok=True)
+    else:
+        for sub in ["AllRaw", "AllBG", "AllNorm", "Filtered"]:
+            (run_folder / "ProteinTraces" / sub).mkdir(parents=True, exist_ok=True)
+
     # Load trace file list
-    trace_list_path = run_folder / "trace_file_list.pkl"
+    trace_list_path = run_folder / "FileLists" / "trace_file_list.pkl"
     if not trace_list_path.exists():
-        logging.error(f"trace_file_list.pkl not found in {run_folder}")
+        logging.error(f"FileLists/trace_file_list.pkl not found in {run_folder}")
         sys.exit(1)
 
     with trace_list_path.open("rb") as f:
@@ -219,15 +242,17 @@ def main() -> None:
                 # Create empty outputs
                 if has_ground_truth:
                     for gt in ["IN", "OUT"]:
-                        pd.DataFrame().to_pickle(run_folder / f"{compound}_{gt}_all_raw_traces.pkl")
-                        for suffix in ["bg_rm", "zscored", "minmax"]:
-                            empty_path = run_folder / f"{compound}_{gt}_{method_tag}_all_{suffix}_traces.pkl"
-                            pd.DataFrame().to_pickle(empty_path)
+                        pf = _protein_folder(run_folder, gt)
+                        pd.DataFrame().to_pickle(pf / "AllRaw"  / f"{compound}_{gt}_raw.pkl")
+                        pd.DataFrame().to_pickle(pf / "AllBG"   / f"{compound}_{gt}_bg_rm.pkl")
+                        pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}_{gt}_zscored.pkl")
+                        pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}_{gt}_minmax.pkl")
                 else:
-                    pd.DataFrame().to_pickle(run_folder / f"{compound}_all_raw_traces.pkl")
-                    for suffix in ["bg_rm", "zscored", "minmax"]:
-                        empty_path = run_folder / f"{compound}_{method_tag}_all_{suffix}_traces.pkl"
-                        pd.DataFrame().to_pickle(empty_path)
+                    pf = run_folder / "ProteinTraces"
+                    pd.DataFrame().to_pickle(pf / "AllRaw"  / f"{compound}_raw.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllBG"   / f"{compound}_bg_rm.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}_zscored.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}_minmax.pkl")
                 continue
 
             logging.info(f"  Found {len(matched)} files for {compound}")
@@ -257,9 +282,9 @@ def main() -> None:
                 out_trace = merged.loc[out_mask.fillna(False)].copy()
 
                 # Save uniqueID files
-                merged.to_pickle(run_folder / f"_{compound}_uniqueID_all.pkl")
-                real_trace.to_pickle(run_folder / f"_{compound}_uniqueID_IN.pkl")
-                out_trace.to_pickle(run_folder / f"_{compound}_uniqueID_OUT.pkl")
+                merged.to_pickle(unique_ids_dir / f"{compound}_uniqueID_all.pkl")
+                real_trace.to_pickle(unique_ids_dir / f"{compound}_uniqueID_IN.pkl")
+                out_trace.to_pickle(unique_ids_dir / f"{compound}_uniqueID_OUT.pkl")
 
                 logging.info(
                     f"  IN traces: {len(real_trace)}, OUT traces: {len(out_trace)}"
@@ -273,8 +298,8 @@ def main() -> None:
                 single_trace = merged.loc[single_mask.fillna(False)].copy()
 
                 # Save uniqueID files
-                merged.to_pickle(run_folder / f"_{compound}_uniqueID_all.pkl")
-                single_trace.to_pickle(run_folder / f"_{compound}_uniqueID_single.pkl")
+                merged.to_pickle(unique_ids_dir / f"{compound}_uniqueID_all.pkl")
+                single_trace.to_pickle(unique_ids_dir / f"{compound}_uniqueID_single.pkl")
 
                 logging.info(f"  Single traces: {len(single_trace)}")
 
@@ -286,29 +311,31 @@ def main() -> None:
                 # Raw traces
                 df_raw = trace_dict_rearr(df_subset, movie_length)
 
-                # Determine file naming
+                # Determine file naming and folder
                 if gt_label:  # Has ground truth (IN or OUT)
                     label_str = f"_{gt_label}"
                     log_label = f"{compound}_{gt_label}"
                 else:  # No ground truth
                     label_str = ""
                     log_label = compound
+                pf = _protein_folder(run_folder, gt_label)
 
                 if df_raw.empty:
                     logging.warning(f"  No valid traces for {log_label}")
                     # Save empty outputs
-                    pd.DataFrame().to_pickle(run_folder / f"{compound}{label_str}_all_raw_traces.pkl")
-                    for suffix in ["bg_rm", "zscored", "minmax"]:
-                        pd.DataFrame().to_pickle(run_folder / f"{compound}{label_str}_{method_tag}_all_{suffix}_traces.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllRaw"  / f"{compound}{label_str}_raw.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllBG"   / f"{compound}{label_str}_bg_rm.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}{label_str}_zscored.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}{label_str}_minmax.pkl")
                     continue
 
                 # Save raw traces
-                df_raw.to_pickle(run_folder / f"{compound}{label_str}_all_raw_traces.pkl")
+                df_raw.to_pickle(pf / "AllRaw" / f"{compound}{label_str}_raw.pkl")
 
                 # Background removal (GMM)
                 noise_avg = gmm_background_parallel(df_raw, n_workers)
                 df_bg_rm = df_raw - noise_avg
-                df_bg_rm.to_pickle(run_folder / f"{compound}{label_str}_{method_tag}_all_bg_rm_traces.pkl")
+                df_bg_rm.to_pickle(pf / "AllBG" / f"{compound}{label_str}_bg_rm.pkl")
 
                 # Z-scoring
                 scaler_z = StandardScaler()
@@ -316,9 +343,7 @@ def main() -> None:
                     scaler_z.fit_transform(df_bg_rm),
                     columns=df_bg_rm.columns,
                 )
-                df_zscored.to_pickle(
-                    run_folder / f"{compound}{label_str}_{method_tag}_all_zscored_traces.pkl"
-                )
+                df_zscored.to_pickle(pf / "AllNorm" / f"{compound}{label_str}_zscored.pkl")
 
                 # Min-max scaling
                 scaler_mm = MinMaxScaler()
@@ -326,9 +351,7 @@ def main() -> None:
                     scaler_mm.fit_transform(df_bg_rm),
                     columns=df_bg_rm.columns,
                 )
-                df_minmax.to_pickle(
-                    run_folder / f"{compound}{label_str}_{method_tag}_all_minmax_traces.pkl"
-                )
+                df_minmax.to_pickle(pf / "AllNorm" / f"{compound}{label_str}_minmax.pkl")
 
                 logging.info(
                     f"  {log_label}: {df_raw.shape[1]} traces × {df_raw.shape[0]} frames"
@@ -340,21 +363,23 @@ def main() -> None:
             # Create empty outputs for this compound
             if has_ground_truth:
                 for gt in ["IN", "OUT"]:
-                    pd.DataFrame().to_pickle(run_folder / f"{compound}_{gt}_all_raw_traces.pkl")
-                    for suffix in ["bg_rm", "zscored", "minmax"]:
-                        empty_path = run_folder / f"{compound}_{gt}_{method_tag}_all_{suffix}_traces.pkl"
-                        pd.DataFrame().to_pickle(empty_path)
+                    pf = _protein_folder(run_folder, gt)
+                    pd.DataFrame().to_pickle(pf / "AllRaw"  / f"{compound}_{gt}_raw.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllBG"   / f"{compound}_{gt}_bg_rm.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}_{gt}_zscored.pkl")
+                    pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}_{gt}_minmax.pkl")
             else:
-                pd.DataFrame().to_pickle(run_folder / f"{compound}_all_raw_traces.pkl")
-                for suffix in ["bg_rm", "zscored", "minmax"]:
-                    empty_path = run_folder / f"{compound}_{method_tag}_all_{suffix}_traces.pkl"
-                    pd.DataFrame().to_pickle(empty_path)
+                pf = run_folder / "ProteinTraces"
+                pd.DataFrame().to_pickle(pf / "AllRaw"  / f"{compound}_raw.pkl")
+                pd.DataFrame().to_pickle(pf / "AllBG"   / f"{compound}_bg_rm.pkl")
+                pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}_zscored.pkl")
+                pd.DataFrame().to_pickle(pf / "AllNorm" / f"{compound}_minmax.pkl")
             continue
 
     # =========================================================================
     # Process background traces
     # =========================================================================
-    bg_list_path = run_folder / "background_file_list.pkl"
+    bg_list_path = run_folder / "FileLists" / "background_file_list.pkl"
     if bg_list_path.exists():
         logging.info("\nProcessing background traces...")
 
@@ -395,7 +420,7 @@ def main() -> None:
                     )
 
                     # Save uniqueID file
-                    bg_merged.to_pickle(run_folder / f"_{compound}_uniqueID_background.pkl")
+                    bg_merged.to_pickle(unique_ids_dir / f"{compound}_uniqueID_background.pkl")
 
                     # Convert to matrix format
                     df_bg_raw = trace_dict_rearr(bg_merged, movie_length)
@@ -405,12 +430,12 @@ def main() -> None:
                         continue
 
                     # Save raw background traces
-                    df_bg_raw.to_pickle(run_folder / f"{compound}_background_all_raw_traces.pkl")
+                    df_bg_raw.to_pickle(bgf / "AllRaw" / f"{compound}_background_raw.pkl")
 
                     # Background removal (GMM)
                     noise_avg = gmm_background_parallel(df_bg_raw, n_workers)
                     df_bg_bg_rm = df_bg_raw - noise_avg
-                    df_bg_bg_rm.to_pickle(run_folder / f"{compound}_background_{method_tag}_all_bg_rm_traces.pkl")
+                    df_bg_bg_rm.to_pickle(bgf / "AllBG" / f"{compound}_background_bg_rm.pkl")
 
                     # Z-scoring
                     scaler_z = StandardScaler()
@@ -418,7 +443,7 @@ def main() -> None:
                         scaler_z.fit_transform(df_bg_bg_rm),
                         columns=df_bg_bg_rm.columns,
                     )
-                    df_bg_zscored.to_pickle(run_folder / f"{compound}_background_{method_tag}_all_zscored_traces.pkl")
+                    df_bg_zscored.to_pickle(bgf / "AllNorm" / f"{compound}_background_zscored.pkl")
 
                     # Min-max scaling
                     scaler_mm = MinMaxScaler()
@@ -426,7 +451,7 @@ def main() -> None:
                         scaler_mm.fit_transform(df_bg_bg_rm),
                         columns=df_bg_bg_rm.columns,
                     )
-                    df_bg_minmax.to_pickle(run_folder / f"{compound}_background_{method_tag}_all_minmax_traces.pkl")
+                    df_bg_minmax.to_pickle(bgf / "AllNorm" / f"{compound}_background_minmax.pkl")
 
                     logging.info(
                         f"  {compound}_background: {df_bg_raw.shape[1]} traces × {df_bg_raw.shape[0]} frames"
@@ -447,10 +472,10 @@ def main() -> None:
                             df_bg_minmax_filt  = df_bg_minmax[kept_cols]
 
                             # Save filtered versions
-                            df_bg_raw_filt.to_pickle(run_folder / f"{compound}_background_all_raw_traces_filtered.pkl")
-                            df_bg_bg_rm_filt.to_pickle(run_folder / f"{compound}_background_{method_tag}_all_bg_rm_traces_filtered.pkl")
-                            df_bg_zscored_filt.to_pickle(run_folder / f"{compound}_background_{method_tag}_all_zscored_traces_filtered.pkl")
-                            df_bg_minmax_filt.to_pickle(run_folder / f"{compound}_background_{method_tag}_all_minmax_traces_filtered.pkl")
+                            df_bg_raw_filt.to_pickle(bgf / "Filtered" / f"{compound}_background_filtered_raw.pkl")
+                            df_bg_bg_rm_filt.to_pickle(bgf / "Filtered" / f"{compound}_background_filtered_bg_rm.pkl")
+                            df_bg_zscored_filt.to_pickle(bgf / "Filtered" / f"{compound}_background_filtered_zscored.pkl")
+                            df_bg_minmax_filt.to_pickle(bgf / "Filtered" / f"{compound}_background_filtered_minmax.pkl")
 
                             logging.info(
                                 f"  {compound}_background_filtered: {filter_stats['n_filtered']} traces "
@@ -473,30 +498,24 @@ def main() -> None:
     for compound in compounds:
         if has_ground_truth:
             for gt in ["IN", "OUT"]:
-                raw_file = run_folder / f"{compound}_{gt}_all_raw_traces.pkl"
+                raw_file = _protein_folder(run_folder, gt) / "AllRaw" / f"{compound}_{gt}_raw.pkl"
                 if raw_file.exists():
                     df_check = pd.read_pickle(raw_file)
                     if not df_check.empty:
-                        logging.info(
-                            f"  {compound}_{gt}: {df_check.shape[1]} traces"
-                        )
+                        logging.info(f"  {compound}_{gt}: {df_check.shape[1]} traces")
         else:
-            raw_file = run_folder / f"{compound}_all_raw_traces.pkl"
+            raw_file = run_folder / "ProteinTraces" / "AllRaw" / f"{compound}_raw.pkl"
             if raw_file.exists():
                 df_check = pd.read_pickle(raw_file)
                 if not df_check.empty:
-                    logging.info(
-                        f"  {compound}: {df_check.shape[1]} traces"
-                    )
+                    logging.info(f"  {compound}: {df_check.shape[1]} traces")
 
         # Report background traces
-        bg_raw_file = run_folder / f"{compound}_background_all_raw_traces.pkl"
+        bg_raw_file = bgf / "AllRaw" / f"{compound}_background_raw.pkl"
         if bg_raw_file.exists():
             df_bg_check = pd.read_pickle(bg_raw_file)
             if not df_bg_check.empty:
-                logging.info(
-                    f"  {compound}_background: {df_bg_check.shape[1]} traces"
-                )
+                logging.info(f"  {compound}_background: {df_bg_check.shape[1]} traces")
 
 
 if __name__ == "__main__":

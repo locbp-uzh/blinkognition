@@ -642,13 +642,15 @@ def main() -> None:
                 failed_files.append(str(protein_file))
 
     # Save file lists
-    with open(run_folder / "trace_file_list.pkl", "wb") as f:
+    file_lists_dir = run_folder / "FileLists"
+    file_lists_dir.mkdir(exist_ok=True)
+    with open(file_lists_dir / "trace_file_list.pkl", "wb") as f:
         pickle.dump(trace_files_list, f)
 
-    with open(run_folder / "background_file_list.pkl", "wb") as f:
+    with open(file_lists_dir / "background_file_list.pkl", "wb") as f:
         pickle.dump(background_files_list, f)
 
-    with open(run_folder / "failed_file_list.pkl", "wb") as f:
+    with open(file_lists_dir / "failed_file_list.pkl", "wb") as f:
         pickle.dump(failed_files, f)
 
     # Summary

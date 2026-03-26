@@ -29,6 +29,9 @@ from utils import setup_logging, gmm_classify_frames
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# fontTools is very chatty when matplotlib embeds fonts in PDFs; suppress below ERROR
+logging.getLogger("fontTools").setLevel(logging.ERROR)
+
 # =============================================================================
 # Plotting Standards (see docs/plotting_standards.md)
 # =============================================================================
@@ -282,18 +285,22 @@ def analyze_traces(
         metrics_df: DataFrame with one row per trace (includes experiment info)
         traces: The original z-scored traces
     """
-    method_tag = "gmm"
-
-    # Determine file naming
-    if gt_label:
-        label_str = f"_{gt_label}"
-        log_label = f"{compound}_{gt_label}"
+    # Determine file naming and folder
+    if gt_label == "IN":
+        protein_folder = run_folder / "ProteinTracesIN"
+        label_str = "_IN"
+        log_label = f"{compound}_IN"
+    elif gt_label == "OUT":
+        protein_folder = run_folder / "ProteinTracesOUT"
+        label_str = "_OUT"
+        log_label = f"{compound}_OUT"
     else:
+        protein_folder = run_folder / "ProteinTraces"
         label_str = ""
         log_label = compound
 
     # Load z-scored traces
-    zscored_path = run_folder / f"{compound}{label_str}_{method_tag}_all_zscored_traces.pkl"
+    zscored_path = protein_folder / "AllNorm" / f"{compound}{label_str}_zscored.pkl"
 
     if not zscored_path.exists():
         logging.warning(f"No z-scored traces found for {log_label}")
@@ -311,7 +318,7 @@ def analyze_traces(
     traces.dropna(axis="columns", inplace=True)
 
     # Load uniqueID file to get experiment information
-    uniqueID_path = run_folder / f"_{compound}_uniqueID_{gt_label if gt_label else 'all'}.pkl"
+    uniqueID_path = run_folder / "UniqueIDs" / f"{compound}_uniqueID_{gt_label if gt_label else 'all'}.pkl"
     experiment_map = {}
 
     if uniqueID_path.exists():
@@ -327,7 +334,7 @@ def analyze_traces(
             logging.warning(f"Could not load experiment info from {uniqueID_path}: {e}")
 
     # Load bg_rm traces for GMM peak detection
-    bg_rm_path = run_folder / f"{compound}{label_str}_{method_tag}_all_bg_rm_traces.pkl"
+    bg_rm_path = protein_folder / "AllBG" / f"{compound}{label_str}_bg_rm.pkl"
     if not bg_rm_path.exists():
         logging.warning(f"bg_rm traces not found for {log_label}")
         return pd.DataFrame(), pd.DataFrame()
@@ -441,7 +448,8 @@ def plot_trace_examples(
 
         ax.set_xlabel("Frame", fontsize=FONTSIZE_LABEL)
         ax.set_ylabel("Z-scored intensity", fontsize=FONTSIZE_LABEL)
-        ax.legend(fontsize=FONTSIZE_LEGEND, frameon=False, loc="upper right")
+        if ax.get_legend_handles_labels()[0]:
+            ax.legend(fontsize=FONTSIZE_LEGEND, frameon=False, loc="upper right")
         apply_axis_standards(ax)
 
         # Collect data for CSV
@@ -478,8 +486,9 @@ def analyze_background_traces(
         metrics_df: DataFrame with basic metrics per trace
         traces: The z-scored background traces
     """
+    bgf = run_folder / "BackgroundTraces"
     # Load z-scored background traces
-    zscored_path = run_folder / f"{compound}_background_gmm_all_zscored_traces.pkl"
+    zscored_path = bgf / "AllNorm" / f"{compound}_background_zscored.pkl"
 
     if not zscored_path.exists():
         return pd.DataFrame(), pd.DataFrame()
@@ -498,7 +507,7 @@ def analyze_background_traces(
         return pd.DataFrame(), pd.DataFrame()
 
     # Load bg_rm traces for GMM-based SNR
-    bg_rm_path = run_folder / f"{compound}_background_gmm_all_bg_rm_traces.pkl"
+    bg_rm_path = bgf / "AllBG" / f"{compound}_background_bg_rm.pkl"
     bg_rm_traces = pd.read_pickle(bg_rm_path) if bg_rm_path.exists() else None
 
     # Compute basic metrics for each trace (parallel over particles, no filtering)
@@ -678,9 +687,14 @@ def main() -> None:
     logging.info(f"Number of example traces to plot: {n_examples}")
     logging.info("")
 
-    # Create diagnostics output folder
-    diag_folder = run_folder / "diagnostics"
-    diag_folder.mkdir(exist_ok=True)
+    # Create diagnostics output folder structure
+    diag_folder = run_folder / "Diagnostics"
+    if has_ground_truth:
+        for sub in ["IN", "OUT", "Background"]:
+            (diag_folder / sub).mkdir(parents=True, exist_ok=True)
+    else:
+        for sub in ["Protein", "Background"]:
+            (diag_folder / sub).mkdir(parents=True, exist_ok=True)
 
     # Process each compound: plot protein trace examples
     for compound in proteins:
@@ -702,9 +716,15 @@ def main() -> None:
                     logging.warning(f"No traces found for {log_label}, skipping")
                     continue
 
-                # Plot trace examples
+                # Plot trace examples (into the appropriate label subfolder)
+                if gt_label == "IN":
+                    diag_sub = diag_folder / "IN"
+                elif gt_label == "OUT":
+                    diag_sub = diag_folder / "OUT"
+                else:
+                    diag_sub = diag_folder / "Protein"
                 label_suffix = f"_{gt_label}" if gt_label else ""
-                examples_path = diag_folder / f"{compound}{label_suffix}_trace_examples.png"
+                examples_path = diag_sub / f"{compound}{label_suffix}_trace_examples.png"
                 plot_trace_examples(metrics_df, traces, cfg, examples_path, n_examples)
 
                 logging.info("")
@@ -726,7 +746,7 @@ def main() -> None:
     for compound in proteins:
         try:
             # Check if background traces exist for this compound
-            bg_zscored_path = run_folder / f"{compound}_background_gmm_all_zscored_traces.pkl"
+            bg_zscored_path = run_folder / "BackgroundTraces" / "AllNorm" / f"{compound}_background_zscored.pkl"
 
             if not bg_zscored_path.exists():
                 logging.info(f"No background traces found for {compound}, skipping")
@@ -744,8 +764,8 @@ def main() -> None:
             logging.info(f"  Found {len(bg_metrics_df)} background traces")
 
             # Plot background trace examples
-            bg_examples_path = diag_folder / f"{compound}_background_trace_examples.png"
-            _bg_rm_path = run_folder / f"{compound}_background_gmm_all_bg_rm_traces.pkl"
+            bg_examples_path = diag_folder / "Background" / f"{compound}_background_trace_examples.png"
+            _bg_rm_path = run_folder / "BackgroundTraces" / "AllBG" / f"{compound}_background_bg_rm.pkl"
             _bg_rm_traces = pd.read_pickle(_bg_rm_path) if _bg_rm_path.exists() else None
             plot_background_examples(bg_traces, bg_examples_path, compound, n_examples,
                                      bg_rm_traces=_bg_rm_traces, cfg=cfg)

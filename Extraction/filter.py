@@ -151,22 +151,27 @@ def filter_and_augment_compound(
     GMM_PROBA_THRESHOLD = float(cfg.get("gmm_proba_threshold", 0.8))
     GMM_MIN_SEPARATION = float(cfg.get("gmm_min_separation", 3.0))
     SNR_MIN_SEPARATION = float(cfg.get("snr_min_separation", 3.0))
-    method_tag = "gmm"
 
-    # Determine file naming
-    if gt_label:  # Has ground truth (IN or OUT)
-        label_str = f"_{gt_label}"
-        log_label = f"{compound}_{gt_label}"
-    else:  # No ground truth
+    # Determine file naming and folder
+    if gt_label == "IN":
+        protein_folder = run_folder / "ProteinTracesIN"
+        label_str = "_IN"
+        log_label = f"{compound}_IN"
+    elif gt_label == "OUT":
+        protein_folder = run_folder / "ProteinTracesOUT"
+        label_str = "_OUT"
+        log_label = f"{compound}_OUT"
+    else:
+        protein_folder = run_folder / "ProteinTraces"
         label_str = ""
         log_label = compound
 
     # Load traces
     paths = {
-        "raw":     run_folder / f"{compound}{label_str}_all_raw_traces.pkl",
-        "bg_rm":   run_folder / f"{compound}{label_str}_{method_tag}_all_bg_rm_traces.pkl",
-        "zscored": run_folder / f"{compound}{label_str}_{method_tag}_all_zscored_traces.pkl",
-        "minmax":  run_folder / f"{compound}{label_str}_{method_tag}_all_minmax_traces.pkl",
+        "raw":     protein_folder / "AllRaw"  / f"{compound}{label_str}_raw.pkl",
+        "bg_rm":   protein_folder / "AllBG"   / f"{compound}{label_str}_bg_rm.pkl",
+        "zscored": protein_folder / "AllNorm" / f"{compound}{label_str}_zscored.pkl",
+        "minmax":  protein_folder / "AllNorm" / f"{compound}{label_str}_minmax.pkl",
     }
 
     # Check if files exist
@@ -182,16 +187,16 @@ def filter_and_augment_compound(
     if traces_zscored.empty:
         logging.warning(f"Empty traces for {log_label}")
         # Write empty outputs
+        filtered_dir = protein_folder / "Filtered"
+        filtered_dir.mkdir(parents=True, exist_ok=True)
         empty = pd.DataFrame()
-        suffixes = [
-            "filtered_raw_traces",
-            "filtered_bg_rm_traces",
-            "filtered_zscored_traces",
-            "filtered_minmax_traces",
-        ]
-
-        for suffix in suffixes:
-            empty.to_pickle(run_folder / f"{compound}{label_str}_{method_tag}_{suffix}.pkl")
+        for fname in [
+            f"{compound}{label_str}_filtered_raw.pkl",
+            f"{compound}{label_str}_filtered_bg_rm.pkl",
+            f"{compound}{label_str}_filtered_zscored.pkl",
+            f"{compound}{label_str}_filtered_minmax.pkl",
+        ]:
+            empty.to_pickle(filtered_dir / fname)
 
         return 0, 0
 
@@ -250,18 +255,12 @@ def filter_and_augment_compound(
     )
 
     # Save filtered traces
-    filtered_raw.to_pickle(
-        run_folder / f"{compound}{label_str}_{method_tag}_filtered_raw_traces.pkl"
-    )
-    filtered_bg_rm.to_pickle(
-        run_folder / f"{compound}{label_str}_{method_tag}_filtered_bg_rm_traces.pkl"
-    )
-    filtered_zscored.to_pickle(
-        run_folder / f"{compound}{label_str}_{method_tag}_filtered_zscored_traces.pkl"
-    )
-    filtered_minmax.to_pickle(
-        run_folder / f"{compound}{label_str}_{method_tag}_filtered_minmax_traces.pkl"
-    )
+    filtered_dir = protein_folder / "Filtered"
+    filtered_dir.mkdir(parents=True, exist_ok=True)
+    filtered_raw.to_pickle(filtered_dir / f"{compound}{label_str}_filtered_raw.pkl")
+    filtered_bg_rm.to_pickle(filtered_dir / f"{compound}{label_str}_filtered_bg_rm.pkl")
+    filtered_zscored.to_pickle(filtered_dir / f"{compound}{label_str}_filtered_zscored.pkl")
+    filtered_minmax.to_pickle(filtered_dir / f"{compound}{label_str}_filtered_minmax.pkl")
 
     after_count = filtered_raw.shape[1]
 
