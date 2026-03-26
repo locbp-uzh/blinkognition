@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-# __author__ = Pablo Rivera Fuentes pablo.riverafuentes@uzh.ch with ChatGPT5
-# __copyright_ = "Copyright 2025, UZH, Switzerland"
+# __author__ = Pablo Rivera Fuentes pablo.riverafuentes@uzh.ch with ChatGPT5 and Claude Code (Sonnet 4.6)
+# based on code by Salome Püntener (EPFL/UZH), Andreas Biri (ETHZ) and Roman Briskine (UZH).
+# __copyright_ = "Copyright 2026, UZH, Switzerland"
 
 """
 utils.py
@@ -10,6 +11,7 @@ Helper functions for Blinkognition2
 
 import os
 import re
+from contextlib import nullcontext
 import numpy as np
 import pandas as pd
 import torch
@@ -96,117 +98,11 @@ def apply_axis_standards(ax):
     ax.tick_params(axis='both', which='minor', length=2, width=0.6, direction='out')
 
 
-def save_figure(fig, output_dir, filename='plot.pdf', dpi=450):
-    """Save figure as PDF at publication quality."""
-    out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout(h_pad=3, w_pad=3)
-    fig.savefig(out / (Path(filename).stem + '.pdf'), dpi=dpi, bbox_inches='tight')
-
-
 from scipy.stats import wasserstein_distance
 import datetime
-from contextlib import nullcontext
 
 from models import MCDropout, LockedDropout
 
-
-# --- Loss Functions ---
-class FocalLoss(nn.Module):
-    """
-    Focal Loss for addressing class imbalance and focusing on hard examples.
-
-    Reference: Lin et al. "Focal Loss for Dense Object Detection" (2017)
-    https://arxiv.org/abs/1708.02002
-
-    FL(p_t) = -α_t * (1 - p_t)^γ * log(p_t)
-
-    where p_t is the model's estimated probability for the true class.
-    """
-    def __init__(self, alpha=None, gamma=2.0, reduction='mean'):
-        """
-        Args:
-            alpha: Weighting factor for class balance.
-                   - Scalar (e.g., 1.0): uniform multiplier on entire loss (no class weighting)
-                   - List/tensor of per-class weights: applies weight[class] to each sample
-                   - For binary classification: scalar uses α for class 1, (1-α) for class 0
-                   - Set to None to disable alpha weighting entirely.
-            gamma: Focusing parameter γ >= 0. Higher values increase focus on hard examples.
-                   γ=0 reduces to standard cross-entropy.
-                   Typical values: 1.0 (mild), 2.0 (standard), 3-5 (aggressive)
-            reduction: 'mean', 'sum', or 'none'
-        """
-        super(FocalLoss, self).__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.reduction = reduction
-
-    def forward(self, inputs, targets):
-        """
-        Args:
-            inputs: (N, C) logits for multi-class or (N,) logits for binary
-            targets: (N,) long tensor of class indices
-
-        Returns:
-            Focal loss (scalar if reduction='mean'/'sum', else (N,))
-        """
-        # Multi-class case
-        if inputs.dim() > 1 and inputs.size(1) > 1:
-            # Compute cross-entropy loss per sample
-            ce_loss = F.cross_entropy(inputs, targets, reduction='none')
-
-            # Get probability of true class
-            p = F.softmax(inputs, dim=1)
-            p_t = p.gather(1, targets.unsqueeze(1)).squeeze(1)
-
-            # Focal weight: (1 - p_t)^gamma
-            focal_weight = (1 - p_t) ** self.gamma
-            focal_loss = focal_weight * ce_loss
-
-            # Apply alpha balancing if specified
-            if self.alpha is not None:
-                if isinstance(self.alpha, (list, tuple)):
-                    # Per-class weights provided as list/tuple
-                    alpha_t = torch.tensor(self.alpha, device=inputs.device, dtype=inputs.dtype)[targets]
-                    focal_loss = alpha_t * focal_loss
-                elif isinstance(self.alpha, torch.Tensor):
-                    # Per-class weights provided as tensor
-                    alpha_t = self.alpha.to(device=inputs.device)[targets]
-                    focal_loss = alpha_t * focal_loss
-                else:
-                    # Scalar alpha: uniform multiplier on entire loss (per original paper)
-                    focal_loss = self.alpha * focal_loss
-
-        # Binary case (inputs is 1D logits)
-        else:
-            if inputs.dim() == 1:
-                inputs = inputs.unsqueeze(1)
-
-            # Binary cross-entropy with logits
-            ce_loss = F.binary_cross_entropy_with_logits(
-                inputs.squeeze(1), targets.float(), reduction='none'
-            )
-
-            # Get probability and p_t
-            p = torch.sigmoid(inputs.squeeze(1))
-            p_t = p * targets.float() + (1 - p) * (1 - targets.float())
-
-            # Focal weight
-            focal_weight = (1 - p_t) ** self.gamma
-            focal_loss = focal_weight * ce_loss
-
-            # Apply alpha balancing
-            if self.alpha is not None:
-                alpha_t = self.alpha * targets.float() + (1 - self.alpha) * (1 - targets.float())
-                focal_loss = alpha_t * focal_loss
-
-        # Apply reduction
-        if self.reduction == 'mean':
-            return focal_loss.mean()
-        elif self.reduction == 'sum':
-            return focal_loss.sum()
-        else:
-            return focal_loss
 
 
 # --- Data Loading ---
@@ -746,103 +642,6 @@ def plot_confusion_matrix(
         plt.close()
 
 
-def plot_precomputed_confusion_matrix(
-    cm,
-    class_names,
-    save_path=None,
-    show=False,
-    title="Confusion matrix",
-    figsize=(7, 7),
-    fontsize_scale=1.6,
-    axes_fontscale=1.6,
-):
-    """
-    Plot a pre-computed confusion matrix (normalized, values in [0, 1]).
-
-    Args:
-        cm: Pre-computed confusion matrix (C x C), assumed normalized.
-        class_names: List of class names.
-        save_path: Path to save. If ends with .png, saves there directly.
-                   Otherwise treated as directory with plot.png + data.csv.
-        show: Whether to display the plot interactively.
-        title: Plot title (sentence case recommended).
-        figsize: Figure size tuple.
-        fontsize_scale: Scale factor for cell text.
-        axes_fontscale: Scale factor for axis labels.
-    """
-    import matplotlib.pyplot as plt
-    from sklearn.metrics import ConfusionMatrixDisplay
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-    base_fs = 10
-    fs_cells = base_fs * float(fontsize_scale)
-    fs_axes = base_fs * float(axes_fontscale)
-
-    fig, ax = plt.subplots(figsize=figsize)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_names)
-    disp.plot(
-        cmap=_DAVOS_R,
-        ax=ax,
-        colorbar=False,
-        values_format=".2f",
-        im_kw={"vmin": 0.0, "vmax": 1.0},
-    )
-
-    # Colorbar sized to match the matrix height
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.3)
-    cb = fig.colorbar(disp.im_, cax=cax)
-    cb.ax.tick_params(labelsize=fs_axes, length=4, width=0.8)
-    cb.outline.set_linewidth(0.4)
-
-    # Axes fonts
-    ax.set_title(title, fontsize=fs_axes)
-    ax.set_xlabel(ax.get_xlabel(), fontsize=fs_axes)
-    ax.set_ylabel(ax.get_ylabel(), fontsize=fs_axes)
-    ax.tick_params(axis="both", which='major', labelsize=fs_axes, length=4, width=0.8, direction='out')
-    ax.tick_params(axis="both", which='minor', length=2, width=0.6, direction='out')
-    for spine in ax.spines.values():
-        spine.set_linewidth(1.1)
-
-    # Cell annotation: font size + white/black based on value vs 0.5 midpoint
-    texts = getattr(disp, "text_", None)
-    if texts is not None:
-        try:
-            it = texts.ravel()
-        except Exception:
-            it = texts if isinstance(texts, (list, tuple)) else [texts]
-        for t in it:
-            t.set_fontsize(fs_cells)
-            val = float(t.get_text().replace('±', ''))
-            t.set_color('white' if val > 0.5 else 'black')
-
-    ax.grid(False)
-    plt.tight_layout()
-
-    if save_path:
-        # Determine output paths
-        if save_path.endswith('.png'):
-            # Legacy mode: save directly to the specified path (as PDF)
-            plot_path = save_path.replace('.png', '.pdf')
-            data_path = save_path.replace('.png', '_data.csv')
-        else:
-            # Folder mode: save plot.pdf and data.csv in directory
-            os.makedirs(save_path, exist_ok=True)
-            plot_path = os.path.join(save_path, "plot.pdf")
-            data_path = os.path.join(save_path, "data.csv")
-
-        plt.savefig(plot_path, dpi=450, bbox_inches='tight')
-        plt.close()
-
-        # Save confusion matrix data
-        cm_df = pd.DataFrame(cm, index=class_names, columns=class_names)
-        cm_df.index.name = 'true_label'
-        cm_df.to_csv(data_path)
-    elif show:
-        plt.show()
-        plt.close()
-
-
 def plot_confusion_matrix_with_std(
     mean_cm: np.ndarray,
     std_cm: np.ndarray,
@@ -1111,7 +910,6 @@ def train_model(
         auc_tolerance: (Optional) Max AUC drop from best to allow alternative checkpoint
         loss_min_delta: (Optional) Min loss improvement required for alternative checkpoint
     """
-    from contextlib import nullcontext
     autocast_ctx = autocast_ctx or (lambda: nullcontext())
 
     best_val_auc = -float("inf")
@@ -1940,126 +1738,6 @@ def evaluate_uncertainty_filtered(
     }
 
 
-# --- HPO Path Management ---
-def encode_dataset_keys(dataset_dict):
-    """
-    Create filesystem-safe dataset identifier from dataset dictionary keys.
-
-    Args:
-        dataset_dict: Dictionary with dataset keys
-
-    Returns:
-        str: Encoded dataset identifier (e.g., "HTIA_IN-SNAP_IN")
-    """
-    if not dataset_dict:
-        return "unknown"
-
-    # Sort keys for consistency, keep full names including suffixes
-    sorted_keys = sorted(dataset_dict.keys())
-
-    # Join with hyphen and ensure filesystem safety
-    encoded = '-'.join(sorted_keys)
-    # Remove any problematic characters for filesystem
-    encoded = re.sub(r'[^A-Za-z0-9._-]', '_', encoded)
-
-    return encoded
-
-
-def detect_user_from_cwd():
-    """
-    Detect current user from current working directory based on HPC structure.
-    Expects paths like /data/{username}, /home/{username}, or /scratch/{username}
-
-    Returns:
-        str: Username or "unknown" if detection fails
-    """
-    import os
-
-    try:
-        cwd = os.getcwd()
-        path_parts = cwd.split(os.sep)
-
-        # Look for /data/{username}, /home/{username}, or /scratch/{username} patterns
-        for i, part in enumerate(path_parts):
-            if part in ['data', 'home', 'scratch'] and i + 1 < len(path_parts):
-                username = path_parts[i + 1]
-                # Clean username for filesystem safety
-                username = re.sub(r'[^A-Za-z0-9._-]', '_', username)
-                return username.lower()
-
-        # Fallback to environment variables
-        for env_var in ['USER', 'USERNAME', 'LOGNAME']:
-            user = os.environ.get(env_var)
-            if user:
-                user = re.sub(r'[^A-Za-z0-9._-]', '_', user)
-                return user.lower()
-
-    except Exception:
-        pass
-
-    return "unknown"
-
-
-def build_hpo_storage_path(storage_root, user, dataset_keys, model_name):
-    """
-    Build storage path for HPO database.
-
-    Args:
-        storage_root: Root directory for HPO databases
-        user: Username (or "shared")
-        dataset_keys: Dataset dictionary keys or encoded string
-        model_name: Model name
-
-    Returns:
-        str: Complete storage path
-    """
-    if isinstance(dataset_keys, dict):
-        dataset_encoded = encode_dataset_keys(dataset_keys)
-    else:
-        dataset_encoded = dataset_keys
-
-    if user == "shared":
-        # Legacy shared databases
-        db_name = f"optuna_{model_name}.db"
-        return f"sqlite:///{os.path.join(storage_root, 'shared', db_name)}"
-    else:
-        # User-specific databases
-        db_name = f"optuna_{model_name}_{dataset_encoded}.db"
-        return f"sqlite:///{os.path.join(storage_root, 'users', user, db_name)}"
-
-
-def build_study_name(model_name, dataset_keys, user):
-    """
-    Build study name for HPO optimization.
-
-    Args:
-        model_name: Model name
-        dataset_keys: Dataset dictionary keys or encoded string
-        user: Username
-
-    Returns:
-        str: Study name
-    """
-    if isinstance(dataset_keys, dict):
-        dataset_encoded = encode_dataset_keys(dataset_keys)
-    else:
-        dataset_encoded = dataset_keys
-
-    return f"{model_name}_{dataset_encoded}_{user}"
-
-
-def plot_metric_over_iterations(df, metric, save_path):
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(df["traces_per_class"], df[metric], marker="o")
-    metric_label = metric.replace("_", " ").capitalize()
-    ax.set_xlabel("Traces per class")
-    ax.set_ylabel(metric_label)
-    ax.set_title(f"{metric_label} vs. data size")
-    apply_axis_standards(ax)
-    plt.tight_layout()
-    pdf_path = str(save_path).replace('.png', '.pdf') if str(save_path).endswith('.png') else str(save_path)
-    plt.savefig(pdf_path, dpi=450, bbox_inches='tight')
-    plt.close()
 
 
 @torch.no_grad()
@@ -2255,11 +1933,11 @@ def plot_umap_embeddings(embeddings, labels, class_names, save_path, max_per_cla
     return data_path
 
 
-# --- Data Augmentation for Transfer Learning ---
+# --- Data Augmentation ---
 def apply_augmentation(X, y, aug_factor=2, time_warp_sigma=0.03, noise_sigma=0.02,
                        magnitude_jitter=0.02, include_mirror=False, random_seed=42):
     """
-    Apply conservative augmentation to time-series data for transfer learning.
+    Apply conservative augmentation to time-series data.
 
     Args:
         X: Input data of shape (N, C, T)
@@ -2358,3 +2036,139 @@ def apply_augmentation(X, y, aug_factor=2, time_warp_sigma=0.03, noise_sigma=0.0
     y_augmented = y_augmented[shuffle_idx]
 
     return X_augmented, y_augmented
+
+
+# --- Accelerator ---
+
+def detect_accelerator():
+    if torch.cuda.is_available():
+        dev = torch.device("cuda")
+        name = torch.cuda.get_device_name(0)
+        cap = torch.cuda.get_device_capability(0)  # (major, minor)
+        return {"type": "cuda", "device": dev, "name": name, "cap": cap}
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return {"type": "mps", "device": torch.device("mps"), "name": "Apple MPS", "cap": None}
+    return {"type": "cpu", "device": torch.device("cpu"), "name": "CPU", "cap": None}
+
+def _mps_autocast_supported():
+    try:
+        with torch.autocast(device_type="mps", dtype=torch.float16):
+            pass
+        return True
+    except Exception:
+        return False
+
+class _NoopScaler:
+    def scale(self, x): return x
+    def step(self, opt): opt.step()
+    def update(self): pass
+    def __bool__(self): return False
+
+def setup_precision_and_flags(accel, enable_amp_on_mps=False):
+    """
+    Return (amp_dtype, autocast_ctx, scaler) with new torch.amp API. Safe on MPS/CPU.
+
+    Args:
+        accel: Accelerator dict from detect_accelerator()
+        enable_amp_on_mps: If True, enable fp16 autocast on MPS (default: False for stability)
+                          MPS fp16 can cause NaN issues with deep models (10+ blocks).
+                          Only enable if you have a shallow model or need the speed.
+    """
+    atype = accel["type"]
+
+    # defaults
+    amp_dtype = None
+    autocast_ctx = nullcontext
+    scaler = _NoopScaler()
+
+    if atype == "cuda":
+        major, _ = accel["cap"]
+        # TF32 + bf16 on Ampere+; fp16 on pre-Ampere
+        if major >= 8:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            amp_dtype = torch.bfloat16
+        else:
+            torch.backends.cuda.matmul.allow_tf32 = False
+            torch.backends.cudnn.allow_tf32 = False
+            amp_dtype = torch.float16
+
+        autocast_ctx = lambda: torch.autocast(device_type="cuda", dtype=amp_dtype)
+        scaler = torch.amp.GradScaler("cuda", enabled=(amp_dtype == torch.float16))
+        torch.backends.cudnn.benchmark = True
+
+    elif atype == "mps":
+        # MPS autocast (fp16) is disabled by default for numerical stability
+        # Deep models (10+ blocks) often get NaN losses with fp16 on MPS
+        # Enable with force_amp=true in config if you need speed and have a stable model
+        if enable_amp_on_mps and _mps_autocast_supported():
+            amp_dtype = torch.float16
+            autocast_ctx = lambda: torch.autocast(device_type="mps", dtype=amp_dtype)
+        else:
+            amp_dtype = None
+            autocast_ctx = nullcontext
+
+    else:
+        # CPU: fp32 only
+        amp_dtype = None
+        autocast_ctx = nullcontext
+        scaler = _NoopScaler()
+
+    return amp_dtype, autocast_ctx, scaler
+
+def _slurm_cpus():
+    v = os.environ.get("SLURM_CPUS_PER_TASK")
+    try:
+        return int(v) if v else None
+    except Exception:
+        return None
+
+def dataloader_kwargs_for(accel):
+    """
+    Clamp workers to allocated CPUs, keep prefetch low, and avoid pinning on non-CUDA.
+    This prevents RAM spikes under Slurm.
+    """
+    alloc = _slurm_cpus()
+    host = os.cpu_count() or 1
+    # target cores we can actually use
+    usable = alloc if alloc is not None else min(host, 8)
+
+    # conservative workers for tuning
+    if usable <= 2:
+        nw = 0
+    elif usable <= 4:
+        nw = 2
+    else:
+        nw = min(4, usable - 2)
+
+    pin = (accel["type"] == "cuda")
+    base = dict(
+        num_workers=nw,
+        pin_memory=pin,
+        persistent_workers=False,  # safer for RAM during many short trials
+    )
+    if nw > 0:
+        base["prefetch_factor"] = 1
+    return base
+
+def maybe_compile(model, accel, enabled=True):
+    """Compile only when safe. Default: CUDA SM80+; never on MPS."""
+    if not enabled:
+        return model
+    try:
+        if hasattr(torch, "compile"):
+            if accel["type"] == "cuda" and accel.get("cap", (0, 0))[0] >= 8:
+                # A100/H100 etc.
+                return torch.compile(model, mode="max-autotune")
+            # MPS or older CUDA -> skip
+    except Exception as e:
+        print(f"torch.compile skipped: {e}")
+    return model
+
+def batch_size_hint(default_bs, accel):
+    # Keep your estimate_batch_size() for CUDA. Give a safe floor elsewhere.
+    if accel["type"] == "cuda":
+        return None  # signal to use your estimate_batch_size()
+    if accel["type"] == "mps":
+        return max(128, default_bs // 2)  # Apple GPUs like larger batches
+    return 256  # CPU fallback

@@ -58,9 +58,9 @@ data:
     include_mirror: false     # add time-reversed copy of every training trace
 
 model:
-  name: "resnet1d"          # one of: orig_conv_gru, conv_gru, resnet1d, resnet1d_selfattn, resnet1d_attnpool, resnet1d_dualattn, tcn
-  # Default parameters are now hardcoded in the model zoo (models.py)
-  # Override specific parameters here if needed, or use HPO for optimal values
+  name: "resnet1d"          # one of: orig_conv_gru, resnet1d, tcn
+  # Default parameters are hardcoded in the model zoo (models.py)
+  # Override specific parameters here if needed
 
 optimization:
   batch_size: 64
@@ -95,32 +95,6 @@ optimization:
   # - "min_recall": Maximize minimum recall across both classes
   threshold_metric: "argmax"
 
-  # Focal Loss parameters (alternative to cross-entropy for imbalanced datasets)
-  # Set use_focal_loss: true to enable, false to use standard cross-entropy (recommended)
-  use_focal_loss: false
-  focal_gamma: 1.5       # Focusing parameter, higher = more focus on hard examples
-  # focal_alpha: null    # Optional: set to list of per-class weights for class imbalance
-                         # e.g., [0.3, 0.7] for 2 classes where class 0 is majority
-
-# HPO (Hyperparameter Optimization) Configuration
-hpo:
-  enabled: false
-  debug: true
-
-  # Legacy mode: use these if you want to use old single-model databases
-  # storage_by_model:
-  #   tcn: "sqlite:///../Optuna_Databases/optuna_tcn.db"
-  #   resnet1d_dualattn: "sqlite:///../Optuna_Databases/optuna_resnet1d_dualattn.db"
-
-  # New user-dataset-specific system
-  user: "auto"                        # "auto" (detect from path), specific username, or "shared"
-  dataset_scope: "auto"               # "auto" (use current dataset), specific encoded name, or "any"
-  storage_root: "../Optuna_Databases" # root directory for HPO databases
-
-  # Fallback behavior when no HPO results found for current user/dataset
-  fallback_to_shared: true            # look for results in shared databases
-  fallback_to_other_users: true      # look for results from other users (same dataset)
-  fallback_to_other_datasets: true  # look for results from other datasets (same user)
 
 uncertainty:
   mc_dropout:

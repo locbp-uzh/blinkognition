@@ -45,18 +45,8 @@ optimization:
 
   threshold_metric: "argmax"
 
-  use_focal_loss: false
-  focal_gamma: 2.0
 
 
-hpo:
-  enabled: false
-  storage_root: "../Optuna_Databases"
-  user: "auto"
-  dataset_scope: "auto"
-  fallback_to_other_users: true
-  fallback_to_shared: true
-  fallback_to_other_datasets: true
 
 
 uncertainty:

@@ -392,7 +392,7 @@ diagnostics:
 n_workers: -1             # -1 or null: use all CPUs, 1: sequential, N>1: use N CPUs
 ```
 
-See [extraction_config_example.yaml](extraction_config_example.yaml) for complete annotated configuration.
+See `Extraction/config.yaml` for a complete annotated configuration example.
 
 ## Data Organization
 

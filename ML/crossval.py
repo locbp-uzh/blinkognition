@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-# __author__ = "Blinkognition2 team with ChatGPT5"
-# __copyright__ = "Copyright 2025, UZH"
+# __author__ = Pablo Rivera Fuentes pablo.riverafuentes@uzh.ch with ChatGPT5 and Claude Code (Sonnet 4.6)
+# based on code by Salome Püntener (EPFL/UZH), Andreas Biri (ETHZ) and Roman Briskine (UZH).
+# __copyright_ = "Copyright 2026, UZH, Switzerland"
+
 """
 crossval.py
 
@@ -17,7 +19,7 @@ Purpose:
 - Write all results to CSV files for downstream analysis.
 
 Usage:
-    python crossval.py -c config_cv.yaml --models tcn,resnet1d_dualattn,orig_conv_gru --k 5
+    python crossval.py -c config_cv.yaml --models tcn,resnet1d,orig_conv_gru --k 5
 """
 from __future__ import annotations
 
@@ -54,10 +56,6 @@ from utils import (
     mc_dropout_predict,
     plot_confusion_matrix_with_std,
     plot_losses,
-    encode_dataset_keys,
-    detect_user_from_cwd,
-    build_hpo_storage_path,
-    build_study_name,
     optimize_binary_threshold,
     optimize_multiclass_thresholds,
     apply_threshold,
@@ -78,7 +76,7 @@ import matplotlib.colors as mcolors
 mpl.rcParams['font.family'] = 'sans-serif'
 mpl.rcParams['font.sans-serif'] = ['Helvetica', 'Arial', 'DejaVu Sans']
 mpl.rcParams['font.size'] = 7
-from accelerator import (
+from utils import (
     detect_accelerator,
     setup_precision_and_flags,
     dataloader_kwargs_for,
@@ -86,13 +84,6 @@ from accelerator import (
     batch_size_hint,
 )
 from models import build_model as zoo_build
-
-# Pull hyperparameter optimization (HPO) defaults if available
-try:
-    from train import _fetch_hpo_defaults  # keep compatibility with your train.py
-except ImportError:
-    def _fetch_hpo_defaults(model_name: str, hpo_cfg: dict, dataset_keys: dict):
-        return {}, {}
 
 
 _lipari_cmap = _load_cmap("lipari")
@@ -112,33 +103,6 @@ class Tee:
 def _slug(s: str) -> str:
     return "".join(c.lower() if c.isalnum() else "_" for c in s).strip("_")
 
-
-def _validate_attention_params(model_name: str, model_kwargs: dict) -> dict:
-    """Validate and fix attention parameters for MHA models to ensure compatibility."""
-    kwargs = dict(model_kwargs)
-
-    # Check if this is an attention model
-    uses_mha = ("attn" in model_name.lower()) or ("attention" in model_name.lower())
-    if not uses_mha:
-        return kwargs
-
-    d_model = kwargs.get("d_model")
-    attn_heads = kwargs.get("attn_heads")
-
-    if d_model is not None and attn_heads is not None:
-        if d_model % attn_heads != 0:
-            print(f"Warning: d_model={d_model} not divisible by attn_heads={attn_heads} for {model_name}")
-            # Find the largest valid head count <= attn_heads
-            valid_heads = [h for h in range(1, attn_heads + 1) if d_model % h == 0]
-            if valid_heads:
-                new_heads = max(valid_heads)
-                print(f"Adjusting attn_heads from {attn_heads} to {new_heads}")
-                kwargs["attn_heads"] = new_heads
-            else:
-                print(f"No valid head count found, removing attn_heads parameter")
-                kwargs.pop("attn_heads", None)
-
-    return kwargs
 
 
 def load_config(path: str) -> dict:
@@ -447,7 +411,7 @@ def _run_single_task(
 
     Returns the result dict directly (used by worker loop).
     """
-    from accelerator import maybe_compile, batch_size_hint
+    from utils import maybe_compile, batch_size_hint
 
     aug_label = "noaug" if aug_factor == 0 else f"aug{aug_factor}x"
     print(f"[GPU {gpu_id}] Starting {model_name} + {aug_label}")
@@ -455,7 +419,6 @@ def _run_single_task(
     # Extract config sections
     data_cfg = cfg.get("data", {})
     opt_cfg = cfg.get("optimization", {})
-    hpo_cfg = cfg.get("hpo", {})
     unc_cfg = cfg.get("uncertainty", {})
     aug_sweep_cfg = cfg.get("augmentation_sweep", {})
 
@@ -490,12 +453,6 @@ def _run_single_task(
         loss_min_delta = float(loss_min_delta)
     alt_checkpoint_enabled = (auc_tolerance is not None) and (loss_min_delta is not None)
 
-    # Focal loss
-    base_use_focal_loss = opt_cfg.get("use_focal_loss", False)
-    base_focal_alpha_cfg = opt_cfg.get("focal_alpha")
-    base_focal_alpha = float(base_focal_alpha_cfg) if base_focal_alpha_cfg is not None else None
-    base_focal_gamma = float(opt_cfg.get("focal_gamma", 2.0))
-
     # Uncertainty
     mc_do = unc_cfg.get("mc_dropout", {})
     mc_enabled = bool(mc_do.get("enabled", True))
@@ -515,29 +472,11 @@ def _run_single_task(
     in_channels = X.shape[1]
     dropout_default = float(cfg.get("model", {}).get("dropout", 0.2))
 
-    # HPO defaults
-    dataset_dict = cfg.get("data", {}).get("dataset", {})
-    if hpo_cfg.get("enabled", False):
-        model_kwargs_hpo, opt_defaults = _fetch_hpo_defaults(model_name, hpo_cfg, dataset_dict)
-    else:
-        model_kwargs_hpo, opt_defaults = {}, {}
-
-    # Override with HPO if available
-    lr = float(opt_defaults.get("lr", opt_defaults.get("learning_rate", base_lr)))
-    wd = float(opt_defaults.get("weight_decay", base_wd))
-    bs_model = int(opt_defaults.get("batch_size", bs_eff))
-    lbl_smooth = float(opt_defaults.get("label_smoothing", label_smoothing))
-
-    # Focal loss from HPO
-    if opt_defaults and "use_focal_loss" in opt_defaults:
-        use_focal_loss = bool(opt_defaults["use_focal_loss"])
-        focal_alpha_hpo = opt_defaults.get("focal_alpha")
-        focal_alpha = float(focal_alpha_hpo) if focal_alpha_hpo is not None else base_focal_alpha
-        focal_gamma = float(opt_defaults.get("focal_gamma", base_focal_gamma))
-    else:
-        use_focal_loss = base_use_focal_loss
-        focal_alpha = base_focal_alpha
-        focal_gamma = base_focal_gamma
+    model_kwargs_extra = {}
+    lr = base_lr
+    wd = base_wd
+    bs_model = bs_eff
+    lbl_smooth = label_smoothing
 
     # Storage for this combination
     fold_metrics = []
@@ -595,7 +534,7 @@ def _run_single_task(
         val_loader = DataLoader(val_ds, batch_size=bs_model, shuffle=False, **dl_kwargs, **extra)
 
         # Build model
-        mkwargs = dict(model_kwargs_hpo)
+        mkwargs = dict(model_kwargs_extra)
         mkwargs.setdefault("dropout", dropout_default)
 
         build_kwargs = {"in_channels": in_channels, "num_classes": len(class_names)}
@@ -603,7 +542,6 @@ def _run_single_task(
             build_kwargs.pop("in_channels", None)
             build_kwargs["num_inputs"] = in_channels
         build_kwargs.update(mkwargs)
-        build_kwargs = _validate_attention_params(model_name, build_kwargs)
 
         model = zoo_build(model_name, **build_kwargs).to(device)
         model = maybe_compile(model, accel, enabled=cfg.get("system", {}).get("compile", False))
@@ -611,11 +549,7 @@ def _run_single_task(
         # Optimizer and criterion
         optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
 
-        if use_focal_loss:
-            from utils import FocalLoss
-            criterion = FocalLoss(alpha=focal_alpha, gamma=focal_gamma)
-        else:
-            criterion = nn.CrossEntropyLoss(label_smoothing=lbl_smooth if lbl_smooth > 0 else 0.0)
+        criterion = nn.CrossEntropyLoss(label_smoothing=lbl_smooth if lbl_smooth > 0 else 0.0)
 
         # Training loop
         best_val_auc = -np.inf
@@ -803,7 +737,7 @@ def _gpu_worker_loop(
     import torch.nn as nn
 
     # Detect accelerator for this process (will see only our assigned GPU)
-    from accelerator import detect_accelerator, setup_precision_and_flags, dataloader_kwargs_for
+    from utils import detect_accelerator, setup_precision_and_flags, dataloader_kwargs_for
 
     accel = detect_accelerator()
     amp_dtype, autocast_ctx, scaler = setup_precision_and_flags(accel)
@@ -878,7 +812,7 @@ def _distribute_tasks_to_gpus(
 
     Returns list of results from all tasks.
     """
-    from accelerator import detect_accelerator, setup_precision_and_flags, dataloader_kwargs_for
+    from utils import detect_accelerator, setup_precision_and_flags, dataloader_kwargs_for
 
     if n_gpus <= 1:
         # Sequential execution on single GPU
@@ -1125,7 +1059,6 @@ def main():
     io_cfg     = cfg.get("io", {})
     data_cfg   = cfg.get("data", {})
     opt_cfg    = cfg.get("optimization", {})
-    hpo_cfg    = cfg.get("hpo", {})
     unc_cfg    = cfg.get("uncertainty", {})
     cv_cfg     = cfg.get("cv", {})
     compare    = cfg.get("compare", {})
@@ -1229,12 +1162,6 @@ def main():
     if loss_min_delta is not None:
         loss_min_delta = float(loss_min_delta)
     alt_checkpoint_enabled = (auc_tolerance is not None) and (loss_min_delta is not None)
-
-    # Focal loss defaults (can be overridden by HPO)
-    base_use_focal_loss = opt_cfg.get("use_focal_loss", False)
-    base_focal_alpha_cfg = opt_cfg.get("focal_alpha")
-    base_focal_alpha = float(base_focal_alpha_cfg) if base_focal_alpha_cfg is not None else None
-    base_focal_gamma = float(opt_cfg.get("focal_gamma", 2.0))
 
     # Uncertainty
     mc_do = unc_cfg.get("mc_dropout", {})
@@ -1492,7 +1419,7 @@ def main():
         for i in range(torch.cuda.device_count()):
             print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
     else:
-        from accelerator import detect_accelerator
+        from utils import detect_accelerator
         print(f"  Device: {detect_accelerator()['name']}")
     print("=" * 60 + "\n")
 
@@ -1505,32 +1432,11 @@ def main():
     for model_name in model_list:
         print(f"=== Model: {model_name} ===")
 
-        # Pull HPO defaults with debug info
-        if hpo_cfg.get("enabled", False):
-            model_kwargs_hpo, opt_defaults = _fetch_hpo_defaults(model_name, hpo_cfg, dataset_dict)
-            if hpo_cfg.get("debug", False):
-                print(f"[HPO] Model {model_name} - using HPO defaults: model_kwargs={model_kwargs_hpo}, opt_defaults={opt_defaults}")
-        else:
-            model_kwargs_hpo, opt_defaults = {}, {}
-
-        # Optimization overrides from HPO
-        lr = float(opt_defaults.get("lr", opt_defaults.get("learning_rate", base_lr)))
-        wd = float(opt_defaults.get("weight_decay", base_wd))
-        bs_model = int(opt_defaults.get("batch_size", bs_eff))
-        lbl_smooth = float(opt_defaults.get("label_smoothing", label_smoothing))
-
-        # Focal loss parameters: HPO overrides config if available
-        use_hpo = bool(opt_defaults)
-        if use_hpo and "use_focal_loss" in opt_defaults:
-            use_focal_loss = bool(opt_defaults["use_focal_loss"])
-            focal_alpha_hpo = opt_defaults.get("focal_alpha")
-            focal_alpha = float(focal_alpha_hpo) if focal_alpha_hpo is not None else base_focal_alpha
-            focal_gamma = float(opt_defaults.get("focal_gamma", base_focal_gamma))
-            print(f"[HPO] Using focal loss settings from HPO: use_focal_loss={use_focal_loss}, alpha={focal_alpha}, gamma={focal_gamma}")
-        else:
-            use_focal_loss = base_use_focal_loss
-            focal_alpha = base_focal_alpha
-            focal_gamma = base_focal_gamma
+        model_kwargs_extra = {}
+        lr = base_lr
+        wd = base_wd
+        bs_model = bs_eff
+        lbl_smooth = label_smoothing
 
         # Model-level defaults
         dropout_default = float(cfg.get("model", {}).get("dropout", 0.2))
@@ -1550,7 +1456,7 @@ def main():
             )
 
             # Build model from zoo
-            mkwargs = dict(model_kwargs_hpo)
+            mkwargs = dict(model_kwargs_extra)
             mkwargs.setdefault("dropout", dropout_default)
 
             # Base parameters that all models need
@@ -1561,11 +1467,9 @@ def main():
                 build_kwargs.pop("in_channels", None)
                 build_kwargs["num_inputs"] = in_channels
 
-            # Apply user overrides (from HPO or config)
+            # Apply user overrides (from config)
             build_kwargs.update(mkwargs)
 
-            # Validate and fix attention parameters for compatibility
-            build_kwargs = _validate_attention_params(model_name, build_kwargs)
 
             model = zoo_build(model_name, **build_kwargs).to(device)
             model = maybe_compile(model, accel, enabled=cfg.get("system", {}).get("compile", False))
@@ -1581,14 +1485,8 @@ def main():
             # Optimizer and criterion
             optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
 
-            # Choose loss function: Focal Loss or Cross-Entropy
-            if use_focal_loss:
-                from utils import FocalLoss
-                criterion = FocalLoss(alpha=focal_alpha, gamma=focal_gamma)
-                print(f"Using Focal Loss (alpha={focal_alpha}, gamma={focal_gamma})")
-            else:
-                criterion = nn.CrossEntropyLoss(label_smoothing=lbl_smooth if lbl_smooth > 0 else 0.0)
-                print(f"Using Cross-Entropy Loss (label_smoothing={lbl_smooth})")
+            criterion = nn.CrossEntropyLoss(label_smoothing=lbl_smooth if lbl_smooth > 0 else 0.0)
+            print(f"Using Cross-Entropy Loss (label_smoothing={lbl_smooth})")
 
             # Train with early stopping on validation AUC
             best_val_auc = -np.inf

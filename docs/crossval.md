@@ -29,6 +29,8 @@ python crossval.py -c config_cv.yaml --aug-factors 0,2,3,5 --n-gpus 4
 - Timing metrics (time per epoch) for fair comparison
 - Automated visualization (comparison plots, heatmaps, bar charts)
 
+
+
 ## Configuration File
 
 ### Basic Template (config_cv.yaml)
@@ -312,5 +314,4 @@ python crossval.py -c config_cv.yaml --n-gpus 4
 ## See Also
 
 - [Training](train.md) - Single model training
-- [Hyperparameter Tuning](tune.md) - Optuna-based HPO
-- [Models](models.md) - Available architectures
+- Available models: `orig_conv_gru`, `resnet1d`, `tcn` (see `ML/models.py`)

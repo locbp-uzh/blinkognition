@@ -287,18 +287,15 @@ Features:
 - Orange for training loss, sky blue for validation loss (Okabe-Ito palette)
 - Automatic axis standards applied
 
-### plot_confusion_matrix() / plot_precomputed_confusion_matrix()
+### plot_confusion_matrix()
 
 Creates standardized confusion matrices:
 
 ```python
-from utils import plot_confusion_matrix, plot_precomputed_confusion_matrix
+from utils import plot_confusion_matrix
 
 # From predictions
 plot_confusion_matrix(y_true, y_pred, class_names=names, save_path="cm.png")
-
-# From pre-computed matrix (e.g., aggregated across folds)
-plot_precomputed_confusion_matrix(cm_array, class_names, save_path="cm.png")
 ```
 
 ### plot_umap_embeddings()
@@ -438,4 +435,4 @@ A quick checklist:
 
 ## Reference
 
-See `test_plot_standards.py` in the repository root for a working example demonstrating all these standards across different plot types.
+The helper functions in `ML/utils.py` (`plot_confusion_matrix`, `plot_confusion_matrix_with_std`, `plot_umap_embeddings`, `plot_losses`) serve as practical examples of these standards applied to the ML pipeline.

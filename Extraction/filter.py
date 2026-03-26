@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# -*- coding: UTF-8 -*-
+# __author__ = Pablo Rivera Fuentes pablo.riverafuentes@uzh.ch with ChatGPT5 and Claude Code (Sonnet 4.6)
+# based on code by Salome Püntener (EPFL/UZH), Andreas Biri (ETHZ).
+# __copyright_ = "Copyright 2026, UZH, Switzerland"
+
 """
 Filter traces for machine learning.
 

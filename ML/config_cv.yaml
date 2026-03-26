@@ -55,22 +55,6 @@ optimization:
   # - "min_recall": Maximize minimum recall across both classes
   threshold_metric: "argmax"
 
-  # Focal Loss parameters (alternative to cross-entropy for imbalanced datasets)
-  # Set use_focal_loss: true to enable, false to use standard cross-entropy (recommended)
-  use_focal_loss: false
-  focal_gamma: 2.0       # Focusing parameter, higher = more focus on hard examples
-  # focal_alpha: null    # Optional: set to list of per-class weights for class imbalance
-
-
-hpo:
-  enabled: false
-  storage_root: "../Optuna_Databases"
-  user: "auto"
-  dataset_scope: "auto"
-  fallback_to_other_users: true
-  fallback_to_shared: true
-  fallback_to_other_datasets: true
-
 
 uncertainty:
   mc_dropout:

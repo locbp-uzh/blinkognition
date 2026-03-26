@@ -1,6 +1,6 @@
 # Training Models (train.py)
 
-Train classification models on labeled protein trace data with automatic HPO integration, uncertainty quantification, and embedding visualization.
+Train classification models on labeled protein trace data with uncertainty quantification and embedding visualization.
 
 ## Overview
 
@@ -9,13 +9,12 @@ Train classification models on labeled protein trace data with automatic HPO int
 ## Quick Start
 
 ```bash
-cd Experiments_Models
+cd ML
 python train.py -c config_train.yaml
 ```
 
 ## Features
 
-- Automatic HPO parameter loading (multi-user database system)
 - Monte Carlo dropout uncertainty quantification
 - UMAP embedding visualization
 - Cross-platform acceleration (CUDA/MPS/CPU)
@@ -48,7 +47,7 @@ data:
   balance_test: false  # Set to true to balance test set by subsampling majority classes
 
 model:
-  name: "resnet1d_dualattn"
+  name: "resnet1d"
 
 optimization:
   batch_size: 64
@@ -59,20 +58,6 @@ optimization:
   label_smoothing: 0.05
   threshold_metric: "argmax"  # Use standard argmax (no threshold optimization)
 
-  # Focal Loss (optional, for imbalanced datasets)
-  use_focal_loss: false
-  focal_gamma: 2.0
-  # focal_alpha: null  # Optional: per-class weights for class imbalance
-
-hpo:
-  enabled: true
-  debug: false
-  user: "auto"
-  dataset_scope: "auto"
-  storage_root: "../Optuna_Databases"
-  fallback_to_shared: true
-  fallback_to_other_users: true
-  fallback_to_other_datasets: false
 
 uncertainty:
   mc_dropout:
@@ -129,35 +114,27 @@ The system discovers files matching:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `name` | str | required | Model architecture name (see [models.md](models.md)) |
+| `name` | str | required | Model architecture name (one of: `orig_conv_gru`, `resnet1d`, `tcn`) |
 | `dropout` | float | from defaults | Global dropout rate (overrides hardcoded defaults) |
 | `kwargs` | dict | `{}` | Additional model-specific parameters |
 
 Available models:
-- `orig_conv_gru` - Original baseline model
-- `conv_gru` - Enhanced ConvGRU with attention
-- `tcn` - Temporal Convolutional Network
+- `orig_conv_gru` - Original baseline ConvGRU model
 - `resnet1d` - 1D ResNet
-- `resnet1d_selfattn` - ResNet with self-attention
-- `resnet1d_attnpool` - ResNet with attention pooling
-- `resnet1d_dualattn` - ResNet with dual attention (recommended)
-- `transformer_encoder` - Transformer-based encoder (in development)
+- `tcn` - Temporal Convolutional Network
 
 ### Optimization Section
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `batch_size` | int | `64` | Training batch size (overridden by HPO if available) |
+| `batch_size` | int | `64` | Training batch size |
 | `max_epochs` | int | `100` | Maximum training epochs |
 | `patience_limit` | int | `10` | Early stopping patience (epochs without improvement) |
-| `lr` | float | `0.001` | Learning rate (overridden by HPO if available) |
-| `weight_decay` | float | `0.0` | AdamW weight decay (overridden by HPO if available) |
+| `lr` | float | `0.001` | Learning rate |
+| `weight_decay` | float | `0.0` | AdamW weight decay |
 | `label_smoothing` | float | `0.05` | Label smoothing factor (0.0 = no smoothing) |
-| `clip_grad_norm` | float | `1.0` (5.0 for attention) | Gradient clipping threshold |
+| `clip_grad_norm` | float | `1.0` | Gradient clipping threshold |
 | `threshold_metric` | str | `"argmax"` | Threshold selection method (see below) |
-| `use_focal_loss` | bool | `false` | Use Focal Loss instead of cross-entropy |
-| `focal_gamma` | float | `2.0` | Focal Loss focusing parameter (only if `use_focal_loss: true`) |
-| `focal_alpha` | list/null | `null` | Optional per-class weights for class imbalance, e.g., `[0.3, 0.7]` |
 
 ### Early Stopping Configuration
 
@@ -199,21 +176,6 @@ Loss constraint modes:
 - `"absolute"`: Current loss must be <= best_loss + loss_tolerance
 - `"none"`: No loss constraint (traditional AUC-only early stopping)
 
-### HPO Section
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `enabled` | bool | `true` | Use HPO parameters if available |
-| `debug` | bool | `false` | Print HPO search details |
-| `user` | str | `"auto"` | Username for database lookup ("auto" = detect from path) |
-| `dataset_scope` | str | `"auto"` | Dataset identifier ("auto" = use current dataset keys) |
-| `storage_root` | str | `"../Optuna_Databases"` | Root directory for HPO databases |
-| `fallback_to_shared` | bool | `true` | Use shared databases if user-specific not found |
-| `fallback_to_other_users` | bool | `true` | Use other users' results for same dataset |
-| `fallback_to_other_datasets` | bool | `false` | Use own results from other datasets |
-
-See [hpo.md](hpo.md) for detailed HPO system documentation.
-
 ### Uncertainty Section
 
 | Parameter | Type | Default | Description |
@@ -223,7 +185,7 @@ See [hpo.md](hpo.md) for detailed HPO system documentation.
 | `mc_dropout.trace_loss` | float | `50.0` | Max trace loss % for auto threshold selection |
 | `mc_dropout.wasserstein_threshold` | float | `null` | Optional: fixed Wasserstein threshold (overrides trace_loss) |
 
-See [uncertainty.md](uncertainty.md) for details on uncertainty quantification.
+MC dropout runs `n_mc` stochastic forward passes (dropout active at inference), computes per-sample Wasserstein distances as an uncertainty proxy, and filters predictions above a learned threshold.
 
 ### System Section
 
@@ -239,7 +201,6 @@ See [uncertainty.md](uncertainty.md) for details on uncertainty quantification.
 
 - CUDA SM80+ (A100/H100): BF16 by default
 - CUDA SM70+ (V100): FP16 by default
-- CUDA SM60-70 (T4) with attention models: FP32 (unless `force_amp: true`)
 - MPS (Apple Silicon): FP16 by default
 - CPU: FP32 always
 
@@ -248,18 +209,7 @@ See [uncertainty.md](uncertainty.md) for details on uncertainty quantification.
 ### Basic Training
 
 ```bash
-cd Experiments_Models
-python train.py -c config_train.yaml
-```
-
-### Training Without HPO
-
-```yaml
-hpo:
-  enabled: false
-```
-
-```bash
+cd ML
 python train.py -c config_train.yaml
 ```
 
@@ -296,8 +246,8 @@ Results/YYYY-MM-DD_HH-MM-SS_<run_name>_training_<dataset>/
 ├── umap_embeddings.png                 # UMAP visualization of embeddings
 ├── umap_embeddings_data.csv            # UMAP coordinates and labels
 ├── config_full.json                    # Complete configuration snapshot
-├── config_summary.json                 # Run summary (device, HPO used, etc.)
-├── hpo_effective.json                  # HPO parameters actually used
+├── config_summary.json                 # Run summary (device, etc.)
+├── effective_params.json               # Model and optimizer parameters used
 ├── inputs_snapshot.json                # Model build parameters
 ├── <run_name>_training_<dataset>.log   # Training log
 └── MCD_results/                        # Monte Carlo dropout results
@@ -306,7 +256,7 @@ Results/YYYY-MM-DD_HH-MM-SS_<run_name>_training_<dataset>/
     └── mc_dropout_metrics.json         # MC dropout metrics with threshold info
 ```
 
-See [outputs.md](outputs.md) for detailed descriptions of all output files.
+See the output structure table above for descriptions of all output files.
 
 ## Training Pipeline
 
@@ -316,20 +266,13 @@ See [outputs.md](outputs.md) for detailed descriptions of all output files.
 Load config → Set seed → Detect accelerator → Build dataset
 ```
 
-### 2. HPO Parameter Loading
-
-If `hpo.enabled: true`:
-1. Search for HPO database matching model + dataset
-2. Load best trial parameters
-3. Override config defaults with HPO values
-
-### 3. Model Building
+### 2. Model Building
 
 ```
-Initialize model → Apply HPO parameters → Move to device → Optionally compile
+Initialize model → Move to device → Optionally compile
 ```
 
-### 4. Training Loop
+### 3. Training Loop
 
 ```
 For each epoch:
@@ -340,7 +283,7 @@ For each epoch:
   If patience exhausted: stop early
 ```
 
-### 5. Threshold Selection
+### 4. Threshold Selection
 
 The system provides flexible threshold selection via the `threshold_metric` parameter:
 
@@ -386,28 +329,7 @@ Use threshold optimization when:
 - `threshold_metric: "argmax"` → Single confusion matrix
 - Other threshold metrics → Two confusion matrices (argmax baseline + optimized)
 
-### 6. Loss Function Selection
-
-**Cross-Entropy Loss (Default):**
-- `use_focal_loss: false` (recommended for most datasets)
-- Standard cross-entropy with optional label smoothing
-- Works well with balanced datasets and class weighting
-
-**Focal Loss (Optional):**
-- `use_focal_loss: true` for severely imbalanced datasets
-- Focuses training on hard-to-classify examples
-- Key parameters:
-  - `focal_gamma` (0-5): Focusing parameter, higher = more focus on hard examples (default: 2.0)
-  - `focal_alpha`: Optional per-class weights for class imbalance, e.g., `[0.3, 0.7]` for 2 classes (default: null/no weighting)
-
-**When to Use Focal Loss:**
-- Severe class imbalance that persists despite class balancing
-- Many easy examples dominating the loss
-- Need to improve minority class performance
-
-**Important:** Focal loss requires careful tuning of alpha and gamma parameters. For most balanced datasets, standard cross-entropy performs better and requires no tuning.
-
-### 7. Evaluation
+### 5. Evaluation
 
 ```
 Load best model → Apply optimal threshold → Evaluate on test set
@@ -416,15 +338,15 @@ Load best model → Apply optimal threshold → Evaluate on test set
 Reports comprehensive metrics:
 - **Binary**: Accuracy (argmax vs optimal), balanced accuracy, AUC-ROC, AUC-PR, MCC
 - **Multiclass**: Accuracy (argmax vs optimal), balanced accuracy, AUC-ROC, macro F1
-- Generates confusion matrices based on threshold_metric setting (see section 5)
+- Generates confusion matrices based on threshold_metric setting
 
-### 8. Embedding Visualization
+### 7. Embedding Visualization
 
 ```
 Extract embeddings from test set → Apply UMAP → Plot colored by class
 ```
 
-### 9. Monte Carlo Dropout
+### 8. Monte Carlo Dropout
 
 If `mc_dropout.enabled: true`:
 ```
@@ -433,45 +355,6 @@ For each test sample:
   Apply optimal threshold to mean predictions
   Aggregate predictions → Compute uncertainty
 Filter unreliable predictions → Re-evaluate
-```
-
-## Understanding HPO Integration
-
-### HPO Parameter Priority
-
-When `hpo.enabled: true`, the system uses this priority:
-
-1. HPO parameters (from Optuna database)
-2. Config file parameters
-3. Hardcoded model defaults (in models.py)
-
-### HPO Search Path
-
-The system searches for HPO results in this order:
-
-1. `users/{username}/optuna_{model}_{dataset}.db`
-2. `shared/optuna_{model}_{dataset}.db` (if `fallback_to_shared: true`)
-3. `users/*/optuna_{model}_{dataset}.db` (if `fallback_to_other_users: true`)
-4. `users/{username}/optuna_{model}_*.db` (if `fallback_to_other_datasets: true`)
-
-### Verifying HPO Usage
-
-Check `hpo_effective.json` in the output directory:
-
-```json
-{
-  "storage_used": "users/alice/optuna_tcn_HTNHS-blank.db",
-  "model": "tcn",
-  "hpo_model_kwargs": {
-    "num_channels": [64, 64, 128, 128],
-    "kernel_size": 3
-  },
-  "hpo_opt": {
-    "batch_size": 128,
-    "lr": 0.0003,
-    "weight_decay": 0.0001
-  }
-}
 ```
 
 ## Common Workflows
@@ -493,20 +376,10 @@ ls -lh ../Results/2025-*
 
 ```bash
 # Compare multiple models on same dataset
-for model in tcn resnet1d resnet1d_dualattn; do
+for model in tcn resnet1d orig_conv_gru; do
   sed -i "s/name: .*/name: \"$model\"/" config_train.yaml
   python train.py -c config_train.yaml
 done
-```
-
-### Workflow 3: HPO-Guided Training
-
-```bash
-# 1. Run HPO (see tune.md)
-python tune.py -c config_tune_tcn.yaml
-
-# 2. Train with HPO parameters
-python train.py -c config_train.yaml  # HPO enabled by default
 ```
 
 ## Monitoring Training
@@ -558,27 +431,6 @@ optimization:
   clip_grad_norm: 5.0
 ```
 
-### HPO Parameters Not Found
-
-Enable debug mode to see search paths:
-```yaml
-hpo:
-  enabled: true
-  debug: true
-```
-
-Common causes:
-- Dataset keys changed between tuning and training
-- Wrong storage_root path
-- No HPO results exist yet (run tune.py first)
-
-Solution: Enable fallbacks
-```yaml
-hpo:
-  fallback_to_other_users: true
-  fallback_to_shared: true
-```
-
 ### Slow Training
 
 1. Enable compilation (PyTorch 2.0+, experimental):
@@ -601,14 +453,9 @@ system:
 
 ### Model Not Loading
 
-Check that model name matches exactly:
-```yaml
-model:
-  name: "resnet1d_dualattn"  # correct
-  # name: "ResNet1D_DualAttn"  # wrong (case-sensitive)
-```
+Check that model name matches exactly (names are case-sensitive):
 
-Available names: `orig_conv_gru`, `conv_gru`, `tcn`, `resnet1d`, `resnet1d_selfattn`, `resnet1d_attnpool`, `resnet1d_dualattn`, `transformer_encoder`
+Available names: `orig_conv_gru`, `resnet1d`, `tcn`
 
 ## Advanced Options
 
@@ -629,12 +476,11 @@ model:
 
 ```yaml
 model:
-  name: "resnet1d_dualattn"
+  name: "resnet1d"
   per_model:
-    resnet1d_dualattn:
-      d_model: 256
-      n_blocks: 8
-      attn_heads: 8
+    resnet1d:
+      base_filters: 128
+      num_blocks: 4
 ```
 
 ### Training Without Validation Split
@@ -651,19 +497,14 @@ Currently not supported. Workaround:
 
 ## Best Practices
 
-1. Always use HPO results when available
-2. Set `debug: true` in HPO section to verify parameter loading
-3. Use class balancing (`balance_train: true`) for imbalanced datasets
-4. Enable Monte Carlo dropout for uncertainty quantification
-5. Set random seed for reproducibility
-6. Use descriptive `run_name` for easy identification
-7. Keep dataset keys consistent across experiments
-8. Monitor training logs for convergence issues
-9. Use UMAP plots to verify embedding quality
-10. Check confusion matrix for systematic errors
+1. Use class balancing (`balance_train: true`) for imbalanced datasets
+2. Enable Monte Carlo dropout for uncertainty quantification
+3. Set random seed for reproducibility
+4. Use descriptive `run_name` for easy identification
+5. Monitor training logs for convergence issues
+6. Use UMAP plots to verify embedding quality
+7. Check confusion matrix for systematic errors
 
 ## See Also
 
-- [Hyperparameter Tuning](tune.md) - Optimize model parameters
-- [Model Architectures](models.md) - Detailed model descriptions
-- [HPO System](hpo.md) - Multi-user database system
+- [Cross-Validation](crossval.md) - Multi-fold evaluation
