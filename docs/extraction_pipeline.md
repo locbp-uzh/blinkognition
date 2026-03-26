@@ -182,9 +182,7 @@ Combines per-movie traces by protein and applies preprocessing:
 - Converts to matrices (rows=frames, cols=traces)
 - Applies multiple normalizations
 
-**Background removal methods** (controlled by `zeroing_method` in config):
-- `"last_frames"` (default): subtract mean of the last `bin_size` frames
-- `"gmm"`: fit a 2-component GMM to the trace and use the noise component mean as background. This is more robust for traces that lack a clear flat tail.
+**Background removal method**: A 2-component GMM is fit to each trace; the noise component mean is subtracted as background. This is robust for traces that lack a clear flat tail.
 
 **Background contamination filtering** (applied before saving background traces):
 1. **Spatial buffer**: reject background ROIs within `background_buffer` pixels of any protein ROI
@@ -196,7 +194,7 @@ Combines per-movie traces by protein and applies preprocessing:
 3. **Z-scored**: Standardize (mean=0, std=1) from background-removed
 4. **Min-max**: Scale to [0,1] from background-removed
 
-Output filenames include a `{method_tag}` component: `gmm` when `zeroing_method: "gmm"`, or `binsize{N}` when `zeroing_method: "last_frames"` (e.g., `binsize500`).
+Output filenames include a `gmm` method tag (e.g., `Grx1_IN_gmm_all_raw_traces.pkl`).
 
 **Outputs (with ground truth)**:
 - `{RunFolder}/{Protein}_{IN|OUT}_{method_tag}_all_raw_traces.pkl`
@@ -225,9 +223,7 @@ Output filenames include a `{method_tag}` component: `gmm` when `zeroing_method:
 
 Quality filtering for machine learning. Operates on the `{method_tag}`-prefixed files produced by combine.py and writes filtered outputs with the same tag.
 
-**Peak detection mode** (controlled by `zeroing_method`):
-- `"last_frames"`: detects peaks in the z-scored trace using `scipy.signal.find_peaks` with a noise-based height threshold
-- `"gmm"`: runs GMM classification on the background-removed trace; consecutive frames assigned to the signal component form peaks. This avoids dependence on a noise threshold derived from the trace tail.
+**Peak detection**: Runs GMM classification on the background-removed trace; consecutive frames assigned to the signal component form peaks. SNR gate (`snr_min_separation`) rejects pure-noise traces before peak detection.
 
 **Filtering criteria**:
 - Minimum number of peaks (`min_peak_number`)
@@ -264,8 +260,8 @@ Analyzes trace quality and generates diagnostic reports to help understand filte
 - **Background comparison**: Compares protein traces with background traces (if available)
 
 **Quality Metrics Computed**:
-- **SNR**: Signal-to-noise ratio (signal std / background std)
-- **Peak count**: Number of peaks detected (using GMM classification in `gmm` mode, threshold-based in `last_frames` mode)
+- **SNR**: GMM component separation — `(signal_mean − noise_mean) / noise_std`
+- **Peak count**: Number of peaks detected via GMM classification on background-removed traces
 - **Peak timing**: First and last peak positions
 - **Peak spacing**: Distance between first two peaks
 - **Signal statistics**: Mean, std, max intensity
@@ -371,13 +367,10 @@ background_rob_threshold: 8.0         # Reject background traces where (max-medi
 movie_length: 6000        # Expected frames
 # size_FOV: 230           # Auto-detected from ND2 metadata (can override if needed)
 
-# Background removal
-zeroing_method: "gmm"     # "gmm" (robust, fits noise model) or "last_frames" (subtract tail mean)
-bin_size: 500             # Tail window size for last_frames mode
-gmm_proba_threshold: 0.8  # Posterior probability threshold for GMM signal classification (gmm mode only)
+gmm_proba_threshold: 0.8  # Posterior probability threshold for GMM signal classification
+snr_min_separation: 2.0   # Min GMM component separation to accept a trace; 0 to disable
 
 # Filtering
-threshold_trace_selection: 6   # Peak height threshold (std units, last_frames mode only)
 min_peak_number: 3        # Min peaks required
 first_peak_time: 1000     # Latest frame for first peak
 last_peak_time: 200       # Earliest frame for last peak (from end)
@@ -610,7 +603,7 @@ pip install picassosr
    - Visual examples of passed vs. failed traces
 
 2. **Common solutions based on diagnostic output**:
-   - If traces fail `threshold_trace_selection`: Lower the threshold (e.g., 8 → 5 or 3)
+   - If SNR is too low: Lower `snr_min_separation` (e.g., 3.0 → 2.0) or `gmm_proba_threshold`
    - If traces fail `min_peak_number`: Lower the threshold (e.g., 8 → 5)
    - If traces fail `first_peak_time`: Increase the window (e.g., 1000 → 1500)
    - If traces fail `delta_first_second`: Increase max spacing (e.g., 1000 → 1500)

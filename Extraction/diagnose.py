@@ -122,23 +122,18 @@ def extract_experiment_from_path(origin_path: str, run_folder: Path) -> str:
         return "Unknown"
 
 
-def _analyze_particle_worker(particle, trace_vals, bg_rm_vals, zeroing_method, peak_threshold, cfg, experiment):
+def _analyze_particle_worker(particle, trace_vals, bg_rm_vals, cfg, experiment):
     """Compute metrics for one particle. Top-level function for joblib pickling."""
     trace = pd.Series(trace_vals)
-    if zeroing_method == "gmm" and bg_rm_vals is not None:
-        x_peaks, gmm_snr = detect_peaks_gmm(bg_rm_vals, cfg)
-        metrics = compute_trace_metrics(trace, np.nan, cfg, x_peaks=x_peaks, gmm_snr=gmm_snr)
-        threshold = np.nan
-    else:
-        metrics = compute_trace_metrics(trace, peak_threshold, cfg)
-        threshold = peak_threshold
+    x_peaks, gmm_snr = detect_peaks_gmm(bg_rm_vals, cfg)
+    metrics = compute_trace_metrics(trace, cfg, x_peaks=x_peaks, gmm_snr=gmm_snr)
     metrics["particle"] = particle
-    metrics["threshold"] = threshold
+    metrics["threshold"] = np.nan
     metrics["experiment"] = experiment
     return metrics
 
 
-def _analyze_bg_particle_worker(particle, trace_vals, bg_rm_vals, zeroing_method, movie_length, bin_size):
+def _analyze_bg_particle_worker(particle, trace_vals, bg_rm_vals):
     """Compute basic metrics for one background particle. Top-level for joblib pickling."""
     trace = pd.Series(trace_vals)
     mean_signal = trace.mean()
@@ -146,19 +141,11 @@ def _analyze_bg_particle_worker(particle, trace_vals, bg_rm_vals, zeroing_method
     max_intensity = trace.max()
     min_intensity = trace.min()
 
-    if zeroing_method == "gmm" and bg_rm_vals is not None:
-        _, _, _, separation = gmm_classify_frames(
-            bg_rm_vals.astype(np.float64), proba_threshold=0.8, return_separation=True
-        )
-        snr = separation
-        background_std = 0.0
-        peaks = signal.find_peaks(trace, height=trace.std() * 0.5, width=2)
-    else:
-        background = trace.iloc[max(0, movie_length - bin_size):movie_length]
-        background_std = background.std() if not background.empty else 0.0
-        snr = std_signal / background_std if background_std > 0 else 0.0
-        peaks = signal.find_peaks(trace, height=background_std * 3, width=2)
-
+    _, _, _, separation = gmm_classify_frames(
+        bg_rm_vals.astype(np.float64), proba_threshold=0.8, return_separation=True
+    )
+    snr = separation
+    peaks = signal.find_peaks(trace, height=trace.std() * 0.5, width=2)
     n_peaks = len(peaks[0])
     return {
         "particle": particle,
@@ -166,7 +153,6 @@ def _analyze_bg_particle_worker(particle, trace_vals, bg_rm_vals, zeroing_method
         "std_signal": std_signal,
         "max_intensity": max_intensity,
         "min_intensity": min_intensity,
-        "background_std": background_std,
         "snr": snr,
         "n_peaks": n_peaks,
     }
@@ -213,16 +199,15 @@ def detect_peaks_gmm(bg_rm_trace: np.ndarray, cfg: dict) -> tuple:
 
 def compute_trace_metrics(
     trace: pd.Series,
-    peak_threshold: float,
     cfg: dict,
-    x_peaks: np.ndarray = None,
-    gmm_snr: float = None,
+    x_peaks: np.ndarray,
+    gmm_snr: float,
 ) -> Dict:
     """
     Compute quality metrics for a single trace.
 
     Returns dict with:
-        - snr: Signal-to-noise ratio
+        - snr: GMM component separation (signal_mean - noise_mean) / noise_std
         - n_peaks: Number of peaks detected
         - first_peak_time: Frame of first peak
         - last_peak_time: Frame of last peak
@@ -233,32 +218,17 @@ def compute_trace_metrics(
         - pass_filter: Whether trace passes all filter criteria
         - fail_reasons: List of reasons why trace failed (if applicable)
     """
-    MIN_PEAK_WIDTH = int(cfg["min_peak_width"])
     MIN_PEAK_NUMBER = int(cfg["min_peak_number"])
     FIRST_PEAK_TIME = int(cfg["first_peak_time"])
     LAST_PEAK_TIME = int(cfg["last_peak_time"])
     DELTA_FIRST_SECOND = int(cfg["delta_first_second"])
-    MOVIE_LENGTH = int(cfg["movie_length"])
-    BIN_SIZE = int(cfg["bin_size"])
 
     # Basic statistics
     mean_signal = trace.mean()
     std_signal = trace.std()
     max_intensity = trace.max()
 
-    # Background noise estimate (from last bin_size frames) — used for last_frames mode
-    background = trace.iloc[max(0, MOVIE_LENGTH - BIN_SIZE):MOVIE_LENGTH]
-    background_std = background.std() if not background.empty else 0.0
-
-    # SNR: use GMM component separation when available, otherwise last-frames ratio
-    if gmm_snr is not None:
-        snr = gmm_snr
-    else:
-        snr = std_signal / background_std if background_std > 0 else 0.0
-
-    # Peak detection — use pre-computed peaks (GMM) if provided, else find_peaks
-    if x_peaks is None:
-        x_peaks = signal.find_peaks(trace, height=peak_threshold, width=MIN_PEAK_WIDTH)[0]
+    snr = gmm_snr
     n_peaks = len(x_peaks)
 
     # Peak timing
@@ -293,7 +263,6 @@ def compute_trace_metrics(
         "mean_signal": mean_signal,
         "std_signal": std_signal,
         "max_intensity": max_intensity,
-        "background_std": background_std,
         "pass_filter": pass_filter,
         "fail_reasons": fail_reasons,
         "x_peaks": x_peaks,
@@ -313,11 +282,7 @@ def analyze_traces(
         metrics_df: DataFrame with one row per trace (includes experiment info)
         traces: The original z-scored traces
     """
-    THRESHOLD_TRACE_SEL = float(cfg["threshold_trace_selection"])
-    BIN_SIZE = int(cfg["bin_size"])
-    MOVIE_LENGTH = int(cfg["movie_length"])
-    zeroing_method = cfg.get("zeroing_method", "last_frames")
-    method_tag = "gmm" if zeroing_method == "gmm" else f"binsize{BIN_SIZE}"
+    method_tag = "gmm"
 
     # Determine file naming
     if gt_label:
@@ -361,19 +326,17 @@ def analyze_traces(
         except Exception as e:
             logging.warning(f"Could not load experiment info from {uniqueID_path}: {e}")
 
-    # Load bg_rm traces for GMM peak detection (same traces filter.py uses)
-    traces_bg_rm = None
-    if zeroing_method == "gmm":
-        bg_rm_path = run_folder / f"{compound}{label_str}_{method_tag}_all_bg_rm_traces.pkl"
-        if bg_rm_path.exists():
-            traces_bg_rm = pd.read_pickle(bg_rm_path)
-        else:
-            logging.warning(f"bg_rm traces not found for {log_label}, falling back to threshold detection")
+    # Load bg_rm traces for GMM peak detection
+    bg_rm_path = run_folder / f"{compound}{label_str}_{method_tag}_all_bg_rm_traces.pkl"
+    if not bg_rm_path.exists():
+        logging.warning(f"bg_rm traces not found for {log_label}")
+        return pd.DataFrame(), pd.DataFrame()
+    traces_bg_rm = pd.read_pickle(bg_rm_path)
 
-    # Calculate background noise thresholds (used only for last_frames mode)
-    tail = traces.iloc[max(0, MOVIE_LENGTH - BIN_SIZE):MOVIE_LENGTH]
-    std_z = tail.std() if not tail.empty else pd.Series(dtype=float)
-    peak_thresholds = std_z * THRESHOLD_TRACE_SEL
+    # Only process particles present in both traces and bg_rm
+    common_particles = [p for p in traces.columns if p in traces_bg_rm.columns]
+    if len(common_particles) < len(traces.columns):
+        logging.warning(f"  {len(traces.columns) - len(common_particles)} particles missing bg_rm, skipping")
 
     # Compute metrics for each trace (parallel over particles)
     n_workers = cfg.get("n_workers", -1)
@@ -384,15 +347,11 @@ def analyze_traces(
         delayed(_analyze_particle_worker)(
             particle,
             traces[particle].values,
-            traces_bg_rm[particle].values.astype(np.float64)
-            if zeroing_method == "gmm" and traces_bg_rm is not None and particle in traces_bg_rm.columns
-            else None,
-            zeroing_method,
-            float(peak_thresholds.get(particle, np.inf)),
+            traces_bg_rm[particle].values.astype(np.float64),
             cfg,
             experiment_map.get(particle, "Unknown"),
         )
-        for particle in traces.columns
+        for particle in common_particles
     )
 
     metrics_df = pd.DataFrame(metrics_list)
@@ -450,7 +409,6 @@ def plot_trace_examples(
         trace_color = COLORS['green'] if row["pass_filter"] else COLORS['vermillion']
         ax.plot(trace.values, linewidth=0.8, alpha=0.8, color=trace_color)
 
-        # Threshold line — only for last_frames mode
         threshold = row.get("threshold", np.nan)
         if not (isinstance(threshold, float) and np.isnan(threshold)):
             ax.axhline(threshold, color=COLORS['orange'], linestyle="--",
@@ -520,13 +478,8 @@ def analyze_background_traces(
         metrics_df: DataFrame with basic metrics per trace
         traces: The z-scored background traces
     """
-    MOVIE_LENGTH = int(cfg["movie_length"])
-    BIN_SIZE = int(cfg["bin_size"])
-    zeroing_method = cfg.get("zeroing_method", "last_frames")
-    method_tag = "gmm" if zeroing_method == "gmm" else f"binsize{BIN_SIZE}"
-
     # Load z-scored background traces
-    zscored_path = run_folder / f"{compound}_background_{method_tag}_all_zscored_traces.pkl"
+    zscored_path = run_folder / f"{compound}_background_gmm_all_zscored_traces.pkl"
 
     if not zscored_path.exists():
         return pd.DataFrame(), pd.DataFrame()
@@ -545,11 +498,8 @@ def analyze_background_traces(
         return pd.DataFrame(), pd.DataFrame()
 
     # Load bg_rm traces for GMM-based SNR
-    bg_rm_traces = None
-    if zeroing_method == "gmm":
-        bg_rm_path = run_folder / f"{compound}_background_{method_tag}_all_bg_rm_traces.pkl"
-        if bg_rm_path.exists():
-            bg_rm_traces = pd.read_pickle(bg_rm_path)
+    bg_rm_path = run_folder / f"{compound}_background_gmm_all_bg_rm_traces.pkl"
+    bg_rm_traces = pd.read_pickle(bg_rm_path) if bg_rm_path.exists() else None
 
     # Compute basic metrics for each trace (parallel over particles, no filtering)
     n_workers = cfg.get("n_workers", -1)
@@ -560,10 +510,9 @@ def analyze_background_traces(
         delayed(_analyze_bg_particle_worker)(
             particle,
             traces[particle].values,
-            bg_rm_traces[particle].values if bg_rm_traces is not None and particle in bg_rm_traces.columns else None,
-            zeroing_method,
-            MOVIE_LENGTH,
-            BIN_SIZE,
+            bg_rm_traces[particle].values.astype(np.float64)
+            if bg_rm_traces is not None and particle in bg_rm_traces.columns
+            else np.zeros(len(traces[particle])),
         )
         for particle in traces.columns
     )
@@ -777,10 +726,7 @@ def main() -> None:
     for compound in proteins:
         try:
             # Check if background traces exist for this compound
-            _bin_size = int(cfg["bin_size"])
-            _zeroing_method = cfg.get("zeroing_method", "last_frames")
-            _method_tag = "gmm" if _zeroing_method == "gmm" else f"binsize{_bin_size}"
-            bg_zscored_path = run_folder / f"{compound}_background_{_method_tag}_all_zscored_traces.pkl"
+            bg_zscored_path = run_folder / f"{compound}_background_gmm_all_zscored_traces.pkl"
 
             if not bg_zscored_path.exists():
                 logging.info(f"No background traces found for {compound}, skipping")
@@ -799,11 +745,8 @@ def main() -> None:
 
             # Plot background trace examples
             bg_examples_path = diag_folder / f"{compound}_background_trace_examples.png"
-            _bg_rm_traces = None
-            if _zeroing_method == "gmm":
-                _bg_rm_path = run_folder / f"{compound}_background_{_method_tag}_all_bg_rm_traces.pkl"
-                if _bg_rm_path.exists():
-                    _bg_rm_traces = pd.read_pickle(_bg_rm_path)
+            _bg_rm_path = run_folder / f"{compound}_background_gmm_all_bg_rm_traces.pkl"
+            _bg_rm_traces = pd.read_pickle(_bg_rm_path) if _bg_rm_path.exists() else None
             plot_background_examples(bg_traces, bg_examples_path, compound, n_examples,
                                      bg_rm_traces=_bg_rm_traces, cfg=cfg)
 

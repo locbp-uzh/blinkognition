@@ -48,7 +48,6 @@ def load_config(config_path: Path) -> dict:
 
     required = [
         "movie_length",
-        "threshold_trace_selection",
         "min_peak_number",
         "min_peak_width",
         "first_peak_time",
@@ -144,7 +143,6 @@ def filter_and_augment_compound(
         Tuple of (before_count, after_count)
     """
     MOVIE_LENGTH = int(cfg["movie_length"])
-    THRESHOLD_TRACE_SEL = float(cfg["threshold_trace_selection"])
     MIN_PEAK_NUMBER = int(cfg["min_peak_number"])
     MIN_PEAK_WIDTH = int(cfg["min_peak_width"])
     FIRST_PEAK_TIME = int(cfg["first_peak_time"])
