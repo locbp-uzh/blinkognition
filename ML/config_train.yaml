@@ -68,6 +68,7 @@ optimization:
   patience_limit: 10
   lr: 0.0004
   weight_decay: 0.0004
+  label_smoothing: 0.001
 
   # Early stopping configuration
   # Primary condition: Checkpoint when BOTH are met:

@@ -4,7 +4,7 @@ io:
 
 data:
   #traces_path: "../Data/traces/"
-  traces_path: "/Volumes/MediumBerth/AllTraces_unfiltered"
+  traces_path: "/Volumes/MediumBerth/March25/Filtered"
   dataset:
     HTHTL:
       channels: ["minmax"]
@@ -12,7 +12,7 @@ data:
       channels: ["minmax"]
 
 
-trim_end: 2000
+trim_end: 3000
 max_traces_per_class: 1000
 balance_train: true
 balance_val: true   # Balance validation fold by subsampling majority classes (prevents biased early stopping)
@@ -34,7 +34,7 @@ optimization:
   lr: 0.0004
   weight_decay: 0.0004
   max_epochs: 500
-  patience_limit: 10
+  patience_limit: 5
   label_smoothing: 0.001
 
   # Early stopping configuration
@@ -80,4 +80,4 @@ augmentation_sweep:
     time_warp_sigma: 0.05
     noise_sigma: 0.05
     magnitude_jitter: 0.05
-    include_mirror: true
+    include_mirror: false
