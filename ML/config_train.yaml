@@ -39,8 +39,8 @@ data:
       channels: ["minmax"]
 
 
-  trim_end: 0
-  max_traces_per_class: 2000000
+  trim_end: 2000
+  max_traces_per_class: 1000
   balance_train: true
   balance_val: true   # Balance val set by subsampling majority classes (prevents biased early stopping)
   balance_test: true  # Balance test set by subsampling majority classes

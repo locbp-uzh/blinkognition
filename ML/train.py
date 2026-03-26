@@ -289,26 +289,10 @@ def main():
     )
 
     # Save model build kwargs for later use (e.g., embedding extraction)
-    final_model_kwargs = {"in_channels": in_channels, "num_classes": num_classes}
-    if dropout is not None and dropout > 0:
-        final_model_kwargs["dropout"] = dropout
-    if model_name.lower() == "tcn":
-        final_model_kwargs.pop("in_channels", None)
-        final_model_kwargs["num_inputs"] = in_channels
-    final_model_kwargs.update(user_kwargs)
-
-    # optimization parameters (needed for inputs_snapshot.json)
+    # optimization parameters
     lr  = float(opt_cfg.get("lr",  cfg.get("lr",  1e-3)))
     wd  = float(opt_cfg.get("weight_decay", cfg.get("weight_decay", 0.0)))
     label_smoothing = float(opt_cfg.get("label_smoothing", 0.05))
-
-    with open(os.path.join(run_dir, "inputs_snapshot.json"), "w") as f:
-        json.dump({
-            "model": model_name,
-            "seed": seed_val,
-            "opt": {"batch_size": batch_size, "lr": lr, "weight_decay": wd, "label_smoothing": label_smoothing},
-            "kwargs": final_model_kwargs
-        }, f, indent=2)
 
     # compile (opt-in or SM80+ default)
     compile_enabled = bool(system_cfg.get("compile", accel["type"] == "cuda" and accel.get("cap", (0, 0))[0] >= 8))
@@ -338,20 +322,6 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
 
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
-
-    with open(os.path.join(run_dir, "effective_params.json"), "w") as f:
-        effective_opt_dict = {
-            "batch_size": batch_size,
-            "lr": lr,
-            "weight_decay": wd,
-            "label_smoothing": label_smoothing,
-        }
-
-        json.dump({
-            "model": model_name,
-            "model_kwargs": user_kwargs,
-            "effective_opt": effective_opt_dict,
-        }, f, indent=2)
 
     print("Starting training...")
     print(f"Early stopping: auc_min_delta={auc_min_delta}, loss_mode={loss_mode}, loss_tolerance={loss_tolerance}")

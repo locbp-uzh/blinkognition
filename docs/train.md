@@ -241,12 +241,10 @@ Results/YYYY-MM-DD_HH-MM-SS_<run_name>_training_<dataset>/
 ├── confusion_matrix.png                # Test set confusion matrix (argmax or optimal threshold)
 ├── confusion_matrix_argmax.png         # Test set confusion matrix (only if threshold optimization used)
 ├── test_metrics.json                   # Comprehensive test metrics
-├── umap_embeddings.png                 # UMAP visualization of embeddings
+├── umap_embeddings.pdf                 # UMAP visualization of embeddings
 ├── umap_embeddings_data.csv            # UMAP coordinates and labels
 ├── config_full.json                    # Complete configuration snapshot
-├── config_summary.json                 # Run summary (device, etc.)
-├── effective_params.json               # Model and optimizer parameters used
-├── inputs_snapshot.json                # Model build parameters
+├── config_summary.json                 # Run summary (device, amp_dtype, num_classes, etc.)
 ├── <run_name>_training_<dataset>.log   # Training log
 └── MCD_results/                        # Monte Carlo dropout results
     ├── filtered_confusion_matrix_threshX.XX.png

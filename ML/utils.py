@@ -1867,13 +1867,13 @@ def plot_umap_embeddings(embeddings, labels, class_names, save_path, max_per_cla
 
     # Determine output paths
     if save_path.endswith('.png'):
-        # Legacy mode: save directly to the specified path
-        plot_path = save_path
+        # Legacy mode: save as PDF regardless
+        plot_path = save_path.replace('.png', '.pdf')
         data_path = save_path.replace('.png', '_data.csv')
     else:
-        # Folder mode: save plot.png and data.csv in directory
+        # Folder mode: save plot.pdf and data.csv in directory
         os.makedirs(save_path, exist_ok=True)
-        plot_path = os.path.join(save_path, "plot.png")
+        plot_path = os.path.join(save_path, "plot.pdf")
         data_path = os.path.join(save_path, "data.csv")
 
     # Save UMAP coordinates as CSV
