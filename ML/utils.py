@@ -2050,29 +2050,18 @@ def detect_accelerator():
         return {"type": "mps", "device": torch.device("mps"), "name": "Apple MPS", "cap": None}
     return {"type": "cpu", "device": torch.device("cpu"), "name": "CPU", "cap": None}
 
-def _mps_autocast_supported():
-    try:
-        with torch.autocast(device_type="mps", dtype=torch.float16):
-            pass
-        return True
-    except Exception:
-        return False
-
 class _NoopScaler:
     def scale(self, x): return x
     def step(self, opt): opt.step()
     def update(self): pass
     def __bool__(self): return False
 
-def setup_precision_and_flags(accel, enable_amp_on_mps=False):
+def setup_precision_and_flags(accel):
     """
     Return (amp_dtype, autocast_ctx, scaler) with new torch.amp API. Safe on MPS/CPU.
 
     Args:
         accel: Accelerator dict from detect_accelerator()
-        enable_amp_on_mps: If True, enable fp16 autocast on MPS (default: False for stability)
-                          MPS fp16 can cause NaN issues with deep models (10+ blocks).
-                          Only enable if you have a shallow model or need the speed.
     """
     atype = accel["type"]
 
@@ -2098,15 +2087,9 @@ def setup_precision_and_flags(accel, enable_amp_on_mps=False):
         torch.backends.cudnn.benchmark = True
 
     elif atype == "mps":
-        # MPS autocast (fp16) is disabled by default for numerical stability
-        # Deep models (10+ blocks) often get NaN losses with fp16 on MPS
-        # Enable with force_amp=true in config if you need speed and have a stable model
-        if enable_amp_on_mps and _mps_autocast_supported():
-            amp_dtype = torch.float16
-            autocast_ctx = lambda: torch.autocast(device_type="mps", dtype=amp_dtype)
-        else:
-            amp_dtype = None
-            autocast_ctx = nullcontext
+        # MPS fp16 disabled: deep models get NaN losses with fp16 on MPS
+        amp_dtype = None
+        autocast_ctx = nullcontext
 
     else:
         # CPU: fp32 only

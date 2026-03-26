@@ -197,12 +197,7 @@ def main():
     device = accel["device"]
     print(f"Using device: {accel['name']} ({accel['type']})")
 
-    # Respect force_amp config for MPS (default: False for stability with deep models)
-    force_amp = bool(system_cfg.get("force_amp", False))
-    amp_dtype, autocast_ctx, scaler = setup_precision_and_flags(accel, enable_amp_on_mps=force_amp)
-
-    if force_amp:
-        print("[precision] Forcing AMP per config; monitor for NaNs.")
+    amp_dtype, autocast_ctx, scaler = setup_precision_and_flags(accel)
 
     model_name = model_cfg.get("name", cfg.get("model") or "ResNet1DClassifier")
 

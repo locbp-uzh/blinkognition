@@ -104,7 +104,6 @@ uncertainty:
     # wasserstein_threshold: 0.1  # Optional: fixed Wasserstein threshold (overrides trace_loss)
 
 system:
-  force_amp: true   # set false to keep safer fp32 on T4 for attention models
   compile: false
   num_workers: 4
   seed: 840410

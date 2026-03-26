@@ -67,7 +67,6 @@ uncertainty:
     # wasserstein_threshold: 0.1  # Optional: fixed threshold
 
 system:
-  force_amp: false
   compile: false
   seed: 840410
   num_workers: 4
@@ -191,7 +190,6 @@ MC dropout runs `n_mc` stochastic forward passes (dropout active at inference), 
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `force_amp` | bool | `false` | Force mixed precision even on pre-Ampere GPUs |
 | `compile` | bool | `false` | Use `torch.compile` (experimental, requires PyTorch 2.0+) |
 | `seed` | int | `null` | Random seed for reproducibility |
 | `num_workers` | int | `4` | DataLoader worker processes |
@@ -419,13 +417,7 @@ optimization:
   lr: 0.0001
 ```
 
-2. Disable AMP for attention models on older GPUs:
-```yaml
-system:
-  force_amp: false
-```
-
-3. Increase gradient clipping:
+2. Increase gradient clipping:
 ```yaml
 optimization:
   clip_grad_norm: 5.0
