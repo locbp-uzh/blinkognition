@@ -1419,7 +1419,6 @@ def main():
         for i in range(torch.cuda.device_count()):
             print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
     else:
-        from utils import detect_accelerator
         print(f"  Device: {detect_accelerator()['name']}")
     print("=" * 60 + "\n")
 

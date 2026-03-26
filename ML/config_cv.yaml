@@ -42,7 +42,7 @@ optimization:
     auc_min_delta: 0.005    # Minimum AUC improvement required (0.5%)
     loss_mode: "relative"   # "relative", "absolute", or "none"
     loss_tolerance: 1.10    # For relative: loss <= best_loss * 1.10 (max 10% higher)
-    # Alternative checkpoint (uncomment to enable):
+    # Alternative checkpoint:
     auc_tolerance: 0.003  # Max AUC drop from best to allow alternative checkpoint
     loss_min_delta: 0.005  # Min loss improvement required for alternative checkpoint
 
