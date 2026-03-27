@@ -1,6 +1,6 @@
 io:
   output_root: "../Results/Train"
-  run_name: "resnet_train_minmax_notmirrored"
+  run_name: "resnet_train_both_noaug_mirrored"
 
 
 data:
@@ -9,10 +9,10 @@ data:
   
 # Available proteins (uncomment to use):
   dataset:
-    #HTHTL:
-    #  channels: ["minmax", "zscored"]
-    snap:
+    HTHTL:
       channels: ["minmax", "zscored"]
+    #snap:
+    #  channels: ["minmax", "zscored"]
     HTIA:
       channels: ["minmax", "zscored"]
     #Grx1:
@@ -21,8 +21,8 @@ data:
     #  channels: ["minmax", "zscored"]
 
 
-  trim_end: 2000
-  max_traces_per_class: 1000
+  trim_end: 000
+  max_traces_per_class: 10000
   balance_train: true
   balance_val: true   # Balance val set by subsampling majority classes (prevents biased early stopping)
   balance_test: true  # Balance test set by subsampling majority classes
@@ -37,7 +37,7 @@ data:
     time_warp_sigma: 0.05    # ±% temporal distortion
     noise_sigma: 0.05        # % Gaussian noise
     magnitude_jitter: 0.05   # ±% intensity variation
-    include_mirror: false     # add time-reversed copy of every training trace
+    include_mirror: true     # add time-reversed copy of every training trace
 
 model:
   name: "resnet1d"          # one of: orig_conv_gru, resnet1d, tcn

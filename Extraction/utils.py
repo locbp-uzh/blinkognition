@@ -47,13 +47,18 @@ _COLORS = {
     'black':     '#000000',
 }
 matplotlib.rcParams['font.family']     = 'sans-serif'
-matplotlib.rcParams['font.sans-serif'] = ['Helvetica', 'Arial', 'DejaVu Sans']
+# DejaVu Sans is bundled with every matplotlib installation; listing it first
+# ensures identical font metrics (and therefore identical tight_layout margins)
+# on all platforms.  Helvetica/Arial are kept as fallbacks for systems that
+# have them and want them for other purposes, but will not be used here.
+matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Helvetica', 'Arial']
 matplotlib.rcParams['font.size']       = _FONTSIZE_LABEL
 matplotlib.rcParams['axes.titlesize']  = _FONTSIZE_TITLE
 matplotlib.rcParams['axes.labelsize']  = _FONTSIZE_LABEL
 matplotlib.rcParams['xtick.labelsize'] = _FONTSIZE_TICK
 matplotlib.rcParams['ytick.labelsize'] = _FONTSIZE_TICK
 matplotlib.rcParams['legend.fontsize'] = _FONTSIZE_LEGEND
+matplotlib.rcParams['figure.dpi']      = 100   # fixes tight_layout margin arithmetic
 matplotlib.rcParams['savefig.dpi']     = 450
 matplotlib.rcParams['savefig.bbox']    = 'tight'
 matplotlib.rcParams['axes.grid']       = False
@@ -1157,8 +1162,14 @@ def draw_max_projection(
     output_dir = output_path.parent / output_path.stem
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    h_im, w_im = max_projection.shape[:2]
+
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.imshow(max_projection, cmap="gray")
+    # Lock axis limits to the image extent so that aspect='equal' + tight_layout()
+    # cannot silently expand the data range and shift the image relative to boxes.
+    ax.set_xlim(-0.5, w_im - 0.5)
+    ax.set_ylim(h_im - 0.5, -0.5)
 
     # Draw protein ROI boxes
     # Offset by -0.5 because imshow places pixel centers at integer coordinates,

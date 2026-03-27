@@ -5,7 +5,7 @@
 # Pipeline Orchestration
 # =============================================================================
 # Start from specific step: paramfinder, localize, extract, combine, filter, diagnose
-start_from: paramfinder
+start_from: localize
 resume_run_folder:
 
 # =============================================================================
@@ -27,7 +27,7 @@ resume_run_folder:
 optimization:
   mode: "per_experiment"
   aggregation: "mean"
-  n_trials: 2
+  n_trials: 20
   search_space:
     gradient_protein_min: 10000
     gradient_protein_max: 80000
