@@ -631,6 +631,8 @@ def get_and_link_locs(
     y_pix = linked_locs["y"]
 
     # Translate to box coordinates (top-left corner)
+    # Use round (not floor) so the box is centred as closely as possible on the
+    # sub-pixel localisation; floor can shift the centre by up to ~1.5 pixels.
     shift = box_size / 2
     x_pix_transl = x_pix - shift
     y_pix_transl = y_pix - shift
@@ -647,8 +649,8 @@ def get_and_link_locs(
         y_pix_transl = np.where(valid_mask, y_pix_transl, 0)
 
     # Convert to integers
-    x_pix_transl = x_pix_transl.astype(int)
-    y_pix_transl = y_pix_transl.astype(int)
+    x_pix_transl = np.round(x_pix_transl).astype(int)
+    y_pix_transl = np.round(y_pix_transl).astype(int)
 
     number_rois = len(x_pix_transl)
 
@@ -701,6 +703,8 @@ def get_and_cluster_locs(
     y_pix = cluster_locs["y"]
 
     # Translate to box coordinates
+    # Use round (not floor) so the box is centred as closely as possible on the
+    # sub-pixel localisation; floor can shift the centre by up to ~1.5 pixels.
     shift = box_size / 2
     x_pix_transl = x_pix - shift
     y_pix_transl = y_pix - shift
@@ -717,8 +721,8 @@ def get_and_cluster_locs(
         y_pix_transl = np.where(valid_mask, y_pix_transl, 0)
 
     # Convert to integers
-    x_pix_transl = x_pix_transl.astype(int)
-    y_pix_transl = y_pix_transl.astype(int)
+    x_pix_transl = np.round(x_pix_transl).astype(int)
+    y_pix_transl = np.round(y_pix_transl).astype(int)
 
     number_rois = len(x_pix_transl)
 

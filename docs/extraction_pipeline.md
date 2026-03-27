@@ -190,11 +190,9 @@ Combines per-movie traces by protein and applies preprocessing:
 
 **Normalizations**:
 1. **Raw**: No preprocessing
-2. **Background Removed**: Subtract per-trace background (last frames or GMM)
+2. **Background Removed**: Subtract per-trace GMM noise component mean
 3. **Z-scored**: Standardize (mean=0, std=1) from background-removed
 4. **Min-max**: Scale to [0,1] from background-removed
-
-Output filenames include a `gmm` method tag (e.g., `Grx1_IN_gmm_all_raw_traces.pkl`).
 
 **Outputs (with ground truth)**:
 - `{RunFolder}/ProteinTracesIN/AllRaw/{Protein}_IN_raw.pkl`
@@ -218,11 +216,11 @@ Output filenames include a `gmm` method tag (e.g., `Grx1_IN_gmm_all_raw_traces.p
 - `{RunFolder}/BackgroundTraces/AllNorm/{Protein}_background_minmax.pkl`
 - `{RunFolder}/UniqueIDs/{Protein}_uniqueID_background.pkl` - Metadata
 
-**Note**: The `_all_` prefix indicates these files contain ALL traces before quality filtering. Background traces are not further filtered after contamination removal.
+**Note**: `AllRaw/`, `AllBG/`, `AllNorm/` contain all traces before quality filtering. Background traces are not peak-filtered; their `Filtered/` subfolder is unused.
 
 ### Step 4: Filter Traces (filter.py)
 
-Quality filtering for machine learning. Operates on the `{method_tag}`-prefixed files produced by combine.py and writes filtered outputs with the same tag.
+Quality filtering for machine learning. Reads from the `AllRaw/`, `AllBG/`, `AllNorm/` subfolders produced by combine.py and writes filtered outputs to `Filtered/`.
 
 **Peak detection**: Runs GMM classification on the background-removed trace; consecutive frames assigned to the signal component form peaks. SNR gate (`snr_min_separation`) rejects pure-noise traces before peak detection.
 
@@ -335,7 +333,9 @@ quantum_efficiency: 0.93
 
 # Parameter Optimization (optional)
 optimization:
-  n_trials: 20                   # Number of Optuna trials per protein/experiment
+  mode: "per_experiment"         # "per_experiment" (default) or "per_protein"
+  aggregation: "mean"            # How to combine per-protein scores in per_experiment mode
+  n_trials: 20                   # Number of Optuna trials per experiment
   search_space:
     gradient_protein_min: 10000
     gradient_protein_max: 80000
@@ -343,7 +343,6 @@ optimization:
     gradient_ground_truth_min: 1000
     gradient_ground_truth_max: 10000
     gradient_ground_truth_step: 1000
-    boxsize_options: [5, 7]
 
 # Trace extraction
 max_distance: 2.0                      # Linking distance (pixels)
@@ -439,10 +438,7 @@ Results/Extract/Grx1_K20Ac_optparam_001/
 │   ├── AllBG/      Grx1_background_bg_rm.pkl
 │   ├── AllNorm/    Grx1_background_zscored.pkl
 │   │               Grx1_background_minmax.pkl
-│   └── Filtered/   Grx1_background_filtered_raw.pkl
-│                   Grx1_background_filtered_bg_rm.pkl
-│                   Grx1_background_filtered_zscored.pkl
-│                   Grx1_background_filtered_minmax.pkl
+│   └── Filtered/   (unused — background traces are not peak-filtered)
 │
 ├── Diagnostics/
 │   ├── IN/
@@ -641,8 +637,8 @@ The filtered outputs are ready for ML training:
 import pandas as pd
 
 # Load filtered traces for a protein
-grx1_in = pd.read_pickle('Results/Extract/.../Grx1_IN_filtered_zscored_traces.pkl')
-grx1_out = pd.read_pickle('Results/Extract/.../Grx1_OUT_filtered_zscored_traces.pkl')
+grx1_in = pd.read_pickle('Results/Extract/.../ProteinTracesIN/Filtered/Grx1_IN_filtered_zscored.pkl')
+grx1_out = pd.read_pickle('Results/Extract/.../ProteinTracesOUT/Filtered/Grx1_OUT_filtered_zscored.pkl')
 
 # Shape: (6000 frames × N traces)
 print(f"IN traces: {grx1_in.shape}")

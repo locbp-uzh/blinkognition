@@ -4,11 +4,11 @@ io:
 
 data:
   #traces_path: "../Data/traces/"
-  traces_path: "/Volumes/MediumBerth/March25/Filtered"
+  traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/BackgroundTraces/Filtered"
   dataset:
     HTHTL:
       channels: ["minmax"]
-    snap:
+    Grx1:
       channels: ["minmax"]
 
 

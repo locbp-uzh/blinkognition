@@ -228,8 +228,8 @@ def compute_ground_truth_intensities(
 
     for loc in locs:
         # Get box coordinates (top-left corner)
-        x = int(loc["x"] - shift)
-        y = int(loc["y"] - shift)
+        x = int(round(loc["x"] - shift))
+        y = int(round(loc["y"] - shift))
 
         # Bounds check
         if x < 0 or y < 0:
@@ -471,8 +471,10 @@ def draw_trial_qc(
     ax.set_title(title, fontsize=7, pad=9)
 
     # Draw ground truth boxes (cyan, dotted) if applicable
-    # Offset by -0.5 because imshow places pixel centers at integer coordinates,
-    # so a box at integer (x, y) would start at the pixel center, not its edge.
+    # x, y stored in df and ground_truth_positions are already top-left corner
+    # coordinates (shifted by -box/2 from the Picasso centre in utils.py).
+    # The -0.5 offset aligns to matplotlib's pixel-boundary convention: imshow
+    # centres pixel i at coordinate i, so its left edge is at i - 0.5.
     box = int(cfg["boxsize"])
     if has_ground_truth and ground_truth_positions.size > 0:
         for x_gt, y_gt in ground_truth_positions:
@@ -925,13 +927,13 @@ def pooled_objective_function(
                     f"trial_{trial.number:03d}_{protein_name}_"
                     f"gp-{trial_params['gradient_protein']}_"
                     f"ggt-{trial_params['gradient_ground_truth']}_"
-                    f"box{base_config['boxsize']}.png"
+                    f"box{base_config['boxsize']}.pdf"
                 )
             else:
                 qc_filename = (
                     f"trial_{trial.number:03d}_{protein_name}_"
                     f"gp-{trial_params['gradient_protein']}_"
-                    f"box{base_config['boxsize']}.png"
+                    f"box{base_config['boxsize']}.pdf"
                 )
 
             try:

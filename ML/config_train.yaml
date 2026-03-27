@@ -5,38 +5,20 @@ io:
 
 data:
   #traces_path: "../Data/traces"
-  traces_path: "/Volumes/MediumBerth/March25/Filtered"
+  traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/ProteinTracesIN/Filtered"
   
 # Available proteins (uncomment to use):
   dataset:
-    #HTNHS:
+    #HTHTL:
     #  channels: ["minmax", "zscored"]
-    #CLX:
+    snap:
+      channels: ["minmax", "zscored"]
+    HTIA:
+      channels: ["minmax", "zscored"]
+    #Grx1:
     #  channels: ["minmax", "zscored"]
-    #blank:
+    #K20Ac:
     #  channels: ["minmax", "zscored"]
-    #HaloTag_ligand:
-    #  channels: ["minmax", "zscored"]
-    #ligand-HMSiR:
-    #  channels: ["minmax", "zscored"]
-    #NHS-HMSiR:
-    #  channels: ["minmax", "zscored"]
-    #Grx1_OUT:
-    #  channels: ["minmax", "zscored"]
-    #Grx1_IN:
-    #  channels: ["minmax"]
-    #K20Ac_OUT:
-    #  channels: ["minmax", "zscored"]
-    #K20Ac_IN:
-    #  channels: ["minmax"]
-    HTHTL_IN:
-      channels: ["minmax"]
-    #HTIA_IN:
-    #  channels: ["minmax"]
-    #scgrx1_IN:
-    #  channels: ["minmax", "zscored"]
-    snap_IN:
-      channels: ["minmax"]
 
 
   trim_end: 2000

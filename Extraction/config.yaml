@@ -46,8 +46,8 @@ has_ground_truth: true
 # =============================================================================
 # I/O and Data Organization
 # =============================================================================
-input_folder: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT
-output_folder_base: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/Results/NewRepo
+input_folder: /Volumes/MediumBerth/SmallTest
+output_folder_base: /Volumes/MediumBerth/SmallTest/Results
 
 proteins:
   - HTHTL
