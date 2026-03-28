@@ -546,15 +546,15 @@ def draw_trial_qc(
         ]
     ax.legend(handles=legend_elements, loc="upper right", fontsize=6, framealpha=0.9)
 
-    # Lock axis limits to image bounds so patches near the edge don't cause
-    # matplotlib to auto-expand the axes beyond the image extent.
     h, w = im_comp.shape[:2]
-    ax.set_xlim(-0.5, w - 0.5)
-    ax.set_ylim(h - 0.5, -0.5)
 
     try:
         ax.grid(False)
         fig.tight_layout()
+        # Re-apply after tight_layout: on older matplotlib, tight_layout with
+        # aspect='equal' can silently reset the axis limits.
+        ax.set_xlim(-0.5, w - 0.5)
+        ax.set_ylim(h - 0.5, -0.5)
         fig.savefig(output_path, dpi=450, bbox_inches='tight')
     except Exception as e:
         logging.warning(f"Failed to save QC figure to {output_path}: {e}")

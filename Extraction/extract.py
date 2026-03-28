@@ -377,8 +377,6 @@ def process_movie_pair(
                         linewidth=1, edgecolor=edge, facecolor="none", linestyle="-",
                     ))
 
-            ax.set_xlim(-0.5, w_im - 0.5)
-            ax.set_ylim(h_im - 0.5, -0.5)
             ax.set_xlabel("X (pixels)")
             ax.set_ylabel("Y (pixels)")
             ax.set_title("Colocalization composite (protein=red, GT=cyan)", pad=9)
@@ -399,6 +397,10 @@ def process_movie_pair(
             ax.legend(handles=legend_elements, loc="upper right", frameon=False)
             ax.grid(False)
             plt.tight_layout()
+            # Re-apply after tight_layout: on older matplotlib, tight_layout with
+            # aspect='equal' can silently reset the axis limits.
+            ax.set_xlim(-0.5, w_im - 0.5)
+            ax.set_ylim(h_im - 0.5, -0.5)
             plt.savefig(composite_dir / "plot.pdf", dpi=450, bbox_inches="tight")
             plt.close("all")
 
@@ -428,8 +430,6 @@ def process_movie_pair(
                             linewidth=1, edgecolor="cyan", facecolor="none", linestyle=":",
                         ))
 
-                ax.set_xlim(-0.5, w_im - 0.5)
-                ax.set_ylim(h_im - 0.5, -0.5)
                 ax.set_xlabel("X (pixels)")
                 ax.set_ylabel("Y (pixels)")
                 ax.set_title("Ground truth channel (488 nm)", pad=9)
@@ -440,6 +440,8 @@ def process_movie_pair(
                 )
                 ax.grid(False)
                 plt.tight_layout()
+                ax.set_xlim(-0.5, w_im - 0.5)
+                ax.set_ylim(h_im - 0.5, -0.5)
                 plt.savefig(gt_dir / "plot.pdf", dpi=450, bbox_inches="tight")
                 plt.close("all")
 
@@ -465,13 +467,13 @@ def process_movie_pair(
                         linewidth=1, edgecolor="red", facecolor="none", linestyle="-",
                     ))
 
-                ax.set_xlim(-0.5, w_im - 0.5)
-                ax.set_ylim(h_im - 0.5, -0.5)
                 ax.set_xlabel("X (pixels)")
                 ax.set_ylabel("Y (pixels)")
                 ax.tick_params(labelsize=6)
                 ax.grid(False)
                 plt.tight_layout()
+                ax.set_xlim(-0.5, w_im - 0.5)
+                ax.set_ylim(h_im - 0.5, -0.5)
                 plt.savefig(in_dir / "plot.pdf", dpi=450, bbox_inches="tight")
                 plt.close("all")
 

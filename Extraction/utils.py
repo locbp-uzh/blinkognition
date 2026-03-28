@@ -1166,10 +1166,6 @@ def draw_max_projection(
 
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.imshow(max_projection, cmap="gray")
-    # Lock axis limits to the image extent so that aspect='equal' + tight_layout()
-    # cannot silently expand the data range and shift the image relative to boxes.
-    ax.set_xlim(-0.5, w_im - 0.5)
-    ax.set_ylim(h_im - 0.5, -0.5)
 
     # Draw protein ROI boxes
     # Offset by -0.5 because imshow places pixel centers at integer coordinates,
@@ -1242,6 +1238,10 @@ def draw_max_projection(
     ax.grid(False)
 
     plt.tight_layout()
+    # Re-apply after tight_layout: on older matplotlib, tight_layout with
+    # aspect='equal' can silently reset the axis limits.
+    ax.set_xlim(-0.5, w_im - 0.5)
+    ax.set_ylim(h_im - 0.5, -0.5)
     plt.savefig(output_dir / "plot.pdf", dpi=450, bbox_inches="tight")
     plt.close("all")
 
