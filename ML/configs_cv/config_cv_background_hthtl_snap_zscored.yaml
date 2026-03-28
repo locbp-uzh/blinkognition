@@ -1,14 +1,14 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "background_minmax"
+  run_name: "background_hthtl_snap_zscored"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/SalomeData/March25_backgroundtraces"
+  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/BackgroundTraces/Filtered"
   dataset:
     HTHTL:
-      channels: ["minmax"]
+      channels: ["zscored"]
     snap:
-      channels: ["minmax"]
+      channels: ["zscored"]
 
 
 trim_end: 2000

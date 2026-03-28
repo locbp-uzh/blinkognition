@@ -8,15 +8,15 @@ CONFIG_DIR="${SCRIPT_DIR}/configs_cv"
 
 # List of config files to submit
 CONFIG_FILES=(
-    "config_cv_mirrored_both.yaml"
-    "config_cv_mirrored_minmax.yaml"
-    "config_cv_mirrored_zscored.yaml"
-    "config_cv_notmirrored_both.yaml"
-    "config_cv_notmirrored_minmax.yaml"
-    "config_cv_notmirrored_zscored.yaml"
-    "config_cv_background_both.yaml"
-    "config_cv_background_minmax.yaml"
-    "config_cv_background_zscored.yaml"
+    "config_cv_mirrored_hthtl_snap_both.yaml"
+    "config_cv_mirrored_hthtl_snap_minmax.yaml"
+    "config_cv_mirrored_hthtl_snap_zscored.yaml"
+    "config_cv_notmirrored_hthtl_snap_both.yaml"
+    "config_cv_notmirrored_hthtl_snap_minmax.yaml"
+    "config_cv_notmirrored_hthtl_snap_zscored.yaml"
+    "config_cv_background_hthtl_snap_both.yaml"
+    "config_cv_background_hthtl_snap_minmax.yaml"
+    "config_cv_background_hthtl_snap_zscored.yaml"
 )
 
 echo "Submitting ${#CONFIG_FILES[@]} cross-validation jobs..."

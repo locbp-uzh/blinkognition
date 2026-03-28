@@ -1,14 +1,14 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "notmirrored_both"
+  run_name: "notmirrored_hthtl_snap_minmax"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/SalomeData/March25_proteintraces"
+  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
   dataset:
     HTHTL:
-      channels: ["minmax", "zscored"]
+      channels: ["minmax"]
     snap:
-      channels: ["minmax", "zscored"]
+      channels: ["minmax"]
 
 
 trim_end: 2000

@@ -1,14 +1,14 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "mirrored_zscored"
+  run_name: "mirrored_hthtl_snap_both"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/SalomeData/March25_proteintraces"
+  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
   dataset:
     HTHTL:
-      channels: ["zscored"]
+      channels: ["minmax", "zscored"]
     snap:
-      channels: ["zscored"]
+      channels: ["minmax", "zscored"]
 
 
 trim_end: 2000

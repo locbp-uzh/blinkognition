@@ -3,7 +3,7 @@ io:
   run_name: "notmirrored_grx1_k20ac_both"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/SalomeData/March25_proteintraces"
+  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
   dataset:
     Grx1:
       channels: ["minmax", "zscored"]

@@ -1,9 +1,9 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "background_zscored"
+  run_name: "notmirrored_hthtl_snap_zscored"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/SalomeData/March25_backgroundtraces"
+  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
   dataset:
     HTHTL:
       channels: ["zscored"]
@@ -70,3 +70,4 @@ augmentation_sweep:
     time_warp_sigma: 0.05
     noise_sigma: 0.05
     magnitude_jitter: 0.05
+    include_mirror: false
