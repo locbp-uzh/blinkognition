@@ -203,6 +203,7 @@ def classify_fov(
     return {
         'PV_A520':    int(in_a.sum()),
         'PV_A425':    int(in_b.sum()),
+        'PV_both':    int((in_a & in_b).sum()) if len(prot) > 0 else 0,
         'P_free':     int((~either).sum()) if len(prot) > 0 else 0,
         'n_protein':  len(prot),
         'n_ves_A520': len(ves_a),
@@ -261,13 +262,13 @@ def analyze_slide(
     logging.info(f"  {picasso_slide_dir.name}: {len(triplets)} FOV triplets")
 
     totals: Dict[str, int] = {
-        'PV_A520': 0, 'PV_A425': 0, 'P_free': 0,
+        'PV_A520': 0, 'PV_A425': 0, 'PV_both': 0, 'P_free': 0,
         'n_protein': 0, 'n_ves_A520': 0, 'n_ves_A425': 0,
         'n_fovs': len(triplets),
     }
     for c1, c3, c4 in triplets:
         counts = classify_fov(c1, c3, c4, max_dist)
-        for k in ['PV_A520', 'PV_A425', 'P_free', 'n_protein', 'n_ves_A520', 'n_ves_A425']:
+        for k in ['PV_A520', 'PV_A425', 'PV_both', 'P_free', 'n_protein', 'n_ves_A520', 'n_ves_A425']:
             totals[k] += counts[k]
 
     return totals
@@ -325,16 +326,19 @@ def analyze_experiment(
             'slide':         slide_name,
             'timepoint_h':   tp,
             'is_control':    tp is None,
-            'PV_A520':       counts['PV_A520'],
-            'PV_A425':       counts['PV_A425'],
-            'P_free':        counts['P_free'],
-            'n_protein':     n,
-            'n_ves_A520':    counts['n_ves_A520'],
-            'n_ves_A425':    counts['n_ves_A425'],
-            'n_fovs':        counts['n_fovs'],
-            'pct_in_A520':   100.0 * counts['PV_A520'] / n if n > 0 else 0.0,
-            'pct_in_A425':   100.0 * counts['PV_A425'] / n if n > 0 else 0.0,
-            'pct_free':      100.0 * counts['P_free']  / n if n > 0 else 0.0,
+            'PV_A520':            counts['PV_A520'],
+            'PV_A425':            counts['PV_A425'],
+            'PV_both':            counts['PV_both'],
+            'P_free':             counts['P_free'],
+            'n_protein':          n,
+            'n_ves_A520':         counts['n_ves_A520'],
+            'n_ves_A425':         counts['n_ves_A425'],
+            'n_fovs':             counts['n_fovs'],
+            'pct_in_A520':        100.0 * counts['PV_A520'] / n if n > 0 else 0.0,
+            'pct_in_A425':        100.0 * counts['PV_A425'] / n if n > 0 else 0.0,
+            'pct_free':           100.0 * counts['P_free']  / n if n > 0 else 0.0,
+            'pct_A425_also_A520': 100.0 * counts['PV_both'] / counts['PV_A425']
+                                  if counts['PV_A425'] > 0 else 0.0,
         })
 
     df = pd.DataFrame(rows)

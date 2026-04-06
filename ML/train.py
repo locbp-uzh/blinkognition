@@ -175,13 +175,13 @@ def main():
     ):
         # Old format: file paths specified directly
         print("Using legacy dataset format with explicit file paths")
-        X, y, class_map, in_channels = build_dataset(
+        X, y, class_map, in_channels, unique_ids = build_dataset(
             dataset, trim_end=trim_end, max_traces_per_class=max_traces_per_class, random_seed=seed_val
         )
     else:
         # New format: protein keys with file discovery
         print(f"Using new dataset format with protein keys, discovering files in: {traces_path}")
-        X, y, class_map, in_channels = build_dataset_from_keys(
+        X, y, class_map, in_channels, unique_ids = build_dataset_from_keys(
             dataset, traces_path, trim_end=trim_end, max_traces_per_class=max_traces_per_class, random_seed=seed_val
         )
 
@@ -417,6 +417,20 @@ def main():
         X_test = torch.cat(X_list, dim=0).contiguous()
         y_test = torch.cat(y_list, dim=0).numpy()
 
+        # Match X_test traces back to UniqueIDs via fingerprint on first channel, first 10 values.
+        # X is cast to float32 to match the DataLoader's tensor conversion.
+        X_fp = X.astype(np.float32)
+        fp_lookup = {tuple(X_fp[i, 0, :10].tolist()): unique_ids[i] for i in range(len(X))}
+        unique_ids_test = np.array(
+            [fp_lookup.get(tuple(X_test[i, 0, :10].numpy().tolist()), -1) for i in range(len(X_test))],
+            dtype=np.int64,
+        )
+        n_unmatched = int((unique_ids_test == -1).sum())
+        if n_unmatched:
+            print(f"Warning: {n_unmatched}/{len(X_test)} test traces could not be matched to a UniqueID.")
+        else:
+            print(f"UniqueID matching: all {len(X_test)} test traces matched.")
+
         with torch.no_grad():
             probs_mc = mc_dropout_predict(
                 model, X_test,
@@ -444,6 +458,7 @@ def main():
             embeddings=test_embeddings,
             umap_coords=test_umap_coords,
             traces=X_test,
+            unique_ids=unique_ids_test,
             random_state=seed_val,
         )
 

@@ -43,6 +43,7 @@ from typing import Dict, List, Optional, Tuple
 import fcsparser
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
 import yaml
@@ -550,6 +551,185 @@ def plot_bar_chart(
     fig.savefig(output_dir / 'mixing_bar.pdf', dpi=450, bbox_inches='tight')
     plt.close(fig)
     logging.info(f"Saved mixing_bar.pdf → {output_dir}")
+
+
+# ---------------------------------------------------------------------------
+# Density scatter figure (Figure 2B)
+# ---------------------------------------------------------------------------
+
+def _load_cmap(name: str):
+    lut = Path(__file__).parent.parent / "assets" / "colormaps" / f"{name}.txt"
+    if lut.exists():
+        return mcolors.LinearSegmentedColormap.from_list(name, np.loadtxt(lut))
+    return mpl.colormaps.get_cmap("viridis")
+
+
+def plot_nanofcm_scatter(
+    sample_name: str,
+    sample_dirs: List[Path],
+    output_path: Path,
+    fitc_channel: str = 'FITC-H',
+    pc5_channel: str = 'PC5-H',
+    ss_channel: str = 'SS-H',
+    ss_min_pct: float = 5.0,
+    ss_max_pct: float = 99.5,
+    gridsize: int = 60,
+    preferred_substring: Optional[str] = None,
+    single_file: bool = False,
+) -> Dict[str, dict]:
+    """
+    Four-panel hexbin density scatter figure for one sample:
+    FITC-H (488 nm) vs PC5-H (640 nm) at 0 h (diluted), 1 h, 3 h, 24 h.
+
+    Events are SS-H gated (percentile window applied per file), pooled
+    across all replicate files for that timepoint, and displayed as a
+    hexbin density map with the lapaz colormap.
+
+    Args:
+        preferred_substring: Prefer files whose stem contains this string
+            (case-insensitive). If no match exists for a timepoint, falls
+            back to all available files for that timepoint.
+        single_file: If True, use only the first selected file per timepoint
+            (after preferred_substring ordering). All available alternatives
+            are recorded in gate_stats for documentation.
+
+    Returns dict mapping timepoint → gate statistics including 'file_used'
+    and 'files_available' keys when single_file=True.
+    """
+    _lapaz = _load_cmap("lapaz")
+    CLIP_MIN = 1.0   # floor for log scale (instrument units)
+
+    target_tps = ['0h_dil', '1h', '3h', '24h']
+    tp_titles  = {'0h_dil': '0 h', '1h': '1 h', '3h': '3 h', '24h': '24 h'}
+
+    # ── load all files across days ────────────────────────────────────────
+    all_files: Dict[str, pd.DataFrame] = {}
+    for d in sample_dirs:
+        all_files.update(load_all_fcs(d))
+
+    # ── collect & gate events per timepoint ──────────────────────────────
+    pooled:     Dict[str, Optional[np.ndarray]] = {}
+    gate_stats: Dict[str, dict] = {}
+
+    for tp in target_tps:
+        # Gather all candidate files for this timepoint
+        all_tp: List[Tuple[str, pd.DataFrame]] = []
+        for stem, df in all_files.items():
+            if parse_timepoint(stem) != tp:
+                continue
+            if tp == '0h_dil' and 'dil' not in stem.lower():
+                continue
+            all_tp.append((stem, df))
+
+        # Prefer files matching the substring; fall back to all if none match
+        if preferred_substring:
+            preferred = [(s, d) for s, d in all_tp
+                         if preferred_substring.lower() in s.lower()]
+            use_tp = preferred if preferred else all_tp
+        else:
+            use_tp = all_tp
+
+        # Optionally restrict to a single file
+        if single_file and use_tp:
+            use_tp = use_tp[:1]
+
+        fitc_vals, pc5_vals, ss_los, ss_his = [], [], [], []
+        files_used: List[str] = []
+
+        for stem, df in use_tp:
+            ss = df[ss_channel]
+            lo, hi = np.percentile(ss, [ss_min_pct, ss_max_pct])
+            gated  = df[(ss >= lo) & (ss <= hi)]
+            fitc_vals.append(gated[fitc_channel].values)
+            pc5_vals.append(gated[pc5_channel].values)
+            ss_los.append(lo); ss_his.append(hi)
+            files_used.append(stem)
+            logging.info(
+                f"  {sample_name}/{stem}: {len(gated)}/{len(df)} events "
+                f"| SS gate [{lo:.0f}, {hi:.0f}]"
+            )
+
+        if not fitc_vals:
+            logging.warning(f"No '{tp}' files found for {sample_name}")
+            pooled[tp] = None
+            gate_stats[tp] = {}
+            continue
+
+        pooled[tp] = np.column_stack([
+            np.concatenate(fitc_vals),
+            np.concatenate(pc5_vals),
+        ])
+        gate_stats[tp] = {
+            'n_files':         len(files_used),
+            'n_events':        len(pooled[tp]),
+            'ss_lo':           (min(ss_los), max(ss_los)),
+            'ss_hi':           (min(ss_his), max(ss_his)),
+            'files_used':      files_used,
+            'files_available': [s for s, _ in all_tp],
+        }
+
+    # ── plot ──────────────────────────────────────────────────────────────
+    fig, axes = plt.subplots(1, 4, figsize=(9.0, 2.5), sharey=True, sharex=True)
+
+    Q_FITC, Q_PC5 = 30.0, 100.0   # quadrant thresholds (3×10¹, 10²)
+    hb_list: list = []             # (ax, hb) for panels with data
+    global_max = 1
+
+    # First pass: render hexbins, collect global max count
+    for ax, tp in zip(axes, target_tps):
+        ax.set_title(tp_titles[tp], fontsize=FONTSIZE_TITLE, pad=5)
+        ax.set_xlabel('488 nm (a.u.)', fontsize=FONTSIZE_LABEL)
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        apply_axis_standards(ax)
+
+        if pooled[tp] is None:
+            ax.text(0.5, 0.5, 'no data', ha='center', va='center',
+                    transform=ax.transAxes, fontsize=FONTSIZE_TICK, color='grey')
+            continue
+
+        x = np.clip(pooled[tp][:, 0], CLIP_MIN, None)
+        y = np.clip(pooled[tp][:, 1], CLIP_MIN, None)
+
+        hb = ax.hexbin(
+            x, y,
+            xscale='log', yscale='log',
+            gridsize=gridsize,
+            cmap=_lapaz,
+            mincnt=1,
+            linewidths=0.0,
+        )
+        global_max = max(global_max, int(hb.get_array().max()))
+
+        # Quadrant lines
+        ax.axvline(Q_FITC, color='black', lw=0.525, ls='--', alpha=0.8)
+        ax.axhline(Q_PC5,  color='black', lw=0.525, ls='--', alpha=0.8)
+
+        # Upper-right quadrant percentage
+        pct = 100.0 * np.sum((x >= Q_FITC) & (y >= Q_PC5)) / len(x)
+        ax.text(0.97, 0.97, f"{pct:.1f}%", transform=ax.transAxes,
+                ha='right', va='top', fontsize=FONTSIZE_TICK, color='black')
+
+        hb_list.append((ax, hb))
+
+    # Second pass: apply shared color scale and add colorbars
+    for ax, hb in hb_list:
+        hb.set_clim(vmin=1, vmax=global_max)
+        cb = fig.colorbar(hb, ax=ax, shrink=0.75, pad=0.03)
+        cb.set_label('Events', fontsize=FONTSIZE_LEGEND)
+        cb.ax.tick_params(labelsize=FONTSIZE_TICK - 1, length=2, width=0.4)
+        cb.outline.set_linewidth(0.4)
+
+    axes[0].set_ylabel('640 nm (a.u.)', fontsize=FONTSIZE_LABEL)
+    fig.suptitle(sample_name, fontsize=FONTSIZE_TITLE, y=1.01, fontweight='bold')
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=450, bbox_inches='tight')
+    plt.close(fig)
+    logging.info(f"Saved {output_path.name} → {output_path.parent}")
+
+    return gate_stats
 
 
 # ---------------------------------------------------------------------------

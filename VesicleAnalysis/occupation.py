@@ -19,7 +19,7 @@ Result CSV format (produced by make_ID_and_combine_multicolor_gt_photobleaching.
     flag, step2_time [s], sic_final, type, step2_time, 0..N (trace values)
 
   Key column: `type`  — number of fluorophores detected per vesicle cluster
-  Key column: `flag`  — quality flag (0 = good, non-zero = rejected)
+  Key column: `flag`  — quality flag (1 = good, negative = rejected)
 
 Usage:
     python occupation.py -c config_occupation.yaml
@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -86,36 +87,53 @@ def apply_axis_standards(ax: plt.Axes) -> None:
 
 def load_result_csv(path: Path, good_flag_only: bool = True) -> pd.DataFrame:
     """
-    Load a KV step-detection result CSV.
+    Load a KV step-detection result CSV and return one row per vesicle.
 
     The first row of these files is a dict representation of KV parameters;
-    the actual CSV starts on the second row.
+    the actual CSV starts on the second row.  Each vesicle contributes 7 rows
+    with different `type` descriptors; the fluorophore count is stored in the
+    `fluors_kv` row, column '0' (constant across all frame columns).
 
     Args:
         path: Path to *_result.csv file.
-        good_flag_only: If True, keep only rows where `flag == 0`.
+        good_flag_only: If True, keep only rows where ``flag == 1``.
+            ``flag=1`` means KV clearly identified ≥1 photobleaching step.
+            All other flag values are excluded; empty vesicles (no protein
+            detected) must be added separately with ``add_empty_vesicles()``.
 
     Returns:
-        DataFrame with at minimum columns: crop_index, type, flag.
+        DataFrame with columns: ``crop_index``, ``occupation``, ``flag``.
+        One row per protein-associated vesicle with clearly detected steps.
     """
     if not path.exists():
         logging.warning(f"Result CSV not found: {path}")
         return pd.DataFrame()
     try:
-        df = pd.read_csv(str(path), skiprows=1)
+        raw = pd.read_csv(str(path), skiprows=1)
     except Exception as e:
         logging.warning(f"Could not read {path.name}: {e}")
         return pd.DataFrame()
 
-    if 'type' not in df.columns:
+    if 'type' not in raw.columns:
         logging.warning(f"No 'type' column in {path.name}")
         return pd.DataFrame()
 
-    if good_flag_only and 'flag' in df.columns:
-        n_before = len(df)
-        df = df[df['flag'] == 0].copy()
-        logging.debug(f"  {path.name}: {n_before} total, {len(df)} passing flag=0")
-    return df
+    # Extract one row per vesicle from the fluors_kv descriptor rows
+    fk = raw[raw['type'] == 'fluors_kv'].copy()
+    fk = fk.assign(occupation=fk['0'].astype(int))
+
+    if good_flag_only and 'flag' in fk.columns:
+        n_before = len(fk)
+        # flag=1        : KV clearly detected ≥1 photobleaching step — keep
+        # flag=-1       : KV found 0 steps (protein pre-bleached or no signal) — exclude
+        # flag<-1       : other quality rejections — exclude
+        # Empty vesicles (no protein detected at all) are added separately via
+        # add_empty_vesicles() using total vesicle cluster counts from Picasso.
+        fk = fk[fk['flag'] == 1].copy()
+        logging.debug(f"  {path.name}: {n_before} vesicles, {len(fk)} with flag=1 (clear steps)")
+
+    cols = ['crop_index', 'occupation', 'flag'] if 'flag' in fk.columns else ['crop_index', 'occupation']
+    return fk[cols].reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +188,71 @@ def load_concentration_series(
 
 
 # ---------------------------------------------------------------------------
+# Empty-vesicle handling
+# ---------------------------------------------------------------------------
+
+def count_vesicle_clusters(picasso_slide_dir: Path) -> int:
+    """
+    Return the total number of vesicle (488 nm) clusters found by Picasso
+    for a given slide, as recorded in ``clustering_results.txt``.
+
+    The clustering pipeline appends one entry per FOV each time it runs
+    (sometimes 2-3×), so we read only the first ``n_fovs`` entries, where
+    ``n_fovs`` is determined by the number of per-FOV 640 nm traces pkl files
+    present in the directory.
+
+    Args:
+        picasso_slide_dir: Path to a single slide's Picasso output directory,
+            e.g. ``Picasso_5000/Slide_02_4uM/``.
+
+    Returns:
+        Total vesicle cluster count, or 0 if the file is missing.
+    """
+    txt_path = picasso_slide_dir / 'clustering_results.txt'
+    if not txt_path.exists():
+        logging.warning(f"clustering_results.txt not found: {picasso_slide_dir}")
+        return 0
+
+    # Number of real per-FOV acquisitions = numbered traces pkls + 1 combined
+    n_fovs = len([p for p in sorted(picasso_slide_dir.glob('*640nm*_traces.pkl'))
+                  if re.search(r'_\d{4}_traces', p.name)]) + 1
+
+    counts = list(map(int, re.findall(r'(\d+) clusters were found.*vesicle',
+                                      txt_path.read_text())))
+    n_use = min(n_fovs, len(counts))
+    total = sum(counts[:n_use])
+    logging.debug(f"  {picasso_slide_dir.name}: {total} vesicle clusters ({n_use} FOVs)")
+    return total
+
+
+def add_empty_vesicles(df: pd.DataFrame, n_total_vesicles: int) -> pd.DataFrame:
+    """
+    Augment an occupation DataFrame with occupation=0 rows for empty vesicles.
+
+    Empty vesicles are those detected in the 488 nm channel that had no
+    protein (640 nm) localisation within the co-localisation distance.
+    Their count is ``n_total_vesicles − len(df)``.
+
+    Args:
+        df: DataFrame with an ``occupation`` column (one row per vesicle with
+            clearly detected photobleaching steps, from ``load_result_csv``).
+        n_total_vesicles: Total vesicle cluster count from Picasso
+            (from ``count_vesicle_clusters``).
+
+    Returns:
+        Augmented DataFrame including empty-vesicle rows (occupation=0).
+    """
+    n_empty = max(0, n_total_vesicles - len(df))
+    if n_empty == 0:
+        logging.warning("n_total_vesicles ≤ len(df); no empty vesicles added.")
+        return df
+    empty = pd.DataFrame({'occupation': np.zeros(n_empty, dtype=int)})
+    result = pd.concat([df[['occupation']], empty], ignore_index=True)
+    logging.info(f"  Added {n_empty} empty vesicles → total {len(result)}")
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Statistics
 # ---------------------------------------------------------------------------
 
@@ -181,14 +264,14 @@ def occupation_distribution(
     Compute the distribution of proteins-per-vesicle.
 
     Args:
-        df: DataFrame with a 'type' column.
+        df: DataFrame with an 'occupation' column (one row per vesicle).
         max_n: Group all counts ≥ max_n into a single ≥max_n bin.
 
     Returns:
         Series with index = number of proteins (0, 1, 2, ... ≥max_n)
         and values = fraction of vesicles (normalised to 1).
     """
-    counts = df['type'].clip(upper=max_n).value_counts().sort_index()
+    counts = df['occupation'].clip(upper=max_n).value_counts().sort_index()
     # Ensure all bins 0..max_n are present
     full_index = list(range(max_n + 1))
     counts = counts.reindex(full_index, fill_value=0)
@@ -197,7 +280,7 @@ def occupation_distribution(
 
 def mean_occupation(df: pd.DataFrame) -> float:
     """Mean number of proteins per vesicle."""
-    return float(df['type'].mean()) if not df.empty else 0.0
+    return float(df['occupation'].mean()) if not df.empty else 0.0
 
 
 def poisson_expected(mean: float, max_n: int = 10) -> pd.Series:

@@ -1109,7 +1109,7 @@ def main():
     ):
         # Old format: file paths specified directly
         print("Using legacy dataset format with explicit file paths")
-        X, y, class_map, in_channels = build_dataset(
+        X, y, class_map, in_channels, _ = build_dataset(
             dataset_dict,
             trim_end=trim_end_val,
             max_traces_per_class=max_traces_val,

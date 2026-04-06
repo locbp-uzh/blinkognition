@@ -128,6 +128,19 @@ def load_series(path):
     return arr
 
 
+def _load_col_names(path):
+    """Return the column names (UniqueIDs) from a traces pkl file as an int64 array."""
+    obj = pd.read_pickle(path)
+    if isinstance(obj, pd.DataFrame):
+        return np.array(list(obj.columns), dtype=np.int64)
+    elif isinstance(obj, pd.Series):
+        return np.array([obj.name], dtype=np.int64)
+    else:
+        arr = np.asarray(obj)
+        n = arr.shape[0] if arr.ndim >= 2 else 1
+        return np.arange(n, dtype=np.int64)
+
+
 def discover_protein_files(traces_path, protein_key, channels=None):
     """
     Discover pickle files for a given protein key in the traces directory.
@@ -213,12 +226,12 @@ def build_dataset_from_keys(dataset_keys, traces_path, trim_end=0, max_traces_pe
             # Auto-discovery mode (backward compatibility with {} or None)
             dataset_dict[protein_key] = discover_protein_files(traces_path, protein_key)
 
-    return build_dataset(dataset_dict, trim_end, max_traces_per_class, random_seed)
+    return build_dataset(dataset_dict, trim_end, max_traces_per_class, random_seed)  # includes unique_ids
 
 
 def build_dataset(dataset_dict, trim_end=0, max_traces_per_class=None, random_seed=42):
     sample_names = list(dataset_dict.keys())
-    X_list, y_list = [], []
+    X_list, y_list, uid_list = [], [], []
 
     rng = np.random.default_rng(seed=random_seed)
 
@@ -246,6 +259,9 @@ def build_dataset(dataset_dict, trim_end=0, max_traces_per_class=None, random_se
 
         X_i = np.stack(channel_arrays, axis=1)  # (n_traces, channels, T)
 
+        # UniqueIDs from the first channel file (columns are shared across channels)
+        uid_i = _load_col_names(paths[0])
+
         # trim to min_T
         if X_i.shape[2] > min_T:
             X_i = X_i[:, :, :min_T]
@@ -257,24 +273,27 @@ def build_dataset(dataset_dict, trim_end=0, max_traces_per_class=None, random_se
                 raise ValueError(f"Cannot trim {trim_end} from total length {T}")
             X_i = X_i[:, :, :-trim_end]
 
-        # optional subsample
+        # optional subsample — apply same indices to uid_i
         if max_traces_per_class is not None and X_i.shape[0] > max_traces_per_class:
             idx = rng.choice(X_i.shape[0], max_traces_per_class, replace=False)
-            X_i = X_i[idx]
+            X_i  = X_i[idx]
+            uid_i = uid_i[idx]
 
         n_traces = X_i.shape[0]
         y_i = np.full(n_traces, class_idx, dtype=int)
 
         X_list.append(X_i)
         y_list.append(y_i)
+        uid_list.append(uid_i)
 
     X = np.concatenate(X_list, axis=0)
     y = np.concatenate(y_list, axis=0)
+    unique_ids = np.concatenate(uid_list, axis=0)
     class_map = {i: name for i, name in enumerate(sample_names)}
     first_val = dataset_dict[next(iter(dataset_dict))]
     in_channels = len(first_val) if isinstance(first_val, list) else 1
 
-    return X, y, class_map, in_channels
+    return X, y, class_map, in_channels, unique_ids
 
 
 # --- Dataset (tensorized, multiprocessing-safe) ---
@@ -1424,6 +1443,7 @@ def evaluate_uncertainty_filtered(
     embeddings=None,
     umap_coords=None,
     traces=None,
+    unique_ids=None,
     random_state=42,
 ):
     """
@@ -1474,14 +1494,16 @@ def evaluate_uncertainty_filtered(
     if traces is not None:
         os.makedirs(save_dir, exist_ok=True)
         traces_with_uncertainty_path = os.path.join(save_dir, "traces_with_wasserstein.npz")
-        np.savez(
-            traces_with_uncertainty_path,
+        save_kwargs = dict(
             traces=traces.numpy() if hasattr(traces, 'numpy') else traces,
             labels=y_true,
             predictions=pred_labels,
             wasserstein_distances=w_dists,
-            class_names=class_names if class_names else []
+            class_names=class_names if class_names else [],
         )
+        if unique_ids is not None:
+            save_kwargs['unique_ids'] = unique_ids
+        np.savez(traces_with_uncertainty_path, **save_kwargs)
         print(f"Saved traces with Wasserstein distances to: {traces_with_uncertainty_path}")
 
         # Create quartile visualization plot: 4x4 grid (rows=quartiles, cols=traces)

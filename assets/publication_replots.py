@@ -68,6 +68,7 @@ def _load_cmap(name: str) -> mcolors.LinearSegmentedColormap:
 
 
 _lipari_cmap = _load_cmap("lipari")
+_lapaz_cmap  = _load_cmap("lapaz")
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +81,7 @@ def plot_heatmap(
     title: str = "AUC vs augmentation factor",
     vmin: float = None,
     vmax: float = None,
+    cmap=None,
 ):
     """
     Plot an augmentation sweep heatmap and save to output_path.
@@ -90,7 +92,10 @@ def plot_heatmap(
         metric:      Column name for the mean values to plot.
         title:       Plot title.
         vmin/vmax:   Color scale limits; if None, derived from the data.
+        cmap:        Matplotlib colormap; defaults to _lipari_cmap.reversed().
     """
+    if cmap is None:
+        cmap = _lipari_cmap.reversed()
     std_metric = metric.replace("_mean", "_std")
 
     pivot_mean = results_df.pivot(index="model", columns="aug_factor", values=metric)
@@ -114,7 +119,7 @@ def plot_heatmap(
 
     im = ax.imshow(
         pivot_mean.values,
-        cmap=_lipari_cmap.reversed(),
+        cmap=cmap,
         aspect='auto',
         vmin=data_vmin,
         vmax=data_vmax,
@@ -697,6 +702,33 @@ def fig_augmentation_demo(
     plt.savefig(out_path, dpi=450, bbox_inches="tight")
     plt.close()
     print(f"Saved: {out_path}")
+
+
+# ---------------------------------------------------------------------------
+# Replot all heatmaps with lapaz colormap
+# ---------------------------------------------------------------------------
+def replot_all_heatmaps_lapaz():
+    """
+    Find every augmentation_sweep/data.csv under RESULTS_ROOT and save a new
+    heatmap_lapaz.pdf alongside the original heatmap.pdf using the lapaz colormap.
+    """
+    csvs = sorted(RESULTS_ROOT.glob("*/augmentation_sweep/data.csv"))
+    if not csvs:
+        print(f"No augmentation_sweep/data.csv files found under {RESULTS_ROOT}")
+        return
+
+    print(f"Replotting {len(csvs)} heatmap(s) with lapaz colormap...")
+    for csv in csvs:
+        df  = pd.read_csv(csv)
+        out = csv.parent / "heatmap_lapaz.pdf"
+        plot_heatmap(
+            df,
+            output_path=out,
+            metric="auc_mean",
+            title="AUC vs augmentation factor",
+            cmap=_lapaz_cmap.reversed(),
+        )
+        print(f"Saved: {out}")
 
 
 # ---------------------------------------------------------------------------

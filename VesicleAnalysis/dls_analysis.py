@@ -34,6 +34,7 @@ from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
 import yaml
@@ -119,7 +120,7 @@ def parse_filename(path: Path) -> Optional[Dict[str, object]]:
     # Try to match: condition_time_temperature_dil
     m = re.match(
         r'^(?P<condition>.+?)_(?P<time>\d+h|pre_ext|post_ext|post_sec)'
-        r'_(?P<temp>\d+C)(?:_dil.*)?$',
+        r'_(?P<temp>\d+[CcDd])(?:_dil.*)?$',
         rest, re.IGNORECASE,
     )
     if m:
@@ -197,7 +198,7 @@ def load_sample(
         hydrodynamic_diameter_nm, pdi, peak_intensity_nm, file.
     """
     rows = []
-    for f in sorted(sample_dir.rglob(pattern)):
+    for f in sorted(sample_dir.glob(pattern)):
         if f.name.startswith('._') or f.name.startswith('~$'):
             continue
         meta = parse_filename(f)
@@ -320,6 +321,159 @@ def plot_stability(
         fig.savefig(output_dir / 'dls_stability_combined.pdf', dpi=450, bbox_inches='tight')
         plt.close(fig)
         logging.info(f"Saved dls_stability_combined.pdf → {output_dir}")
+
+
+# ---------------------------------------------------------------------------
+# Size-distribution plot (intensity-weighted frequency vs. diameter)
+# ---------------------------------------------------------------------------
+_CMAP_DIR = Path(__file__).parent.parent / "assets" / "colormaps"
+
+
+def _load_cmap(name: str):
+    lut = _CMAP_DIR / f"{name}.txt"
+    if lut.exists():
+        return mcolors.LinearSegmentedColormap.from_list(name, np.loadtxt(lut))
+    return mpl.colormaps.get_cmap("viridis")
+
+
+def read_dls_distribution(path: Path) -> Optional[pd.DataFrame]:
+    """
+    Read the intensity-weighted size distribution from a Litesizer Excel file.
+
+    The instrument exports a fixed grid starting at row 8 (0-indexed):
+      col 4 — particle diameter [µm]
+      col 5 — intensity-weighted relative frequency [%]
+
+    Returns a DataFrame with columns diameter_nm and intensity_freq,
+    or None on failure.
+    """
+    try:
+        df = pd.read_excel(str(path), sheet_name=0, header=None, engine='openpyxl')
+    except Exception as e:
+        logging.warning(f"Could not read {path.name}: {e}")
+        return None
+    try:
+        diam_um  = pd.to_numeric(df.iloc[8:, 5], errors='coerce')
+        freq_pct = pd.to_numeric(df.iloc[8:, 6], errors='coerce')
+        out = pd.DataFrame({
+            'diameter_nm':  diam_um.values  * 1000.0,
+            'intensity_freq': freq_pct.values,
+        }).dropna()
+        return out[out['diameter_nm'] > 0].reset_index(drop=True)
+    except Exception as e:
+        logging.warning(f"Could not parse distribution from {path.name}: {e}")
+        return None
+
+
+def _collect_distributions(
+    sample_dirs: List[Path],
+    glob_pattern: str,
+) -> Optional[tuple]:
+    """
+    Load and stack intensity-weighted distributions from files matching
+    glob_pattern in the root of each sample_dir (non-recursive).
+
+    Returns (diameter_nm_array, 2D stacked array [n_reps × n_bins]) or None.
+    """
+    curves = []
+    for d in sample_dirs:
+        matches = sorted(d.glob(glob_pattern))
+        if not matches:
+            logging.debug(f"No match for '{glob_pattern}' in {d.name}")
+            continue
+        dist = read_dls_distribution(matches[0])
+        if dist is not None and not dist.empty:
+            curves.append(dist)
+
+    if not curves:
+        return None
+
+    ref_diam = curves[0]['diameter_nm'].values
+    stacked = np.array([
+        np.interp(ref_diam, c['diameter_nm'].values, c['intensity_freq'].values)
+        for c in curves
+    ])
+    return ref_diam, stacked
+
+
+def _draw_dist_panel(
+    ax: plt.Axes,
+    sample_dirs: List[Path],
+    categories: list,
+) -> None:
+    """Draw mean ± std shaded distributions for a list of (glob, label, color, ls, lw) tuples."""
+    for glob_pat, label, color, ls, lw in categories:
+        result = _collect_distributions(sample_dirs, glob_pat)
+        if result is None:
+            logging.warning(f"No data for pattern: {glob_pat}")
+            continue
+        diam, stacked = result
+        mean = stacked.mean(axis=0)
+        ddof = 1 if stacked.shape[0] > 1 else 0
+        std  = stacked.std(axis=0, ddof=ddof)
+        ax.plot(diam, mean, ls=ls, color=color, lw=lw, label=label)
+        ax.fill_between(diam, mean - std, mean + std,
+                        color=color, alpha=0.15, linewidth=0)
+    ax.set_xscale('log')
+    ax.set_xlabel('Diameter (nm)', fontsize=FONTSIZE_LABEL)
+    ax.legend(fontsize=FONTSIZE_LEGEND, frameon=False, loc='upper right',
+              handlelength=2.0)
+    apply_axis_standards(ax)
+
+
+def plot_dls_size_distributions(
+    sample_dirs: List[Path],
+    output_dir: Path,
+) -> None:
+    """
+    Plot intensity-weighted size distributions for the Unlabelled condition
+    as two separate figures (mean ± std shading across sample_dirs).
+
+    Figure 1 — preparation stages  (dls_preparation.pdf)
+        Solid  / orange     : before extrusion
+        Dotted / blue       : after extrusion
+        Dashed / vermillion : after SEC column
+
+    Figure 2 — stability at 25 °C  (dls_stability.pdf)
+        Solid / lapaz, decreasing weight : 1, 2, 4, 6, 21, 24 h
+                                           (widest → thinnest)
+    """
+    _lapaz = _load_cmap("lapaz")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Figure 1: preparation stages ─────────────────────────────────────────
+    prep_categories = [
+        ('*Unlabelled_preextr*25d*', 'Before extrusion',  COLORS['black'],      '-',  1.1),
+        ('*Unlabelled_extr*25d*',    'After extrusion',   COLORS['blue'],       ':',  1.1),
+        ('*Unlabelled_SEC*25d*',     'After SEC column',  COLORS['vermillion'], '--', 1.1),
+    ]
+    fig, ax = plt.subplots(figsize=(3.5, 2.8))
+    _draw_dist_panel(ax, sample_dirs, prep_categories)
+    ax.set_ylabel('Intensity-weighted relative frequency (%)', fontsize=FONTSIZE_LABEL)
+    fig.tight_layout()
+    out = output_dir / 'dls_preparation.pdf'
+    fig.savefig(out, dpi=450, bbox_inches='tight')
+    plt.close(fig)
+    logging.info(f"Saved dls_preparation.pdf → {output_dir}")
+
+    # ── Figure 2: time-stability at 25 °C ────────────────────────────────────
+    time_labels = ['1h', '2h', '4h', '6h', '21h', '24h']
+    n_t = len(time_labels)
+    lapaz_colors = [_lapaz(0.05 + 0.80 * i / (n_t - 1)) for i in range(n_t)]
+    line_widths  = np.linspace(1.5, 0.5, n_t)
+
+    stab_categories = [
+        (f'*Unlabelled_{t}_25d*', f'{t.rstrip("h")} h', lapaz_colors[i], '-', line_widths[i])
+        for i, t in enumerate(time_labels)
+    ]
+    fig, ax = plt.subplots(figsize=(3.5, 2.8))
+    _draw_dist_panel(ax, sample_dirs, stab_categories)
+    ax.set_ylabel('Intensity-weighted relative frequency (%)', fontsize=FONTSIZE_LABEL)
+    fig.tight_layout()
+    out = output_dir / 'dls_stability.pdf'
+    fig.savefig(out, dpi=450, bbox_inches='tight')
+    plt.close(fig)
+    logging.info(f"Saved dls_stability.pdf → {output_dir}")
 
 
 # ---------------------------------------------------------------------------
