@@ -1521,8 +1521,9 @@ def evaluate_uncertainty_filtered(
         n_examples_per_class = 2
         traces_np = traces.numpy() if hasattr(traces, 'numpy') else traces
 
-        # 4 rows (quartiles) x 4 columns (2 traces per class)
-        fig, axes = plt.subplots(4, 4, figsize=(16, 12))
+        # 4 rows (quartiles) x (n_classes * n_examples_per_class) columns
+        n_cols = len(unique_classes) * n_examples_per_class
+        fig, axes = plt.subplots(4, n_cols, figsize=(4 * n_cols, 12))
 
         for q_idx, (q_min, q_max) in enumerate(quartile_ranges):
             q_mask = (w_dists >= q_min) & (w_dists < q_max)

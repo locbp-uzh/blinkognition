@@ -1,64 +1,64 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
+from __future__ import annotations
 # __author__ = Pablo Rivera Fuentes pablo.riverafuentes@uzh.ch with Claude Code (Sonnet 4.6)
 # __copyright__ = "Copyright 2026, UZH, Switzerland"
 
 """
-Extract and plot blink feature distributions from MCD-filtered protein traces.
+Extract and plot blink feature distributions from protein traces.
 
-Traces are loaded directly from the traces_with_wasserstein.npz produced by a
-training run.  No pkl file handling or fingerprint matching is required.
+Two analysis modes are supported (set via `analysis_mode` in the YAML config):
+
+  per_experiment (default)
+    All traces from the NPZ are used without any Wasserstein filter.
+    Each experiment (date-prefixed acquisition folder) gets its own output
+    folder with a separate 2×3 violin figure and CSVs.  Requires `uid_dir`
+    pointing to the UniqueIDs PKL folder so traces can be mapped to their
+    source experiment.  Optionally restrict to a subset via `experiments:`.
+
+  pooled
+    Traces are filtered by Wasserstein distance (mcd_filter.wasserstein_min)
+    and all passing traces are analysed together in one figure.
 
 NPZ layout expected:
     traces               (N, 2, T)  channel 0 = minmax, channel 1 = zscored
     labels               (N,)       integer class indices
     wasserstein_distances (N,)      MCD certainty score per trace (0–1)
     class_names          (C,)       protein name strings
+    unique_ids           (N,)       integer per-protein trace indices
 
 GMM peak detection uses:
     channel 0 (minmax) as input to gmm_classify_frames
     channel 1 (zscored) for per-peak mean intensity reporting
 
-All traces that pass the WD threshold are analysed.  No trace is dropped based
-on its peak properties.
+Six per-trace features are computed in a 2×3 grid (clockwise from top-left):
 
-Ten features are computed across two rows:
+  Row 1:
+  A) Mean off-time  — mean dark-interval per trace, converted to ms
+  B) Mean on-time   — mean peak duration per trace, converted to ms
+  C) Blinking rate  — peaks per second (active window)
 
-  Row 1 — per-peak distributions:
-  A) Peak duration  — consecutive "on" frames per blink event, converted to ms
-  B) Off-time       — dark-interval duration between consecutive peaks, converted to ms
-  C) Peak intensity — mean z-scored signal within each blink event
-  D) Duty cycle     — fraction of trace frames in the "on" state (per trace)
-  E) Blinking rate  — peaks per second (per trace)
-
-  Row 2 — per-trace kinetic summaries:
-  F) Blinks per trace  — raw blink count
-  G) Mean on-time      — mean peak duration per trace, converted to ms
-  H) Mean off-time     — mean dark-interval per trace, converted to ms
-  I) CV on-times       — coefficient of variation of peak durations per trace
-  J) CV off-times      — coefficient of variation of off-times per trace
+  Row 2:
+  D) Duty cycle     — fraction of active window in the "on" state
+  E) CV on-times    — coefficient of variation of peak durations per trace
+  F) CV off-times   — coefficient of variation of off-times per trace
 
 Usage:
-    conda activate blink2env
+    # per-experiment (default, requires locbplots or numpy>=2 env for PKL loading):
     python assets/blink_features.py -c assets/blink_features_config_hthtl_htia_mcd.yaml
 
-Output (in output_path/{proteins}_mcd_{timestamp}/):
-    plot.pdf          — 2×5 violin figure
-    data_panel_A.csv  — peak durations (ms), one column per protein
-    data_panel_B.csv  — off-times (ms), one column per protein
-    data_panel_C.csv  — peak mean intensities (z-score), one column per protein
-    data_panel_D.csv  — per-trace duty cycles, one column per protein
-    data_panel_E.csv  — per-trace blinking rates (peaks s⁻¹), one column per protein
-    data_panel_F.csv  — blinks per trace, one column per protein
-    data_panel_G.csv  — mean on-times (ms), one column per protein
-    data_panel_H.csv  — mean off-times (ms), one column per protein
-    data_panel_I.csv  — CV on-times, one column per protein
-    data_panel_J.csv  — CV off-times, one column per protein
+    # pooled (WD-filtered):
+    python assets/blink_features.py -c assets/blink_features_config_hthtl_htia_mcd.yaml
+
+Output (in output_path/):
+  per_experiment mode → {proteins}_exp_{timestamp}/{exp_name}/features/
+  pooled mode        → {proteins}_mcd_{timestamp}/features/  +  sample_traces/
 """
 
 import sys
 import argparse
 import logging
+import pickle
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -66,19 +66,35 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import yaml
 from pathlib import Path
+from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "Extraction"))
 from utils import gmm_classify_frames  # noqa: E402
 
 # ── Plotting standards ──────────────────────────────────────────────────────────
-mpl.rcParams['font.family'] = 'sans-serif'
-mpl.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Helvetica', 'Arial']
-mpl.rcParams['font.size'] = 9
-mpl.rcParams['pdf.fonttype'] = 42
+FONTSIZE_LABEL  = 18
+FONTSIZE_TICK   = 16
+FONTSIZE_TITLE  = 18
+FONTSIZE_LEGEND = 16
 
-FONTSIZE_LABEL = 9
-FONTSIZE_TICK  = 8
-FONTSIZE_TITLE = 10
+mpl.rcParams.update({
+    'font.family':      'sans-serif',
+    'font.sans-serif':  ['Arial', 'Helvetica', 'DejaVu Sans'],
+    'font.size':        FONTSIZE_LABEL,
+    'axes.titlesize':   FONTSIZE_TITLE,
+    'axes.labelsize':   FONTSIZE_LABEL,
+    'xtick.labelsize':  FONTSIZE_TICK,
+    'ytick.labelsize':  FONTSIZE_TICK,
+    'legend.fontsize':  FONTSIZE_LEGEND,
+    'figure.dpi':       150,
+    'savefig.dpi':      450,
+    'savefig.bbox':     'tight',
+    'lines.linewidth':  1.2,
+    'patch.linewidth':  0.8,
+    'axes.grid':        False,
+    'pdf.fonttype':     42,
+    'svg.fonttype':     'none',
+})
 
 COLORS = [
     '#E69F00',  # orange
@@ -145,10 +161,11 @@ def _trace_features(
     runs             = _extract_runs(signal_mask, min_peak_width)
     durations        = [r - l + 1 for l, r in runs]
     mean_intensities = [float(np.mean(zscored_vals[l:r + 1])) for l, r in runs]
-    duty_cycle       = float(np.sum(signal_mask) / len(signal_mask))
-    off_times        = [runs[i + 1][0] - runs[i][1] - 1 for i in range(len(runs) - 1)]
-    movie_length_s   = len(minmax_vals) * frame_interval_ms / 1000.0
-    blinking_rate    = len(runs) / movie_length_s if movie_length_s > 0 else 0.0
+    off_times            = [runs[i + 1][0] - runs[i][1] - 1 for i in range(len(runs) - 1)]
+    active_window_frames = runs[-1][1] - runs[0][0] + 1
+    active_window_s      = active_window_frames * frame_interval_ms / 1000.0
+    duty_cycle           = float(np.sum(signal_mask) / active_window_frames)
+    blinking_rate        = len(runs) / active_window_s
     return durations, mean_intensities, duty_cycle, off_times, blinking_rate
 
 
@@ -225,29 +242,94 @@ def _flatten(traces_by_protein: dict) -> tuple[
             n_blinks_all, mean_on_all, mean_off_all, cv_on_all, cv_off_all)
 
 
+def _mannwhitney_stats(vals1: list, vals2: list) -> tuple[float, float]:
+    """Two-sided Mann-Whitney U + rank-biserial correlation r."""
+    v1 = np.array([v for v in vals1 if v == v])
+    v2 = np.array([v for v in vals2 if v == v])
+    if len(v1) < 2 or len(v2) < 2:
+        return float('nan'), float('nan')
+    res = stats.mannwhitneyu(v1, v2, alternative='two-sided')
+    r   = 1.0 - (2.0 * res.statistic) / (len(v1) * len(v2))
+    return float(res.pvalue), float(r)
+
+
+def _bh_correct(pvals: list) -> np.ndarray:
+    """Benjamini-Hochberg FDR correction. Returns adjusted p-values."""
+    m   = len(pvals)
+    arr = np.array(pvals, dtype=float)
+    order = np.argsort(arr)
+    adj = arr[order] * m / (np.arange(m) + 1.0)
+    for i in range(m - 2, -1, -1):
+        adj[i] = min(adj[i], adj[i + 1])
+    p_adj = np.empty(m)
+    p_adj[order] = np.minimum(adj, 1.0)
+    return p_adj
+
+
+def _sig_stars(p: float) -> str:
+    if np.isnan(p): return ''
+    if p < 0.0001:  return '****'
+    if p < 0.001:   return '***'
+    if p < 0.01:    return '**'
+    if p < 0.05:    return '*'
+    return 'ns'
+
+
 def _draw_violin_panel(
     ax: plt.Axes,
     data_per_protein: dict,
     proteins: list,
     ylabel: str,
     title: str,
+    coverage: float = 0.80,
+    p_adj: float = None,
+    effect_r: float = None,
 ) -> None:
-    """Draw a single violin panel. NaN values are silently dropped."""
-    for i, prot in enumerate(proteins):
+    """Draw a single violin panel. NaN values are silently dropped.
+
+    Y-axis is clipped to the union of per-class [q_lo, q_hi] percentile ranges
+    (where q_lo = (1-coverage)/2, q_hi = 1 - q_lo), so that at least `coverage`
+    fraction of each class's data is visible.  Outliers remain in the violin KDE.
+    """
+    q_lo = (1.0 - coverage) / 2.0 * 100   # e.g. 10.0 for coverage=0.80
+    q_hi = 100.0 - q_lo                    # e.g. 90.0
+
+    all_lo, all_hi = [], []
+    valid_data = {}
+
+    for prot in proteins:
         values = [v for v in data_per_protein[prot] if v == v]
+        valid_data[prot] = values
+        if len(values) >= 2:
+            all_lo.append(float(np.percentile(values, q_lo)))
+            all_hi.append(float(np.percentile(values, q_hi)))
+
+    for i, prot in enumerate(proteins):
+        values = valid_data[prot]
         if len(values) < 2:
             logging.warning("Too few data points for %s, skipping violin", prot)
             continue
-        parts = ax.violinplot([values], positions=[i], showmedians=True, widths=0.65)
-        color = COLORS[i % len(COLORS)]
+        parts = ax.violinplot([values], positions=[i], showmeans=False,
+                              showmedians=False, widths=0.65)
+        color = PROTEIN_COLORS.get(prot, COLORS[i % len(COLORS)])
         for pc in parts['bodies']:
             pc.set_facecolor(color)
             pc.set_alpha(0.7)
             pc.set_edgecolor('none')
-        for key in ('cmedians', 'cbars', 'cmins', 'cmaxes'):
+        for key in ('cbars', 'cmins', 'cmaxes'):
             if key in parts:
                 parts[key].set_color('#333333')
                 parts[key].set_linewidth(0.9)
+        # Draw mean as a horizontal line spanning the violin width
+        m = float(np.mean(values))
+        ax.hlines(m, i - 0.3, i + 0.3, colors='#333333', linewidths=1.2)
+
+    # Set y-limits to the union of per-class coverage ranges + 5% padding
+    if all_lo and all_hi:
+        ymin, ymax = min(all_lo), max(all_hi)
+        pad = (ymax - ymin) * 0.05 if ymax > ymin else abs(ymax) * 0.05 + 1e-9
+        ax.set_ylim(ymin - pad, ymax + pad)
+
 
     ax.set_xticks(range(len(proteins)))
     ax.set_xticklabels(proteins, fontsize=FONTSIZE_TICK, rotation=30, ha='right')
@@ -257,7 +339,25 @@ def _draw_violin_panel(
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_linewidth(1.1)
     ax.spines['bottom'].set_linewidth(1.1)
-    ax.tick_params(labelsize=FONTSIZE_TICK)
+    ax.tick_params(axis='both', which='major', labelsize=FONTSIZE_TICK,
+                   length=4, width=0.8, direction='out')
+    ax.tick_params(axis='both', which='minor', length=2, width=0.6, direction='out')
+
+    # Significance bracket (only drawn when exactly 2 proteins)
+    if p_adj is not None and len(proteins) == 2:
+        ylo, yhi = ax.get_ylim()
+        span  = yhi - ylo
+        bkt_y = yhi + span * 0.04
+        tip   = span * 0.025
+        ax.plot([0, 0, 1, 1], [bkt_y - tip, bkt_y, bkt_y, bkt_y - tip],
+                color='#333333', linewidth=0.8, clip_on=False)
+        label = _sig_stars(p_adj)
+        if effect_r is not None and not np.isnan(effect_r):
+            label += f'\nr={effect_r:.2f}'
+        ax.text(0.5, bkt_y + span * 0.02, label,
+                ha='center', va='bottom', fontsize=FONTSIZE_TICK - 1,
+                color='#333333', clip_on=False)
+        ax.set_ylim(ylo, bkt_y + span * 0.18)
 
 
 def _save_csv(data_per_protein: dict, output_dir: Path, filename: str) -> None:
@@ -271,8 +371,8 @@ def _save_csv(data_per_protein: dict, output_dir: Path, filename: str) -> None:
 
 
 PROTEIN_COLORS = {
-    'HTHTL': '#0072B2',
-    'HTIA':  '#D55E00',
+    'HTHTL': '#0072B2',  # blue
+    'HTIA':  '#E69F00',  # orange
 }
 
 
@@ -356,6 +456,127 @@ def _plot_example_traces(
     logging.info("Saved data_traces.csv")
 
 
+def _map_traces_to_experiments(
+    ids: np.ndarray,
+    labels: np.ndarray,
+    class_names: list,
+    uid_dir: Path,
+) -> list[str]:
+    """
+    Map each NPZ trace to its source experiment folder name.
+
+    Loads {protein}_uniqueID_all.pkl for each protein class, reads the
+    'origin' column (file path), and extracts the date-prefixed experiment
+    folder (e.g. '20231130_SP_Exp1').  The lookup key is (protein, uniqueID)
+    because IDs are assigned independently per protein class.
+
+    Returns a list of experiment names, one per trace, in NPZ order.
+    Traces whose (protein, uniqueID) pair is not found receive 'UNKNOWN'.
+    """
+    def _exp_from_origin(origin: str) -> str:
+        for part in str(origin).replace('\\', '/').split('/'):
+            if len(part) >= 8 and part[:8].isdigit():
+                return part
+        return 'UNKNOWN'
+
+    uid_to_exp: dict[tuple, str] = {}
+    for cls_idx, prot in enumerate(class_names):
+        pkl_path = uid_dir / f"{prot}_uniqueID_all.pkl"
+        if not pkl_path.exists():
+            logging.warning("UniqueID PKL not found: %s", pkl_path)
+            continue
+        with open(pkl_path, 'rb') as fh:
+            df = pickle.load(fh)
+        for _, row in df.iterrows():
+            uid_to_exp[(prot, int(row['uniqueID']))] = _exp_from_origin(row['origin'])
+        logging.info("Loaded %s (%d entries)", pkl_path.name, len(df))
+
+    return [
+        uid_to_exp.get((class_names[labels[i]], int(ids[i])), 'UNKNOWN')
+        for i in range(len(ids))
+    ]
+
+
+def _run_feature_analysis(
+    traces_by_protein_arrays: dict,
+    proteins: list,
+    frame_interval_ms: float,
+    gmm_proba: float,
+    min_peak_width: int,
+    output_dir: Path,
+    title: str = '',
+) -> None:
+    """
+    Extract features, run statistics, save violin plot and CSVs.
+
+    output_dir is expected to already contain a 'features/' subdirectory
+    (the caller is responsible for creating it).
+    """
+    features_dir = output_dir / "features"
+    features_dir.mkdir(parents=True, exist_ok=True)
+
+    # Extract features
+    traces_by_protein = {
+        name: process_protein(name, arr, gmm_proba, min_peak_width, frame_interval_ms)
+        for name, arr in traces_by_protein_arrays.items()
+    }
+
+    # Flatten
+    logging.info("Flattening features …")
+    (_, _, duty_cycles_all, _, blinking_rates_all,
+     _, mean_on_all, mean_off_all, cv_on_all, cv_off_all) = _flatten(traces_by_protein)
+
+    def _to_ms_nan(d):
+        return {p: [v * frame_interval_ms if v == v else v for v in vals]
+                for p, vals in d.items()}
+
+    mean_on_all  = _to_ms_nan(mean_on_all)
+    mean_off_all = _to_ms_nan(mean_off_all)
+
+    # Statistics: Mann-Whitney U + BH-FDR (only for exactly 2 proteins)
+    panel_data = [mean_off_all, mean_on_all, blinking_rates_all,
+                  duty_cycles_all, cv_on_all, cv_off_all]
+    if len(proteins) == 2:
+        raw_stats = [_mannwhitney_stats(d[proteins[0]], d[proteins[1]]) for d in panel_data]
+        p_adj_all = _bh_correct([s[0] for s in raw_stats])
+        logging.info("Mann-Whitney U (BH-corrected p-values):")
+        for lbl, (p_raw, r), p_adj in zip(
+            ["Mean off-time", "Mean on-time", "Blinking rate",
+             "Duty cycle", "CV on-times", "CV off-times"],
+            raw_stats, p_adj_all,
+        ):
+            logging.info("  %-16s  p_raw=%.2e  p_adj=%.2e  r=%.3f  %s",
+                         lbl, p_raw, p_adj, r, _sig_stars(p_adj))
+    else:
+        raw_stats = [(None, None)] * 6
+        p_adj_all = [None] * 6
+
+    # Figure: 2 rows × 3 columns
+    fig, axes = plt.subplots(2, 3, figsize=(11, 8))
+    if title:
+        fig.suptitle(title, fontsize=FONTSIZE_TITLE, y=1.01)
+
+    _draw_violin_panel(axes[0, 0], mean_off_all,       proteins, "Mean off-time (ms)",                   "Mean off-time",  p_adj=p_adj_all[0], effect_r=raw_stats[0][1])
+    _draw_violin_panel(axes[0, 1], mean_on_all,        proteins, "Mean on-time (ms)",                    "Mean on-time",   p_adj=p_adj_all[1], effect_r=raw_stats[1][1])
+    _draw_violin_panel(axes[0, 2], blinking_rates_all, proteins, "Blinking rate (peaks s\u207b\u00b9)",  "Blinking rate",  p_adj=p_adj_all[2], effect_r=raw_stats[2][1])
+    _draw_violin_panel(axes[1, 0], duty_cycles_all,    proteins, "Duty cycle",    "Duty cycle",    p_adj=p_adj_all[3], effect_r=raw_stats[3][1])
+    _draw_violin_panel(axes[1, 1], cv_on_all,          proteins, "CV on-times",   "CV on-times",   p_adj=p_adj_all[4], effect_r=raw_stats[4][1])
+    _draw_violin_panel(axes[1, 2], cv_off_all,         proteins, "CV off-times",  "CV off-times",  p_adj=p_adj_all[5], effect_r=raw_stats[5][1])
+
+    plt.tight_layout(h_pad=3.0, w_pad=3.0)
+    fig.savefig(features_dir / "plot.pdf", bbox_inches='tight')
+    plt.close(fig)
+    logging.info("Saved %s/plot.pdf", features_dir.name)
+
+    _save_csv(mean_off_all,       features_dir, "data_panel_A.csv")
+    _save_csv(mean_on_all,        features_dir, "data_panel_B.csv")
+    _save_csv(blinking_rates_all, features_dir, "data_panel_C.csv")
+    _save_csv(duty_cycles_all,    features_dir, "data_panel_D.csv")
+    _save_csv(cv_on_all,          features_dir, "data_panel_E.csv")
+    _save_csv(cv_off_all,         features_dir, "data_panel_F.csv")
+    logging.info("Saved features/data_panel_A–F.csv")
+
+
 def main() -> None:
     setup_logging()
     parser = argparse.ArgumentParser(
@@ -372,112 +593,105 @@ def main() -> None:
     gmm_proba         = float(cfg.get("gmm_proba_threshold", 0.8))
     min_peak_width    = int(cfg.get("min_peak_width", 1))
     seed              = int(cfg.get("seed", 42))
+    analysis_mode     = cfg.get("analysis_mode", "per_experiment")
 
-    rng      = np.random.default_rng(seed)
+    rng = np.random.default_rng(seed)
 
-    mcd_cfg  = cfg["mcd_filter"]
+    mcd_cfg  = cfg.get("mcd_filter", {})
     npz_path = Path(mcd_cfg["npz_path"])
     wd_min   = float(mcd_cfg.get("wasserstein_min", 0.7))
 
     logging.info("NPZ            : %s", npz_path)
-    logging.info("WD threshold   : %.2f", wd_min)
+    logging.info("Analysis mode  : %s", analysis_mode)
     logging.info("GMM proba      : %.2f", gmm_proba)
     logging.info("Min peak width : %d frames", min_peak_width)
     logging.info("Frame interval : %.1f ms", frame_interval_ms)
 
     # ── Load NPZ ────────────────────────────────────────────────────────────────
     data        = np.load(npz_path, allow_pickle=True)
-    all_traces  = data['traces']                            # (N, 2, T)
-    labels      = data['labels']                            # (N,)
-    wd          = data['wasserstein_distances']             # (N,)
-    class_names = [str(c) for c in data['class_names']]    # list of protein names
+    all_traces  = data['traces']
+    labels      = data['labels']
+    wd          = data['wasserstein_distances']
+    ids         = data['unique_ids'] if 'unique_ids' in data else None
+    class_names = [str(c) for c in data['class_names']]
+    proteins    = class_names
+    timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    keep_mask = wd >= wd_min
-    logging.info("WD filter: %d / %d traces pass WD≥%.2f",
-                 keep_mask.sum(), len(wd), wd_min)
+    # ── Per-experiment mode ─────────────────────────────────────────────────────
+    if analysis_mode == "per_experiment":
+        if ids is None:
+            raise ValueError(
+                "per_experiment mode requires 'unique_ids' in the NPZ file. "
+                "This NPZ was generated without unique_ids — use analysis_mode: pooled instead."
+            )
+        uid_dir     = Path(cfg["uid_dir"])
+        exp_filter  = cfg.get("experiments", None)  # None = run all found
 
-    # ── Group by protein ────────────────────────────────────────────────────────
-    proteins = class_names
-    traces_by_protein_arrays = {}
-    for cls_idx, name in enumerate(proteins):
-        mask = (labels == cls_idx) & keep_mask
-        traces_by_protein_arrays[name] = all_traces[mask]  # (N_cls, 2, T)
-        logging.info("  %-12s  %d traces selected", name, mask.sum())
+        logging.info("UID dir        : %s", uid_dir)
+        trace_exps = _map_traces_to_experiments(ids, labels, class_names, uid_dir)
 
-    # ── Output folders ──────────────────────────────────────────────────────────
-    timestamp      = datetime.now().strftime("%Y%m%d_%H%M%S")
-    folder_name    = "_".join(proteins) + "_mcd_" + timestamp
-    output_dir     = output_root / folder_name
-    features_dir   = output_dir / "features"
-    traces_dir     = output_dir / "sample_traces"
-    features_dir.mkdir(parents=True, exist_ok=True)
-    traces_dir.mkdir(parents=True, exist_ok=True)
-    logging.info("Output         : %s", output_dir)
+        # Determine which experiments to process
+        all_exps = sorted(set(e for e in trace_exps if e != 'UNKNOWN'))
+        if exp_filter:
+            run_exps = [e for e in exp_filter if e in all_exps]
+            missing  = [e for e in exp_filter if e not in all_exps]
+            if missing:
+                logging.warning("Experiments not found in data: %s", missing)
+        else:
+            run_exps = all_exps
+        logging.info("Experiments    : %s", run_exps)
 
-    # ── Extract features ────────────────────────────────────────────────────────
-    traces_by_protein = {}
-    for name, arr in traces_by_protein_arrays.items():
-        traces_by_protein[name] = process_protein(
-            name, arr, gmm_proba, min_peak_width, frame_interval_ms,
+        run_dir = output_root / ("_".join(proteins) + "_exp_" + timestamp)
+        logging.info("Output root    : %s", run_dir)
+
+        for exp in run_exps:
+            logging.info("\n── %s ──────────────────────────────────────", exp)
+            exp_arrays: dict[str, list] = {p: [] for p in proteins}
+            for i in range(len(all_traces)):
+                if trace_exps[i] == exp:
+                    exp_arrays[class_names[labels[i]]].append(all_traces[i])
+            traces_by_protein_arrays = {
+                p: np.stack(arr) if arr else np.empty((0, 2, all_traces.shape[2]))
+                for p, arr in exp_arrays.items()
+            }
+            for p, arr in traces_by_protein_arrays.items():
+                logging.info("  %-12s  %d traces", p, len(arr))
+            _run_feature_analysis(
+                traces_by_protein_arrays, proteins,
+                frame_interval_ms, gmm_proba, min_peak_width,
+                output_dir=run_dir / exp,
+                title=exp,
+            )
+
+    # ── Pooled mode ─────────────────────────────────────────────────────────────
+    else:
+        logging.info("WD threshold   : %.2f", wd_min)
+        keep_mask = wd >= wd_min
+        logging.info("WD filter: %d / %d traces pass WD≥%.2f",
+                     keep_mask.sum(), len(wd), wd_min)
+
+        traces_by_protein_arrays = {}
+        for cls_idx, name in enumerate(proteins):
+            mask = (labels == cls_idx) & keep_mask
+            traces_by_protein_arrays[name] = all_traces[mask]
+            logging.info("  %-12s  %d traces selected", name, mask.sum())
+
+        run_dir = output_root / ("_".join(proteins) + "_mcd_" + timestamp)
+        logging.info("Output         : %s", run_dir)
+
+        _run_feature_analysis(
+            traces_by_protein_arrays, proteins,
+            frame_interval_ms, gmm_proba, min_peak_width,
+            output_dir=run_dir,
         )
 
-    # ── Flatten ─────────────────────────────────────────────────────────────────
-    logging.info("Flattening features …")
-    (durations_all, intensities_all, duty_cycles_all, off_times_all, blinking_rates_all,
-     n_blinks_all, mean_on_all, mean_off_all, cv_on_all, cv_off_all) = \
-        _flatten(traces_by_protein)
-
-    # Convert frame-based features to ms
-    def _to_ms(d):
-        return {p: [v * frame_interval_ms for v in vals] for p, vals in d.items()}
-
-    def _to_ms_nan(d):
-        return {p: [v * frame_interval_ms if v == v else v for v in vals]
-                for p, vals in d.items()}
-
-    durations_all = _to_ms(durations_all)
-    off_times_all = _to_ms(off_times_all)
-    mean_on_all   = _to_ms_nan(mean_on_all)
-    mean_off_all  = _to_ms_nan(mean_off_all)
-
-    # ── Figure: 2 rows × 5 columns ──────────────────────────────────────────────
-    fig, axes = plt.subplots(2, 5, figsize=(18, 8))
-
-    _draw_violin_panel(axes[0, 0], durations_all,      proteins, "Peak duration (ms)",          "Peak duration")
-    _draw_violin_panel(axes[0, 1], off_times_all,      proteins, "Off-time (ms)",               "Off-time")
-    _draw_violin_panel(axes[0, 2], intensities_all,    proteins, "Mean peak intensity (z-score)","Peak intensity")
-    _draw_violin_panel(axes[0, 3], duty_cycles_all,    proteins, "Duty cycle",                  "Duty cycle")
-    _draw_violin_panel(axes[0, 4], blinking_rates_all, proteins, "Blinking rate (peaks s\u207b\u00b9)", "Blinking rate")
-
-    _draw_violin_panel(axes[1, 0], n_blinks_all,  proteins, "Blinks per trace",    "Blinks per trace")
-    _draw_violin_panel(axes[1, 1], mean_on_all,   proteins, "Mean on-time (ms)",   "Mean on-time")
-    _draw_violin_panel(axes[1, 2], mean_off_all,  proteins, "Mean off-time (ms)",  "Mean off-time")
-    _draw_violin_panel(axes[1, 3], cv_on_all,     proteins, "CV on-times",         "CV on-times")
-    _draw_violin_panel(axes[1, 4], cv_off_all,    proteins, "CV off-times",        "CV off-times")
-
-    plt.tight_layout(h_pad=3.0, w_pad=3.0)
-    fig.savefig(features_dir / "plot.pdf", bbox_inches='tight')
-    plt.close(fig)
-    logging.info("Saved features/plot.pdf")
-
-    # ── CSVs → features/ ────────────────────────────────────────────────────────
-    _save_csv(durations_all,      features_dir, "data_panel_A.csv")
-    _save_csv(off_times_all,      features_dir, "data_panel_B.csv")
-    _save_csv(intensities_all,    features_dir, "data_panel_C.csv")
-    _save_csv(duty_cycles_all,    features_dir, "data_panel_D.csv")
-    _save_csv(blinking_rates_all, features_dir, "data_panel_E.csv")
-    _save_csv(n_blinks_all,       features_dir, "data_panel_F.csv")
-    _save_csv(mean_on_all,        features_dir, "data_panel_G.csv")
-    _save_csv(mean_off_all,       features_dir, "data_panel_H.csv")
-    _save_csv(cv_on_all,          features_dir, "data_panel_I.csv")
-    _save_csv(cv_off_all,         features_dir, "data_panel_J.csv")
-    logging.info("Saved features/data_panel_A–J.csv")
-
-    # ── Example traces → sample_traces/ ─────────────────────────────────────────
-    _plot_example_traces(
-        traces_by_protein_arrays, proteins,
-        gmm_proba, min_peak_width, traces_dir, rng,
-    )
+        # Sample traces (pooled mode only)
+        traces_dir = run_dir / "sample_traces"
+        traces_dir.mkdir(parents=True, exist_ok=True)
+        _plot_example_traces(
+            traces_by_protein_arrays, proteins,
+            gmm_proba, min_peak_width, traces_dir, rng,
+        )
 
 
 if __name__ == "__main__":

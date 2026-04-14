@@ -1,6 +1,6 @@
 io:
   output_root: "../Results/Train"
-  run_name: "orig_conv_gru_hthtl_htia_both_mirrored"
+  run_name: "tcn_noaug_both_mirrored"
 
 
 data:
@@ -9,16 +9,16 @@ data:
   
 # Available proteins (uncomment to use):
   dataset:
-    HTHTL:
-      channels: ["minmax", "zscored"]
+    #HTHTL:
+    #  channels: ["minmax", "zscored"]
     #snap:
     #  channels: ["minmax", "zscored"]
-    HTIA:
+    #HTIA:
+    #  channels: ["minmax", "zscored"]
+    Grx1:
       channels: ["minmax", "zscored"]
-    #Grx1:
-    #  channels: ["minmax", "zscored"]
-    #K20Ac:
-    #  channels: ["minmax", "zscored"]
+    K20Ac:
+      channels: ["minmax", "zscored"]
 
 
   trim_end: 0
@@ -38,7 +38,7 @@ data:
     include_mirror: true     # Add time-reversed copy of every training trace
 
 model:
-  name: "orig_conv_gru"     # one of: orig_conv_gru, resnet1d, tcn
+  name: "tcn"     # one of: orig_conv_gru, resnet1d, tcn
   # Default parameters are hardcoded in the model zoo (models.py)
   # Override specific parameters here if needed
 
