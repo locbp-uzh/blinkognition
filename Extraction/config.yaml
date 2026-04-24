@@ -107,8 +107,9 @@ movie_length: 6000
 # =============================================================================
 # Preprocessing and Filtering
 # =============================================================================
-gmm_proba_threshold: 0.6        # posterior probability threshold for GMM peak classification
+gmm_proba_threshold: 0.9        # posterior probability threshold for GMM peak classification
 snr_min_separation: 2.0         # Minimum (signal_mean - noise_mean) / noise_std from GMM to accept a trace; set 0 to disable
+max_duty_cycle: 0.3             # Maximum fraction of frames classified "on"; rejects step-up photobleaching artifacts; set 0 to disable
 
 min_peak_number: 3
 min_peak_width: 1

@@ -1,0 +1,17 @@
+pretrained_model_dir: "/Users/privera/Desktop/Puentener2026_ML/2026-04-14_17-26-33_tcn_noaug_both_mirrored_training_Grx1_K20Ac"
+
+background_traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/BackgroundTraces/Filtered"
+
+proteins: ["Grx1", "K20Ac"]
+channels: ["minmax", "zscored"]
+
+output_root: "../../Results/Controls/NoiseClassification"
+
+mc_dropout:
+  n_mc: 100
+  trace_loss: 50.0
+  # wasserstein_threshold: 0.61  # optional: fix WD threshold instead of auto-selecting
+
+system:
+  seed: 840410
+  num_workers: 4

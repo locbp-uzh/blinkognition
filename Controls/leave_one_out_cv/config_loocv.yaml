@@ -1,0 +1,44 @@
+io:
+  output_root: "../../Results/Controls/LeaveOneOutCV"
+  run_name: "loocv_tcn"
+
+data:
+  traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/ProteinTracesIN/Filtered"
+  uid_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/UniqueIDs"
+  dataset:
+    Grx1:
+      channels: ["minmax", "zscored"]
+    K20Ac:
+      channels: ["minmax", "zscored"]
+  trim_end: 0
+  max_traces_per_class: 0
+  balance_train: true
+  balance_val: true
+  balance_test: true
+
+optimization:
+  batch_size: 64
+  max_epochs: 500
+  patience_limit: 10
+  lr: 0.0004
+  weight_decay: 0.0004
+  label_smoothing: 0.001
+  clip_grad_norm: 1.0
+  early_stopping:
+    auc_min_delta: 0.005
+    loss_mode: "relative"
+    loss_tolerance: 1.10
+    auc_tolerance: 0.003
+    loss_min_delta: 0.005
+
+uncertainty:
+  mc_dropout:
+    enabled: true
+    n_mc: 100
+    trace_loss: 50.0
+
+system:
+  compile: false
+  n_gpus: 4
+  seed: 840410
+  verbose: false

@@ -266,13 +266,9 @@ def _bh_correct(pvals: list) -> np.ndarray:
     return p_adj
 
 
-def _sig_stars(p: float) -> str:
+def _fmt_pval(p: float) -> str:
     if np.isnan(p): return ''
-    if p < 0.0001:  return '****'
-    if p < 0.001:   return '***'
-    if p < 0.01:    return '**'
-    if p < 0.05:    return '*'
-    return 'ns'
+    return f'p = {p:.2e}'
 
 
 def _draw_violin_panel(
@@ -351,7 +347,7 @@ def _draw_violin_panel(
         tip   = span * 0.025
         ax.plot([0, 0, 1, 1], [bkt_y - tip, bkt_y, bkt_y, bkt_y - tip],
                 color='#333333', linewidth=0.8, clip_on=False)
-        label = _sig_stars(p_adj)
+        label = _fmt_pval(p_adj)
         if effect_r is not None and not np.isnan(effect_r):
             label += f'\nr={effect_r:.2f}'
         ax.text(0.5, bkt_y + span * 0.02, label,
@@ -373,6 +369,8 @@ def _save_csv(data_per_protein: dict, output_dir: Path, filename: str) -> None:
 PROTEIN_COLORS = {
     'HTHTL': '#0072B2',  # blue
     'HTIA':  '#E69F00',  # orange
+    'Grx1':  '#009E73',  # green
+    'snap':  '#CC79A7',  # pink/purple
 }
 
 
@@ -384,12 +382,23 @@ def _plot_example_traces(
     output_dir: Path,
     rng: np.random.Generator,
     n_traces: int = 4,
-    n_frames: int = 1000,
+    half_window: int = 500,
 ) -> None:
     """
-    Plot the first n_frames of n_traces randomly selected traces per protein,
-    with GMM-detected ON regions shaded.  Saved as plot_traces.pdf.
+    Plot n_traces randomly selected traces per protein, windowed around the highest peak.
+
+    For each trace:
+      1. GMM is run on the full minmax trace.
+      2. All peaks are detected; the highest (by mean minmax value) is selected.
+      3. A window of 2*half_window frames is placed so that the highest peak falls
+         inside it while the window stays within trace boundaries — no NaN padding.
+         If the peak is closer than half_window to one edge, the window is shifted
+         so it starts/ends at that edge and the slack is taken up on the other side.
+      4. GMM peak shading is recomputed on the extracted window for display.
+
+    Saved as plot_traces.pdf + data_traces.csv.
     """
+    n_frames = 2 * half_window
     ncols = n_traces
     nrows = len(proteins)
     fig, axes = plt.subplots(nrows, ncols,
@@ -401,25 +410,50 @@ def _plot_example_traces(
 
     for row, protein in enumerate(proteins):
         arr   = traces_by_protein_arrays[protein]          # (N, 2, T)
+        T     = arr.shape[2]
         color = PROTEIN_COLORS.get(protein, COLORS[row % len(COLORS)])
         idx   = rng.choice(len(arr), size=min(n_traces, len(arr)), replace=False)
 
         for col, i in enumerate(idx):
-            ax          = axes[row][col]
-            minmax_vals = arr[i, 0, :n_frames]
-            frames      = np.arange(len(minmax_vals))
+            ax = axes[row][col]
 
-            _, _, signal_mask = gmm_classify_frames(minmax_vals, gmm_proba, 0.0)
-            runs    = _extract_runs(signal_mask, min_peak_width)
-            n_peaks = len(runs)
+            # 1. GMM on full trace
+            full_minmax = arr[i, 0, :]
+            _, _, signal_mask_full = gmm_classify_frames(full_minmax, gmm_proba, 0.0)
+            runs_full = _extract_runs(signal_mask_full, min_peak_width)
+            n_peaks_total = len(runs_full)
 
-            ax.plot(frames, minmax_vals, '-', color=color, linewidth=0.6, rasterized=True)
-            for r_s, r_e in runs:
-                ax.axvspan(r_s, r_e + 1, color=color, alpha=0.25, linewidth=0)
+            # 2. Find highest peak by mean minmax value; fall back to trace midpoint
+            if runs_full:
+                peak_means = [float(np.mean(full_minmax[l:r + 1])) for l, r in runs_full]
+                best = runs_full[int(np.argmax(peak_means))]
+                peak_centre = (best[0] + best[1]) // 2
+            else:
+                peak_centre = T // 2
 
-            ax.set_title(f'{n_peaks} peaks', fontsize=FONTSIZE_TICK)
+            # 3. Place a window of n_frames that contains the peak and stays in bounds.
+            #    Start from an ideal centred position then clamp to [0, T).
+            win_len = min(n_frames, T)
+            t_start = peak_centre - half_window
+            t_start = max(t_start, 0)
+            t_start = min(t_start, T - win_len)
+            t_end   = t_start + win_len
+
+            frames      = np.arange(t_start, t_end)
+            minmax_win  = arr[i, 0, t_start:t_end]
+            zscored_win = arr[i, 1, t_start:t_end]
+
+            # 4. Recompute GMM on the window for shading
+            _, _, sm_win = gmm_classify_frames(minmax_win, gmm_proba, 0.0)
+            runs_win = _extract_runs(sm_win, min_peak_width)
+
+            ax.plot(frames, minmax_win, '-', color=color, linewidth=0.6, rasterized=True)
+            for r_s, r_e in runs_win:
+                ax.axvspan(frames[r_s], frames[r_e] + 1, color=color, alpha=0.25, linewidth=0)
+
+            ax.set_title(f'{n_peaks_total} peaks total', fontsize=FONTSIZE_TICK)
             ax.set_yticks([])
-            ax.set_xticks([0, n_frames // 2, n_frames])
+            ax.set_xticks([frames[0], frames[len(frames) // 2], frames[-1]])
             ax.tick_params(labelsize=FONTSIZE_TICK - 1)
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
@@ -433,10 +467,12 @@ def _plot_example_traces(
             records.append({
                 'protein':        protein,
                 'trace_idx':      int(i),
-                'n_peaks_shown':  n_peaks,
-                'n_frames_shown': n_frames,
-                'minmax_values':  arr[i, 0, :n_frames].tolist(),
-                'zscored_values': arr[i, 1, :n_frames].tolist(),
+                'n_peaks_total':  n_peaks_total,
+                'window_start':   int(t_start),
+                'window_end':     int(t_end),
+                'n_frames_shown': int(win_len),
+                'minmax_values':  minmax_win.tolist(),
+                'zscored_values': zscored_win.tolist(),
             })
 
         # hide unused axes if fewer traces than n_traces
@@ -444,7 +480,7 @@ def _plot_example_traces(
             axes[row][col].set_visible(False)
 
     fig.suptitle(
-        f'Example traces — first {n_frames} frames  |  gmm_proba={gmm_proba}  min_width={min_peak_width}',
+        f'Example traces — {n_frames} frames around highest peak  |  gmm_proba={gmm_proba}  min_width={min_peak_width}',
         fontsize=8, y=1.01,
     )
     plt.tight_layout()
@@ -545,14 +581,15 @@ def _run_feature_analysis(
              "Duty cycle", "CV on-times", "CV off-times"],
             raw_stats, p_adj_all,
         ):
-            logging.info("  %-16s  p_raw=%.2e  p_adj=%.2e  r=%.3f  %s",
-                         lbl, p_raw, p_adj, r, _sig_stars(p_adj))
+            logging.info("  %-16s  p_raw=%.2e  p_adj=%.2e  r=%.3f",
+                         lbl, p_raw, p_adj, r)
     else:
         raw_stats = [(None, None)] * 6
         p_adj_all = [None] * 6
 
-    # Figure: 2 rows × 3 columns
-    fig, axes = plt.subplots(2, 3, figsize=(11, 8))
+    # Figure: 2 rows × 3 columns — scale width with number of proteins
+    fig_w = max(11, 5.5 * len(proteins))
+    fig, axes = plt.subplots(2, 3, figsize=(fig_w, 8))
     if title:
         fig.suptitle(title, fontsize=FONTSIZE_TITLE, y=1.01)
 
@@ -588,7 +625,8 @@ def main() -> None:
 
     cfg = load_config(args.config)
 
-    output_root       = Path(cfg["output_path"])
+    _default_output = Path(__file__).parent.parent / "Results" / "Features"
+    output_root       = Path(cfg.get("output_path", str(_default_output)))
     frame_interval_ms = float(cfg.get("frame_interval_ms", 30.0))
     gmm_proba         = float(cfg.get("gmm_proba_threshold", 0.8))
     min_peak_width    = int(cfg.get("min_peak_width", 1))

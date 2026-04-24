@@ -92,6 +92,7 @@ def _filter_particle(particle, bg_rm_vals, params):
     GMM_PROBA_THRESHOLD = params["GMM_PROBA_THRESHOLD"]
     GMM_MIN_SEPARATION  = params["GMM_MIN_SEPARATION"]
     SNR_MIN_SEPARATION  = params["SNR_MIN_SEPARATION"]
+    MAX_DUTY_CYCLE      = params["MAX_DUTY_CYCLE"]
 
     _, _, signal_mask, sep = gmm_classify_frames(
         bg_rm_vals, GMM_PROBA_THRESHOLD, GMM_MIN_SEPARATION, return_separation=True
@@ -100,6 +101,11 @@ def _filter_particle(particle, bg_rm_vals, params):
     # Explicit SNR gate: reject pure-noise traces before peak detection.
     # sep = (signal_mean - noise_mean) / noise_std from the GMM fit.
     if SNR_MIN_SEPARATION > 0 and sep < SNR_MIN_SEPARATION:
+        return None
+
+    # Duty cycle gate: reject step-up photobleaching artifacts where the signal
+    # is permanently elevated (fraction of "on" frames exceeds the ceiling).
+    if MAX_DUTY_CYCLE > 0 and signal_mask.mean() > MAX_DUTY_CYCLE:
         return None
 
     runs, in_run = [], False
@@ -151,6 +157,7 @@ def filter_and_augment_compound(
     GMM_PROBA_THRESHOLD = float(cfg.get("gmm_proba_threshold", 0.8))
     GMM_MIN_SEPARATION = float(cfg.get("gmm_min_separation", 3.0))
     SNR_MIN_SEPARATION = float(cfg.get("snr_min_separation", 3.0))
+    MAX_DUTY_CYCLE = float(cfg.get("max_duty_cycle", 0.0))
 
     # Determine file naming and folder
     if gt_label == "IN":
@@ -221,6 +228,7 @@ def filter_and_augment_compound(
         "GMM_PROBA_THRESHOLD": GMM_PROBA_THRESHOLD,
         "GMM_MIN_SEPARATION":  GMM_MIN_SEPARATION,
         "SNR_MIN_SEPARATION":  SNR_MIN_SEPARATION,
+        "MAX_DUTY_CYCLE":      MAX_DUTY_CYCLE,
     }
 
     raw_results = Parallel(n_jobs=n_workers)(

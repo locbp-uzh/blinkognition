@@ -1,0 +1,16 @@
+traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/ProteinTracesIN/Filtered"
+
+proteins: ["Grx1", "K20Ac"]
+channel: "zscored"
+
+output_root: "../../Results/Controls/RandomForest"
+
+gmm:
+  proba: 0.9
+  min_peak_width: 1
+  frame_interval_ms: 30.0
+
+random_forest:
+  n_estimators: 500
+  test_size: 0.20
+  seed: 840410
