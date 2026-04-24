@@ -482,15 +482,25 @@ def _run_loocv_task(
             max_wd = float(w_dists.max()) if w_dists.size else 1.0
             thrs   = np.linspace(0.0, max_wd, 50)
             best_t, best_ba = 0.0, -np.inf
+            sweep_thrs, sweep_bal_accs, sweep_kept_fracs = [], [], []
             for t in thrs:
                 mask = w_dists > t
-                if mask.sum() == 0 or (1 - mask.sum()/len(w_dists))*100 > trace_loss:
+                kept_frac = mask.sum() / len(w_dists)
+                if mask.sum() == 0 or (1 - kept_frac) * 100 > trace_loss:
                     continue
                 if len(np.unique(y_te[mask])) < 2:
                     continue
                 ba = balanced_accuracy_score(y_te[mask], y_pred_mc[mask]) * 100.0
+                sweep_thrs.append(t)
+                sweep_bal_accs.append(ba)
+                sweep_kept_fracs.append(kept_frac)
                 if ba > best_ba:
                     best_ba, best_t = ba, t
+            sweep_path = os.path.join(
+                run_dir, f"wd_sweep_{_slug(test_exp)}_{_slug(val_exp)}.pdf")
+            plot_wd_sweep(sweep_thrs, sweep_bal_accs, sweep_kept_fracs, best_t,
+                          save_path=sweep_path,
+                          title=f"WD sweep — test={test_exp}, val={val_exp}")
             mask_sel = w_dists > best_t
             if mask_sel.sum() > 0 and len(np.unique(y_te[mask_sel])) >= 2:
                 mcd_bal_acc_filtered = balanced_accuracy_score(
@@ -652,6 +662,39 @@ def plot_cm(mean_cm, std_cm, class_names, save_path, title):
                                    save_path=save_path, title=title)
 
 
+def plot_wd_sweep(thrs, bal_accs, kept_fracs, best_t, save_path, title=""):
+    """WD threshold sweep: balanced accuracy and retained fraction vs threshold."""
+    valid = [(t, ba, kf) for t, ba, kf in zip(thrs, bal_accs, kept_fracs)
+             if np.isfinite(ba) and np.isfinite(kf)]
+    if not valid:
+        return
+    tv, bav, kfv = zip(*valid)
+
+    fig, ax1 = plt.subplots(figsize=(5, 3.5))
+    ax2 = ax1.twinx()
+
+    ax1.plot(tv, bav, color=COLORS[0], lw=1.5, label="Bal. accuracy")
+    ax2.plot(tv, [kf * 100 for kf in kfv], color=COLORS[1], lw=1.5, ls="--", label="Kept %")
+    if np.isfinite(best_t) and best_t > 0:
+        ax1.axvline(best_t, color="red", lw=1.0, ls=":", label=f"θ={best_t:.3f}")
+
+    ax1.set_xlabel("WD threshold", fontsize=FONTSIZE_LABEL)
+    ax1.set_ylabel("Balanced accuracy (%)", fontsize=FONTSIZE_LABEL)
+    ax2.set_ylabel("Retained traces (%)", fontsize=FONTSIZE_LABEL)
+    ax1.tick_params(labelsize=FONTSIZE_TICK)
+    ax2.tick_params(labelsize=FONTSIZE_TICK)
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=FONTSIZE_LEGEND, loc="best")
+    if title:
+        ax1.set_title(title, fontsize=FONTSIZE_TITLE)
+
+    fig.tight_layout()
+    fig.savefig(save_path)
+    plt.close(fig)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # main
 # ──────────────────────────────────────────────────────────────────────────────
@@ -801,14 +844,17 @@ def main():
         print(f"\n  Test experiment: {te}")
         print(f"    AUC:        {sub['test_auc'].mean():.3f} ± {sub['test_auc'].std():.3f}")
         print(f"    Bal acc:    {sub['test_bal_acc'].mean():.1f}% ± {sub['test_bal_acc'].std():.1f}%")
-        print(f"    MCD acc:    {sub['mcd_bal_acc_filtered'].mean():.1f}%")
+        print(f"    MCD acc:    {sub['mcd_bal_acc_filtered'].mean():.1f}% ± {sub['mcd_bal_acc_filtered'].std():.1f}%")
         print(f"    Epochs:     {sub['epochs_trained'].mean():.0f} ± {sub['epochs_trained'].std():.0f}")
 
     all_aucs = folds_df["test_auc"].dropna()
     all_accs = folds_df["test_bal_acc"].dropna()
+    all_mcd  = folds_df["mcd_bal_acc_filtered"].replace([np.inf, -np.inf], np.nan).dropna()
     print(f"\n  Overall across all {len(folds_df)} runs:")
     print(f"    AUC:     {all_aucs.mean():.3f} ± {all_aucs.std():.3f}")
     print(f"    Bal acc: {all_accs.mean():.1f}% ± {all_accs.std():.1f}%")
+    if len(all_mcd) > 0:
+        print(f"    MCD acc: {all_mcd.mean():.1f}% ± {all_mcd.std():.1f}%")
     print(f"\n  Results saved to: {run_dir}")
     print("=" * 60)
 
