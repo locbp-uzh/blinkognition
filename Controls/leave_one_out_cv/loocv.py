@@ -34,6 +34,7 @@ import sys
 import re
 import json
 import time
+import queue as stdlib_queue
 import argparse
 from datetime import datetime
 from pathlib import Path
@@ -365,19 +366,17 @@ def _run_loocv_task(
     val_ds   = to_tensor_dataset(X_val,   y_val)
     test_ds  = to_tensor_dataset(X_test,  y_test)
 
-    extra = {"persistent_workers": True} if dl_kwargs.get("num_workers", 0) > 0 else {}
-
     if balance_train:
         counts = np.bincount(y_train)
         counts[counts == 0] = 1
         sw = (1.0 / counts)[y_train]
         sampler = WeightedRandomSampler(sw, len(sw), replacement=True)
-        train_loader = DataLoader(train_ds, batch_size=bs, sampler=sampler, **dl_kwargs, **extra)
+        train_loader = DataLoader(train_ds, batch_size=bs, sampler=sampler, **dl_kwargs)
     else:
-        train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, **dl_kwargs, **extra)
+        train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, **dl_kwargs)
 
-    val_loader  = DataLoader(val_ds,  batch_size=bs, shuffle=False, **dl_kwargs, **extra)
-    test_loader = DataLoader(test_ds, batch_size=bs, shuffle=False, **dl_kwargs, **extra)
+    val_loader  = DataLoader(val_ds,  batch_size=bs, shuffle=False, **dl_kwargs)
+    test_loader = DataLoader(test_ds, batch_size=bs, shuffle=False, **dl_kwargs)
 
     # Build TCN
     model_name   = "tcn"
@@ -498,10 +497,11 @@ def _run_loocv_task(
                     y_te[mask_sel], y_pred_mc[mask_sel]) * 100.0
                 test_cm_mcd = confusion_normalized(y_te[mask_sel], y_pred_mc[mask_sel], n_classes)
 
+    mcd_str    = f"{mcd_bal_acc_filtered:.1f}%" if np.isfinite(mcd_bal_acc_filtered) else "n/a"
     task_label = f"test={test_exp} | val={val_exp}"
     print(f"[GPU {gpu_id}] {task_label}: "
           f"AUC={test_auc:.3f}, bal_acc={test_bal_acc:.1f}%, "
-          f"mcd_filtered={mcd_bal_acc_filtered:.1f}%, "
+          f"mcd_filtered={mcd_str}, "
           f"epochs={epochs_trained}, t/epoch={time_per_epoch:.1f}s")
 
     return {
@@ -615,16 +615,25 @@ def _distribute_tasks(
         p.start()
         workers.append(p)
 
-    results = []
-    for _ in range(len(tasks)):
-        r = result_queue.get()
+    results  = []
+    received = 0
+    while received < len(tasks):
+        # If all workers are dead and we haven't received all results, abort cleanly
+        if not any(p.is_alive() for p in workers):
+            print(f"ERROR: all GPU workers have exited after {received}/{len(tasks)} results "
+                  f"— possible OOM or hardware fault. Proceeding with partial results.")
+            break
+        try:
+            r = result_queue.get(timeout=60)   # re-checks worker liveness every 60 s
+        except stdlib_queue.Empty:
+            continue
+        received += 1
         if r is not None:
             results.append(r)
-        done = len(results)
-        print(f"Progress: {done}/{len(tasks)} tasks complete")
+        print(f"Progress: {received}/{len(tasks)} tasks received ({len(results)} successful)")
 
     for p in workers:
-        p.join()
+        p.join(timeout=30)
 
     return results
 
