@@ -670,11 +670,13 @@ def plot_wd_sweep(thrs, bal_accs, kept_fracs, best_t, save_path, title=""):
         return
     tv, bav, kfv = zip(*valid)
 
+    _c = list(COLORS.values())
+
     fig, ax1 = plt.subplots(figsize=(5, 3.5))
     ax2 = ax1.twinx()
 
-    ax1.plot(tv, bav, color=COLORS[0], lw=1.5, label="Bal. accuracy")
-    ax2.plot(tv, [kf * 100 for kf in kfv], color=COLORS[1], lw=1.5, ls="--", label="Kept %")
+    ax1.plot(tv, bav, color=_c[0], lw=1.5, label="Bal. accuracy")
+    ax2.plot(tv, [kf * 100 for kf in kfv], color=_c[1], lw=1.5, ls="--", label="Kept %")
     if np.isfinite(best_t) and best_t > 0:
         ax1.axvline(best_t, color="red", lw=1.0, ls=":", label=f"θ={best_t:.3f}")
 

@@ -1,13 +1,13 @@
 # Controls
 
-This folder contains five control experiments that validate and interrogate the main
-Grx1 vs K20Ac TCN classifier reported in Püntener et al. 2026. Each experiment has
-its own subdirectory with a Python script and a YAML config file. Results are written
-to `Results/Controls/<experiment>/`.
+Five control experiments that validate and interrogate the main Grx1 vs K20Ac TCN
+classifier reported in Püntener et al. 2026. Each experiment has its own
+subdirectory with a Python script and a YAML config file. Results are written to
+`Results/Controls/<experiment>/`.
 
 ---
 
-## Dataset
+## Shared dataset paths
 
 | Item | Path |
 |------|------|
@@ -18,17 +18,17 @@ to `Results/Controls/<experiment>/`.
 | MCD results NPZ | `<pre-trained model dir>/MCD_results/traces_with_wasserstein.npz` |
 
 Pickle files follow the naming convention `<Protein>_IN_filtered_<channel>.pkl` where
-channel is one of `raw`, `minmax`, `zscored`, `bg_rm`. The model was trained on
+channel is one of `raw`, `minmax`, `zscored`, `bg_rm`. The TCN was trained on
 `minmax` + `zscored` channels.
 
-All training hyperparameters (unless noted otherwise) match `ML/config_train.yaml`.
+All TCN hyperparameters (unless noted otherwise) match `ML/config_train.yaml`.
 
 ---
 
-## Experiment 1 — Label Scrambling
+## Experiment 1 — Label Scrambling (TCN)
 
-**Script:** `label_scrambling/scramble_train.py`  
-**Config:** `label_scrambling/config_scramble.yaml`  
+**Script:** `label_scrambling/scramble_train.py`
+**Config:** `label_scrambling/config_scramble.yaml`
 **Run locally (MPS/CPU):**
 ```bash
 cd Controls/label_scrambling
@@ -36,32 +36,44 @@ conda run -n blink2env python scramble_train.py -c config_scramble.yaml
 ```
 
 ### Motivation
-A classifier trained on randomly shuffled labels cannot learn meaningful structure and
-should perform at chance level (≈50% balanced accuracy, AUC ≈ 0.5 for a binary
-problem). This experiment confirms that the performance of the real model is not an
-artifact of the training procedure, data loading, or evaluation pipeline.
+A TCN trained on randomly shuffled labels cannot learn meaningful structure and must
+perform at chance level (≈50% balanced accuracy, AUC ≈ 0.5). This confirms that the
+real model's performance is not an artifact of the training procedure, data loading,
+or evaluation pipeline.
 
 ### Implementation
 `scramble_train.py` is a near-identical copy of `ML/train.py` with one modification:
-immediately after the full dataset `(X, y)` is loaded by `build_dataset_from_keys`,
-the label vector `y` is shuffled in place using `np.random.default_rng(seed).shuffle(y)`
-**before** the train/val/test split. This ensures that all three splits receive
-randomly relabelled traces, so the model cannot exploit any label information.
-Everything else — model architecture (TCN), augmentation (mirroring), optimisation,
-MC Dropout evaluation, UMAP, and output structure — is identical to the main training
-pipeline.
+immediately after the full dataset `(X, y)` is assembled by `build_dataset_from_keys`,
+the label vector `y` is shuffled in place with `np.random.default_rng(seed).shuffle(y)`
+**before** the train/val/test split. This ensures all three splits receive randomly
+relabelled traces, so no label information can be exploited.
 
-### Expected output
-- Confusion matrices near the diagonal random baseline (≈50%/50%).
-- AUC ≈ 0.5, loss curves that do not converge.
-- MCD Wasserstein distances uniformly low (model is uncertain on all traces).
+Everything else is identical to the main pipeline: TCN architecture, mirroring
+augmentation (`aug_factor=1`, `include_mirror=True`, no noise or warp), AdamW
+optimisation, MC Dropout (100 passes), UMAP, and the full output directory structure.
+
+Config highlights:
+- `max_traces_per_class: 0` (all traces used)
+- `trim_end: 0`
+- Augmentation enabled with mirroring only (matches main training)
+
+### Outputs
+Same directory structure as `ML/train.py`:
+- Loss curves, confusion matrix, UMAP embeddings
+- `MCD_results/`: Wasserstein histogram, WD sweep, MCD-filtered metrics
+- `loocv_folds_metrics.csv` is not produced (no LOO CV here)
+
+### Expected result
+Confusion matrix near the random diagonal (≈50%/50%), AUC ≈ 0.5, loss curves that
+fail to converge. MCD Wasserstein distances uniformly low (model uncertain on all
+traces).
 
 ---
 
 ## Experiment 2 — Noise Classification from Pre-trained Model
 
-**Script:** `noise_classification/classify_noise.py`  
-**Config:** `noise_classification/config_noise.yaml`  
+**Script:** `noise_classification/classify_noise.py`
+**Config:** `noise_classification/config_noise.yaml`
 **Run locally (MPS/CPU):**
 ```bash
 cd Controls/noise_classification
@@ -69,45 +81,60 @@ conda run -n blink2env python classify_noise.py -c config_noise.yaml
 ```
 
 ### Motivation
-The TCN classifier was trained exclusively on protein (signal) traces. Background
-(noise) traces should, in principle, not resemble either Grx1 or K20Ac blinking
-patterns. Classifying them with the pre-trained model tests whether the classifier
-has inadvertently learned to distinguish noise from protein signal rather than
-protein identity. If background traces are predicted with high confidence and split
-roughly equally between Grx1 and K20Ac, the classifier is likely responding to
-genuine protein features. If they cluster into one class or are all filtered out by
-MC Dropout uncertainty, it suggests the model is sensitive to signal quality.
+The TCN was trained exclusively on protein (signal) traces. Background (noise) traces
+should not resemble either Grx1 or K20Ac blinking patterns. Classifying them with the
+pre-trained model tests whether the classifier has inadvertently learned to distinguish
+noise from signal rather than protein identity. If background traces are predicted with
+high confidence and split roughly equally between the two classes, the model is likely
+responding to genuine protein features.
 
 ### Implementation
-Inference-only script — no training occurs.
+Inference-only — no training occurs.
 
-1. Reads `config_full.json` from the pre-trained run directory to reconstruct the
-   exact model architecture and class mapping.
-2. Loads `best_model.pth` onto the available device.
-3. Loads background traces from `BackgroundTraces/Filtered` for both Grx1 and K20Ac
-   (`minmax` + `zscored` channels, matching training).
-4. Runs a deterministic forward pass to obtain class probabilities.
-5. Runs MC Dropout (100 forward passes) to compute per-trace Wasserstein distances,
-   mirroring the MCD evaluation in `ML/train.py`.
-6. Outputs:
-   - Bar chart: fraction of background traces predicted as Grx1 vs K20Ac.
-   - Normalized confusion matrix: true background label (rows) vs predicted class (cols).
-   - Wasserstein distance distribution histogram.
-   - WD sweep plot (balanced accuracy vs retained fraction).
-   - JSON metrics file.
+1. Reads `config_full.json` from `pretrained_model_dir` to reconstruct the exact model
+   architecture and class mapping, then loads `best_model.pth`.
+2. Loads background traces from `BackgroundTraces/Filtered` for both Grx1 and K20Ac
+   (`minmax` + `zscored` channels, matching training inputs).
+3. Deterministic forward pass → class probabilities.
+4. MC Dropout: 100 forward passes per trace → per-trace Wasserstein distance to the
+   nearest competing class, auto-threshold sweep (≤50% trace loss budget), filtered
+   confusion matrix and balanced accuracy.
+5. UMAP on the penultimate-layer embeddings (same as `ML/train.py`).
 
-### Expected output
-Background traces should either be filtered out by high MCD uncertainty (low
-Wasserstein distances) or predicted without a strong class preference, indicating
-the model is not generalising meaningless noise patterns.
+Config keys:
+- `pretrained_model_dir`: path to the saved training run
+- `background_traces_path`: `BackgroundTraces/Filtered`
+- `proteins: ["Grx1", "K20Ac"]`, `channels: ["minmax", "zscored"]`
+- `mc_dropout.n_mc: 100`, `mc_dropout.trace_loss: 50.0`
+
+### Outputs
+```
+<run_dir>/
+  predicted_class_distribution.pdf    bar chart: fraction predicted as Grx1 vs K20Ac
+  confusion_matrix/                   evaluate_model outputs
+  test_metrics.json
+  umap_embeddings/
+  MCD_results/
+    wasserstein_histogram.pdf
+    wd_sweep.pdf
+    traces_with_wasserstein.npz
+  mc_dropout_metrics.json
+  config_full.json
+  <run_name>.log
+```
+
+### Expected result
+Background traces should either be filtered out by high MCD uncertainty (low WD) or
+predicted without a clear class preference, indicating the model does not generalise
+to noise.
 
 ---
 
-## Experiment 3 — Leave-One-Out Cross-Validation (Nested, Experiment-Based)
+## Experiment 3 — Nested Leave-One-Out CV (TCN, Experiment-Based)
 
-**Script:** `leave_one_out_cv/loocv.py`  
-**Config:** `leave_one_out_cv/config_loocv.yaml`  
-**Submit script (HPC/SLURM):** `leave_one_out_cv/submit_loocv.sh`  
+**Script:** `leave_one_out_cv/loocv.py`
+**Config:** `leave_one_out_cv/config_loocv.yaml`
+**Submit script (SLURM/HPC):** `leave_one_out_cv/submit_loocv.sh`
 **Run on HPC:**
 ```bash
 cd Controls/leave_one_out_cv
@@ -116,16 +143,16 @@ sbatch submit_loocv.sh
 python loocv.py -c config_loocv.yaml --n-gpus 4
 ```
 
-> **Note:** This experiment is designed for HPC (CUDA, multiple GPUs). Running it
-> locally would be impractical given the 20 training jobs required.
+> **Note:** Designed for HPC (CUDA, 4 GPUs). Running locally would be impractical
+> given the 20 parallel training jobs required.
 
 ### Motivation
-The protein traces come from five independent acquisition sessions (DK experiments).
-Standard cross-validation mixes traces from all sessions in train and val, which can
+Protein traces come from five independent DK acquisition sessions. Standard
+cross-validation mixes traces from all sessions in train and val, which can
 overestimate generalisation if there is session-level batch variation. A leave-one-out
 design that respects experiment boundaries (one session held out as test, one as
-validation, three as training) provides a conservative estimate of how well the
-classifier generalises to entirely unseen acquisitions.
+validation, three as training) gives a conservative estimate of how well the classifier
+generalises to entirely unseen acquisitions.
 
 ### DK Experiments
 | Experiment | Date |
@@ -136,46 +163,71 @@ classifier generalises to entirely unseen acquisitions.
 | `20250730_DK_Exp8` | 2025-07-30 |
 | `20251127_DK_Exp9` | 2025-11-27 |
 
-### Implementation
-Each trace is mapped to its DK experiment using the `origin` column of the UniqueIDs
-PKL files (regex match on `YYYYMMDD_DK_ExpN`).
+Each trace is mapped to its DK experiment via a regex (`YYYYMMDD_DK_ExpN`) applied to
+the `origin` column of the UniqueIDs PKL files.
 
-The design is a **nested leave-one-out**:
+### Design (20 training runs)
+- **Outer loop (5 iterations):** one experiment held out as the **TEST** set.
+- **Inner loop (4 iterations per outer fold):** for each remaining experiment taken as
+  the **VAL** set, a TCN is trained on the other three (TRAIN).
 
-- **Outer loop (5 iterations):** one experiment is held out as the **TEST** set.
-- **Inner loop (4 iterations):** for each remaining experiment taken as the **VAL**
-  set, a TCN is trained on the other three experiments (TRAIN).
+Each of the 20 `(test_exp, val_exp)` tasks produces one test confusion matrix evaluated
+on the outer held-out experiment. The 4 matrices within each outer fold are averaged
+(mean ± std) → per-experiment result. The 5 per-experiment results are then aggregated
+into the overall confusion matrix.
 
-This yields **20 training runs** total. Each run produces a test confusion matrix
-evaluated on the outer held-out experiment. The 4 test matrices within each outer
-fold are averaged (mean ± std) to give a per-held-out-experiment result. The 5
-per-experiment results are then aggregated into a final overall confusion matrix.
+The 20 tasks are distributed across GPUs using the same dynamic work-stealing queue
+as `ML/crossval.py`. Deadlock protection: `result_queue.get(timeout=60 s)` with a
+worker liveness check — if all workers have exited, collection aborts cleanly with
+partial results.
 
-The 20 tasks are distributed across available GPUs using the same dynamic work-stealing
-queue already implemented in `ML/crossval.py` (`_distribute_tasks_to_gpus` /
-`_gpu_worker_loop` pattern). Each task is a `(test_exp, val_exp)` pair.
+### Training details
+- Model: **TCN only**. No augmentation. No trace trimming (`trim_end: 0`).
+- `max_traces_per_class: 0` (all traces used).
+- All three splits are balanced by subsampling to the minority class.
+- Early stopping: patience 10, AUC primary criterion, alternate checkpoint on loss
+  improvement.
+- Channels: `minmax` + `zscored` (2-channel input, matches main model).
+- Optimiser: AdamW, lr=4×10⁻⁴, weight decay=4×10⁻⁴, label smoothing=0.001,
+  gradient clip=1.0, max 500 epochs.
 
-Model: **TCN only**. No augmentation. No trace trimming (`trim_end: 0`).
-`max_traces_per_class: 0` (all traces used).
+### MC Dropout per task
+100 forward passes on the test set. Per-trace Wasserstein distance to the nearest
+competing class. Auto-threshold sweep (50 points, ≤50% trace loss budget):
+- Saves `wd_sweep_<test_exp>_<val_exp>.pdf` per task (dual-axis: balanced accuracy
+  and retained fraction vs WD threshold, red dashed line at selected threshold).
+- Applies the best threshold → `mcd_bal_acc_filtered`, MCD-filtered confusion matrix.
 
 ### Outputs
-- `cv_folds_metrics.csv`: per-run metrics (AUC, balanced accuracy, epochs, timing).
-- `confmat_<test_exp>.pdf`: mean ± std confusion matrix for each held-out experiment.
-- `confmat_overall.pdf`: confusion matrix aggregated over all 20 runs.
-- `loss_curve_<test_exp>_<val_exp>.pdf`: one loss curve per task.
-- MCD Wasserstein sweep per task.
+```
+<run_dir>/
+  loocv_folds_metrics.csv               all 20 runs (AUC, bal_acc, MCD, epochs, timing)
+  confmat_<test_exp>.pdf                mean ± std CM averaged over 4 inner val folds
+  confmat_<test_exp>_mcd.pdf            MCD-filtered version of the above
+  confmat_overall.pdf                   aggregated over all 5 outer folds
+  confmat_overall_mcd.pdf               MCD-filtered overall
+  loss_<test_exp>_<val_exp>.pdf         one loss curve per task (20 total)
+  wd_sweep_<test_exp>_<val_exp>.pdf     WD sweep per task (20 total)
+  config_snapshot.json
+  <run_name>_loocv.log
+```
 
-### Expected output
-If the model generalises across experiments, per-held-out-experiment confusion
-matrices should approach the performance of the main model. Large variance across
-held-out experiments would indicate session-level batch effects.
+### Printed summary
+Per test experiment: AUC mean ± std, balanced accuracy mean ± std, MCD acc mean ± std,
+mean epochs (all averaged over the 4 inner validation folds). Overall: same metrics
+aggregated across all 20 runs.
+
+### Expected result
+Per-held-out-experiment confusion matrices approaching the main model's performance
+indicate the classifier generalises across acquisitions. Large variance across held-out
+experiments indicates session-level batch effects.
 
 ---
 
 ## Experiment 4 — Blinking Features of Misclassified K20Ac Traces
 
-**Script:** `misclassified_features/plot_misclassified_features.py`  
-**Config:** `misclassified_features/config_misclassified.yaml`  
+**Script:** `misclassified_features/plot_misclassified_features.py`
+**Config:** `misclassified_features/config_misclassified.yaml`
 **Run locally:**
 ```bash
 cd Controls/misclassified_features
@@ -183,90 +235,202 @@ conda run -n blink2env python plot_misclassified_features.py -c config_misclassi
 ```
 
 ### Motivation
-MC Dropout uncertainty filtering (Wasserstein distance ≥ 0.61) retains only the
-traces the model classifies with high confidence. Among those, some K20Ac traces are
-nonetheless misclassified as Grx1. Examining the biophysical blinking features of
-these traces tests whether they are genuinely atypical K20Ac traces (resembling Grx1
-in their blinking dynamics) or whether misclassification arises despite normal K20Ac
+MC Dropout filtering (WD ≥ 0.61) retains only high-confidence traces. Among those,
+some K20Ac traces are still misclassified as Grx1. Examining their biophysical blinking
+features tests whether misclassified traces are genuinely atypical (resembling Grx1 in
+their blinking dynamics) or whether misclassification arises despite normal K20Ac
 blinking behaviour.
 
 ### Implementation
-1. Load `traces_with_wasserstein.npz` from the MCD results of the pre-trained model.
-   NPZ layout: `traces (N, 2, T)`, `labels (N,)`, `predictions (N,)`,
+1. Loads `traces_with_wasserstein.npz` from the pre-trained model's MCD results.
+   NPZ fields: `traces (N, 2, T)`, `labels (N,)`, `predictions (N,)`,
    `wasserstein_distances (N,)`, `class_names (2,)`, `unique_ids (N,)`.
-2. Filter: `wasserstein_distances ≥ 0.61` AND `labels == 1` (K20Ac) AND
-   `predictions == 0` (Grx1).
-3. For each retained trace, run `gmm_classify_frames` (from `Extraction/utils.py`)
+2. Filters: `wasserstein_distances ≥ 0.61` AND `labels == 1` (K20Ac) AND
+   `predictions == 0` (Grx1 — misclassified).
+3. Same filter applied to correctly classified high-WD Grx1 and K20Ac traces, used
+   as reference populations.
+4. For each retained trace, runs `gmm_classify_frames` (from `Extraction/utils.py`)
    on channel 0 (minmax) to detect ON/OFF state transitions.
-4. Compute the same six features used in `Features/blink_features.py` (pooled mode):
-   - Mean off-time (ms)
-   - Mean on-time (ms)
-   - Blinking rate (peaks s⁻¹, active window)
+5. Computes six per-trace features (same as `Features/blink_features.py` pooled mode):
+   - Mean ON time (ms)
+   - Mean OFF time (ms)
+   - Blinking rate (peaks s⁻¹, over the active window)
    - Duty cycle (fraction of active window in ON state)
-   - CV of on-times
-   - CV of off-times
-5. Plot a 2×3 violin panel (one panel per feature). Save feature table as CSV.
+   - CV of ON times
+   - CV of OFF times
+6. Violin panel (2×3 layout, one panel per feature) comparing misclassified K20Ac
+   against correct Grx1 and K20Ac populations. Mann–Whitney U test annotations.
+   Feature table exported as CSV.
 
-### Expected output
-If these misclassified traces are atypical K20Ac molecules with Grx1-like dynamics,
-their feature distributions will overlap more with Grx1 than with the broader K20Ac
-population. If they look like typical K20Ac, the misclassification is not explained
-by simple biophysical differences.
+Config keys:
+- `npz_path`: path to `traces_with_wasserstein.npz`
+- `wasserstein_min: 0.61`
+- `gmm.proba: 0.9`, `gmm.min_peak_width: 1`, `gmm.frame_interval_ms: 30.0`
+
+### Outputs
+```
+<run_dir>/
+  features_violin.pdf           2×3 violin panel
+  features_misclassified.csv    per-trace feature table
+  config_snapshot.json
+```
+
+### Expected result
+If misclassified K20Ac traces have Grx1-like blinking dynamics, their feature
+distributions will overlap more with the Grx1 population than with K20Ac. If they
+look like typical K20Ac, biophysical features do not explain the misclassification.
 
 ---
 
-## Experiment 5 — Random Forest Classifier on Handcrafted Blinking Features
+## Experiment 5 — Random Forest Classifier (Handcrafted Blinking Features)
 
-**Script:** `random_forest/rf_classifier.py`  
-**Config:** `random_forest/config_rf.yaml`  
+**Script:** `random_forest/rf_pipeline.py`
+**Config:** `random_forest/config_rf.yaml`
 **Run locally:**
 ```bash
 cd Controls/random_forest
-conda run -n blink2env python rf_classifier.py -c config_rf.yaml
+conda run -n blink2env python rf_pipeline.py -c config_rf.yaml
 ```
 
 ### Motivation
 The TCN operates on raw time-series and learns features implicitly. A random forest
 trained on six hand-engineered blinking features tests how much discriminative
 information is captured by simple summary statistics alone, without any learned
-representation. This serves as a classical-ML baseline for the binary Grx1 vs K20Ac
-classification task.
+representation. It also provides a classical-ML baseline and an internal
+label-scrambling and LOO CV control that mirror the TCN controls.
 
-### Implementation
-1. Load **all** Grx1 + K20Ac filtered traces from `ProteinTracesIN/Filtered`
-   (`zscored` channel only, one channel per trace).
-2. For each trace, run `gmm_classify_frames` from `Extraction/utils.py` to detect
-   ON/OFF state transitions.
-3. Compute six per-trace features from the active window:
-   - Mean ON time
-   - Mean OFF time
-   - Standard deviation of ON times
-   - Standard deviation of OFF times
-   - Total ON time
-   - Total OFF time
-4. Stratified 80/20 train/test split (seeded).
-5. Train `sklearn.ensemble.RandomForestClassifier` (default hyperparameters; 500
-   trees, seeded).
-6. Evaluate on test set. Outputs:
-   - Normalised confusion matrix (PDF).
-   - Feature importances bar chart (PDF).
-   - Feature table CSV (all traces, with protein label and computed features).
-   - JSON classification report (precision, recall, F1, AUC).
+### Design
+Features are extracted **once** from the full dataset and reused across all three
+analyses in the same run:
 
-### Expected output
-A random forest on six summary statistics will likely underperform the TCN, confirming
-that raw time-series classifiers capture information not accessible to hand-engineered
-features. However, if the random forest achieves competitive performance, it suggests
-the blinking dynamics are largely captured by these six statistics.
+| Section | What it does |
+|---------|-------------|
+| **Classifier** | Standard RF on an 80/20 train/test split |
+| **Label scrambling** | Same RF after globally shuffling labels; expected ≈50% |
+| **LOO CV** | Experiment-based leave-one-out CV (one fold per DK experiment) |
+
+LOO CV requires `uid_path` in the config. If omitted, only the classifier and scramble
+sections run.
+
+### Feature extraction
+- Traces channel: `zscored` (single channel per trace).
+- For each trace, `gmm_classify_frames` (from `Extraction/utils.py`) detects ON/OFF
+  transitions using a 2-component GMM (posterior probability threshold 0.9, minimum
+  peak width 1 frame, frame interval 30 ms). Traces with fewer than 2 detected ON
+  events are discarded.
+- Six features per trace:
+  - Mean ON time (ms)
+  - Mean OFF time (ms)
+  - Std of ON times (ms)
+  - Std of OFF times (ms)
+  - Total ON time (ms)
+  - Total OFF time (ms)
+- Extraction is parallelised across all available CPU cores with `joblib.Parallel`.
+- Experiment labels are derived from the UniqueIDs PKL files: the `origin` field
+  encodes the full path to the source PKL, and `Path(origin).parent.parent.name` gives
+  the experiment directory name. This is regex-free and works for any naming convention
+  (DK, SP, etc.).
+
+### Section 1 — Classifier
+- Stratified 80/20 train/test split (seeded).
+- Both splits are undersampled to the minority class before training.
+- `RandomForestClassifier`: 500 trees, `n_jobs=-1`, seeded.
+- **Vote margin filtering:** the confidence proxy is
+  `|p(class0) − p(class1)|` (margin). A sweep over 50 thresholds between 0 and 1
+  finds the threshold that maximises balanced accuracy subject to ≤50% trace removal
+  (`trace_loss`). The best threshold, filtered confusion matrix, and sweep scatter plot
+  (retained % vs balanced accuracy, coloured by threshold) are saved to
+  `classifier/margin_results/`.
+
+Outputs:
+```
+classifier/
+  confusion_matrix.pdf          normalised CM on the unfiltered test set
+  feature_importances.pdf       horizontal bar chart (mean decrease in impurity)
+  metrics.json                  AUC, balanced accuracy, margin filtering summary
+  margin_results/
+    margin_histogram.pdf        distribution of vote margins
+    margin_sweep.pdf            scatter: retained % vs balanced accuracy vs threshold
+    confusion_matrix_filtered.pdf
+    traces_with_margin.npz
+    margin_metrics.json
+```
+
+### Section 2 — Label scrambling
+- The full label vector `y` is shuffled with `np.random.default_rng(seed).shuffle(y)`
+  **before** train/test split, so no class information is available to the classifier.
+- Same RF and undersampling as Section 1.
+- Saves a confusion matrix and metrics JSON; no margin sweep (not meaningful with
+  random labels).
+
+Outputs:
+```
+scrambled/
+  confusion_matrix.pdf
+  metrics.json
+```
+
+### Section 3 — Experiment-based LOO CV
+A simple (non-nested) leave-one-out: each experiment is held out as the test fold once,
+with all remaining experiments used for training. One RF is trained per fold.
+
+- Undersampling applied to both train and test folds.
+- Same margin filtering as Section 1 is applied per fold: best threshold found under
+  ≤50% trace loss budget; margin histogram, sweep, and filtered CM saved per fold.
+- Per-fold confusion matrices are averaged into an aggregate mean ± std CM.
+- Margin-filtered CMs are likewise averaged separately.
+- Feature distributions (violin plots per experiment and protein) saved before folding.
+
+Outputs:
+```
+loocv/
+  feature_distributions.pdf     2×3 violin panel: feature × experiment, coloured by protein
+  per_fold/
+    <experiment>/
+      confusion_matrix.pdf      unfiltered CM for this fold
+      metrics.json
+      margin_results/           same structure as classifier/margin_results/
+  aggregated/
+    loocv_metrics.json          per-fold and aggregate metrics (mean, std, AUC)
+    confusion_matrix_mean_std.pdf
+    margin_results/
+      confusion_matrix_margin_mean_std.pdf
+```
+
+### Config keys (`config_rf.yaml`)
+```yaml
+traces_path:  <path to ProteinTracesIN/Filtered>
+uid_path:     <path to UniqueIDs>          # optional; enables LOO CV
+proteins:     ["Grx1", "K20Ac"]
+channel:      "zscored"
+output_root:  "../../Results/Controls/RandomForest"
+
+gmm:
+  proba:             0.9
+  min_peak_width:    1
+  frame_interval_ms: 30.0
+
+random_forest:
+  n_estimators: 500
+  test_size:    0.20
+  seed:         840410
+  trace_loss:   50.0    # max % traces removable by margin filtering
+```
+
+### Expected result
+The RF will likely underperform the TCN, confirming that the raw time-series contains
+information beyond what these six statistics capture. The scramble section should give
+≈50% balanced accuracy and AUC ≈ 0.5. The LOO CV provides an experiment-robust
+estimate of RF generalisation for comparison with the TCN LOO CV.
 
 ---
 
-## Running order recommendation
+## Running order
 
-| # | Experiment | Where | Estimated time |
-|---|-----------|-------|---------------|
-| 1 | Label scrambling | Local | ~same as main training |
-| 2 | Noise classification | Local | ~5–10 min |
-| 4 | Misclassified features | Local | ~10–20 min (GMM per trace) |
-| 5 | Random forest | Local | ~20–60 min (GMM on full dataset) |
-| 3 | Leave-one-out CV | HPC | Hours (20 TCN training runs) |
+| # | Experiment | Script | Where | Estimated time |
+|---|------------|--------|-------|----------------|
+| 1 | Label scrambling (TCN) | `scramble_train.py` | Local (MPS/CPU) | Same as main training |
+| 2 | Noise classification | `classify_noise.py` | Local (MPS/CPU) | ~5–10 min |
+| 4 | Misclassified features | `plot_misclassified_features.py` | Local | ~10–20 min (GMM per trace) |
+| 5 | Random forest pipeline | `rf_pipeline.py` | Local | ~20–60 min (GMM + 3 analyses) |
+| 3 | TCN leave-one-out CV | `loocv.py` | HPC (4 GPUs) | Several hours (20 training runs) |
