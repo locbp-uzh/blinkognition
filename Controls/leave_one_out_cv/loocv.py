@@ -357,6 +357,11 @@ def _run_loocv_task(
     X_val,   y_val   = X[val_mask],   y[val_mask]
     X_test,  y_test  = X[test_mask],  y[test_mask]
 
+    aug_cfg = data_cfg.get("augmentation", {})
+    if aug_cfg.get("include_mirror", False):
+        X_train = np.concatenate([X_train, X_train[:, :, ::-1].copy()], axis=0)
+        y_train = np.concatenate([y_train, y_train.copy()], axis=0)
+
     if balance_val:
         X_val, y_val = balance_by_subsampling(X_val, y_val, seed)
     if balance_test:
@@ -760,6 +765,12 @@ def main():
         if test_exp != val_exp
     ]
     print(f"\nTotal tasks: {len(tasks)}  ({len(experiments)} outer × {len(experiments)-1} inner)")
+
+    aug_cfg = data_cfg.get("augmentation", {})
+    if aug_cfg.get("include_mirror", False):
+        print("Augmentation: time-reversal (mirror) enabled — training set doubled per fold.")
+    else:
+        print("Augmentation: none.")
 
     print("\n" + "=" * 60)
     print("NESTED LEAVE-ONE-OUT CV")

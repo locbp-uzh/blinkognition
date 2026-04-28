@@ -15,6 +15,8 @@ data:
   balance_train: true
   balance_val: true
   balance_test: true
+  augmentation:
+    include_mirror: true   # time-reversal only, matches main training (aug_factor=1, no warp/noise)
 
 optimization:
   batch_size: 64
