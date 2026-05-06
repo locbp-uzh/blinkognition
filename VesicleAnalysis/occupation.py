@@ -7,22 +7,22 @@
 """
 Vesicle Occupation Analysis — Proteins per Vesicle (Photobleaching)
 
-Reads the Kalafut-Visscher (KV) step-detection result CSV files produced by
-the photobleaching analysis pipeline and quantifies how many fluorescently
-labelled proteins are found per vesicle as a function of protein loading
-concentration.
+Standalone end-to-end pipeline (``mode: pipeline``).  Reads all *_traces.pkl
+files (per-FOV and combined) from Picasso slide directories, subtracts the
+per-trace background (mean of the last bg_frames=50 frames), divides by
+boxsize²=49, and runs quickpbsa (pbsa_file) to detect photobleaching steps.
+Writes result CSV files consumed by figure_2C_occupation.py and
+figure_S4_occupation.py.  Requires picasso-env with quickpbsa installed; no
+ND2 movies needed.
 
-Result CSV format (produced by make_ID_and_combine_multicolor_gt_photobleaching.py):
-  First row: KV parameters dict (skipped)
-  Second row onwards: CSV with columns including:
-    crop_index, kv_time [s], kv_iter, laststep, sdev_laststep, bg, sdev_bg,
-    flag, step2_time [s], sic_final, type, step2_time, 0..N (trace values)
-
-  Key column: `type`  — number of fluorophores detected per vesicle cluster
-  Key column: `flag`  — quality flag (1 = good, negative = rejected)
+Result CSV format (first row: quickpbsa params dict; remaining rows: one per
+trace per type descriptor — crop_index, flag, type, 0..N-1 frame columns):
+  Key column: ``type``  — row descriptor; fluors_kv = preliminary step count
+  Key column: ``flag``  — quality flag (1 = good, -1 = no steps, -3/-7 = QC)
+  Key column: ``0``     — for fluors_kv rows: number of detected steps
 
 Usage:
-    python occupation.py -c config_occupation.yaml
+    python occupation.py -c config_pipeline.yaml
 """
 from __future__ import annotations
 
@@ -253,210 +253,215 @@ def add_empty_vesicles(df: pd.DataFrame, n_total_vesicles: int) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Statistics
+# Pipeline mode — standalone trace extraction and KV step detection
 # ---------------------------------------------------------------------------
 
-def occupation_distribution(
-    df: pd.DataFrame,
-    max_n: int = 10,
-) -> pd.Series:
+def _read_pkl_compat(path: Path) -> pd.DataFrame:
     """
-    Compute the distribution of proteins-per-vesicle.
+    Read a pandas 1.x DataFrame pickle file under pandas 2.x.
 
-    Args:
-        df: DataFrame with an 'occupation' column (one row per vesicle).
-        max_n: Group all counts ≥ max_n into a single ≥max_n bin.
-
-    Returns:
-        Series with index = number of proteins (0, 1, 2, ... ≥max_n)
-        and values = fraction of vesicles (normalised to 1).
+    Pandas 2.x changed BlockPlacement to require an explicit object instead
+    of a raw slice.  This shim patches new_block around the unpickling call.
     """
-    counts = df['occupation'].clip(upper=max_n).value_counts().sort_index()
-    # Ensure all bins 0..max_n are present
-    full_index = list(range(max_n + 1))
-    counts = counts.reindex(full_index, fill_value=0)
-    return counts / counts.sum()
+    import pickle
+    import pandas.core.internals.blocks as _blocks
+    import pandas._libs.internals as _int
+
+    _orig = _blocks.new_block
+
+    def _compat(*args, **kwargs):
+        if len(args) >= 2 and isinstance(args[1], slice):
+            args = (args[0], _int.BlockPlacement(args[1])) + args[2:]
+        elif 'placement' in kwargs and isinstance(kwargs['placement'], slice):
+            kwargs['placement'] = _int.BlockPlacement(kwargs['placement'])
+        return _orig(*args, **kwargs)
+
+    _blocks.new_block = _compat
+    try:
+        with open(path, 'rb') as f:
+            df = pickle.load(f)
+    finally:
+        _blocks.new_block = _orig
+    return df
 
 
-def mean_occupation(df: pd.DataFrame) -> float:
-    """Mean number of proteins per vesicle."""
-    return float(df['occupation'].mean()) if not df.empty else 0.0
-
-
-def poisson_expected(mean: float, max_n: int = 10) -> pd.Series:
+def extract_traces_for_slide(
+    picasso_slide_dir: Path,
+    channel_640: str,
+) -> np.ndarray:
     """
-    Poisson distribution with given mean, for comparison to data.
+    Collect all non-OUT traces from *_traces.pkl files for a slide.
+
+    Reads all pkl files whose name contains ``channel_640`` and ends with
+    ``_traces.pkl``, including both per-FOV (4-digit index) files and any
+    combined per-slide pkl.  Traces labelled OUT are excluded; all others
+    (IN and any other label) are kept — matching the original
+    make_ID_and_combine behaviour of ``location_vesicle != 'OUT'``.
+
+    Returns a 2-D float array of shape (n_traces, movie_length) with raw
+    pixel-sum values (not background-subtracted).
     """
-    from scipy.stats import poisson
-    index = list(range(max_n + 1))
-    probs = [poisson.pmf(k, mean) for k in index[:-1]]
-    probs.append(1.0 - sum(probs))  # ≥max_n bin
-    return pd.Series(probs, index=index)
+    in_traces: list = []
+    pkl_files = sorted(
+        p for p in picasso_slide_dir.glob(f'*{channel_640}*_traces.pkl')
+        if not p.name.startswith('._')
+    )
+    if not pkl_files:
+        logging.warning(f"No pkl files matching *{channel_640}*_traces.pkl "
+                        f"in {picasso_slide_dir}")
+
+    for p in pkl_files:
+        try:
+            df = _read_pkl_compat(p)
+        except Exception as e:
+            logging.warning(f"  Could not read {p.name}: {e}")
+            continue
+        non_out = df[df['location_vesicle'] != 'OUT']
+        for _, row in non_out.iterrows():
+            in_traces.append(np.asarray(row['trace'], dtype=float))
+        logging.debug(f"  {p.name}: {len(non_out)} non-OUT traces")
+
+    if not in_traces:
+        logging.warning(f"No non-OUT traces found in {picasso_slide_dir}")
+        return np.empty((0, 0))
+    return np.array(in_traces)
 
 
-# ---------------------------------------------------------------------------
-# Plotting
-# ---------------------------------------------------------------------------
-
-def _sort_concentrations(concs: List[str]) -> List[str]:
-    """Sort concentration labels numerically (e.g. '2uM' < '4uM' < '8uM')."""
-    def _key(c: str):
-        import re
-        m = re.search(r'(\d+\.?\d*)', c)
-        return float(m.group(1)) if m else 0.0
-    return sorted(concs, key=_key)
-
-
-def plot_occupation_histograms(
-    data_by_conc: Dict[str, pd.DataFrame],
-    output_dir: Path,
-    max_n: int = 10,
-    show_poisson: bool = True,
-    palette: Optional[List[str]] = None,
+def process_slide_pipeline(
+    picasso_slide_dir: Path,
+    output_csv: Path,
+    channel_640: str,
+    boxsize: int = 7,
+    bg_frames: int = 50,
+    kv_threshold: float = 75.0,
+    max_steps: int = 100,
+    percentile_step: int = 95,
+    length_laststep: int = 5,
+    concentration: str = '',
 ) -> None:
     """
-    Bar charts of proteins-per-vesicle distribution for each concentration.
+    Full photobleaching step-detection pipeline for one slide using quickpbsa.
 
-    Args:
-        data_by_conc: Dict mapping concentration label → DataFrame.
-        output_dir: Directory for output files.
-        max_n: Maximum number of proteins to show as individual bars.
-        show_poisson: Overlay Poisson fit.
-        palette: Optional list of hex colours, one per concentration.
+    Replicates the original make_ID_and_combine + Run_bleachstep_anal pipeline:
+    1. Reads all *_traces.pkl files matching channel_640 (pandas 1.x compat).
+    2. Keeps non-OUT traces (location_vesicle != 'OUT').
+    3. Subtracts per-trace background (mean of last bg_frames frames).
+    4. Drops traces with any raw pixel-sum of exactly zero.
+    5. Divides by boxsize² (per-pixel normalisation).
+    6. Writes normalised traces to a temp CSV and runs quickpbsa.pbsa_file.
+    7. Copies the result CSV (written by quickpbsa) to output_csv.
+
+    The result CSV format (parameter dict on line 1, column headers on line 2,
+    data from line 3) matches what load_result_csv() expects.
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    if palette is None:
-        palette = [COLORS['blue'], COLORS['sky_blue'], COLORS['green'],
-                   COLORS['orange'], COLORS['vermillion']]
+    import shutil
+    import tempfile
 
-    concs = _sort_concentrations(list(data_by_conc.keys()))
-    n_concs = len(concs)
-    if n_concs == 0:
-        logging.warning("No data to plot.")
+    try:
+        import quickpbsa as pbsa
+    except ImportError:
+        raise RuntimeError(
+            "quickpbsa is required for pipeline mode. "
+            "Install with: pip install quickpbsa"
+        )
+
+    logging.info(f"Pipeline: {picasso_slide_dir.name}  [{concentration}]")
+
+    raw_traces = extract_traces_for_slide(picasso_slide_dir, channel_640)
+    if raw_traces.shape[0] == 0:
+        logging.warning("  No traces — skipping.")
         return
 
-    fig, axes = plt.subplots(1, n_concs, figsize=(2.0 * n_concs, 2.5),
-                              sharey=True)
-    if n_concs == 1:
-        axes = [axes]
+    N_traces, movie_len = raw_traces.shape
+    logging.info(f"  {N_traces} non-OUT traces × {movie_len} frames")
 
-    x_labels = [str(k) if k < max_n else f'≥{max_n}' for k in range(max_n + 1)]
-    x = np.arange(max_n + 1)
+    # Background-subtract: mean of last bg_frames raw frames, per trace
+    bg = np.mean(raw_traces[:, -bg_frames:], axis=1, keepdims=True)
+    traces_bg = raw_traces - bg
 
-    # Summary table
-    summary_rows = []
+    # Drop traces with any raw pixel-sum of exactly zero (matches make_ID_and_combine)
+    has_zero = np.any(raw_traces == 0, axis=1)
+    n_zero = int(has_zero.sum())
+    if n_zero:
+        logging.info(f"  Dropped {n_zero} traces with zero raw pixel-sum values")
+    traces_bg = traces_bg[~has_zero]
 
-    for ax, (conc, color) in zip(axes, zip(concs, palette)):
-        df = data_by_conc[conc]
-        dist = occupation_distribution(df, max_n)
-        mu = mean_occupation(df)
+    # Per-pixel normalisation (divide by boxsize²)
+    traces_norm = traces_bg / float(boxsize * boxsize)
+    N_norm = traces_norm.shape[0]
 
-        ax.bar(x, dist.values, color=color, edgecolor='black', linewidth=0.3,
-               width=0.7, label='Data')
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+        stem = f'{concentration}_traces_perpixel_transposed' if concentration else 'traces_perpixel_transposed'
+        temp_csv = tmpdir_path / f'{stem}.csv'
 
-        if show_poisson:
-            poiss = poisson_expected(mu, max_n)
-            ax.step(x - 0.35, poiss.values, where='post',
-                    color=COLORS['black'], lw=0.8, ls='--', label=f'Poisson (λ={mu:.2f})')
+        # Write CSV: one trace per row, columns '0'..'movie_len-1'
+        cols = [str(i) for i in range(movie_len)]
+        df_out = pd.DataFrame(traces_norm, columns=cols)
+        df_out.to_csv(str(temp_csv), index=True)
 
-        ax.set_xticks(x)
-        ax.set_xticklabels(x_labels, fontsize=FONTSIZE_TICK, rotation=45)
-        ax.set_title(f'{conc}\nμ={mu:.2f}', fontsize=FONTSIZE_TITLE, pad=9)
-        ax.set_xlabel('Proteins/vesicle', fontsize=FONTSIZE_LABEL)
-        apply_axis_standards(ax)
+        # Run quickpbsa (replicates pbsa_file call from Run_bleachstep_anal.ipynb)
+        pbsa.pbsa_file(
+            str(temp_csv),
+            threshold=kv_threshold,
+            maxiter=max_steps,
+            outfolder=str(tmpdir_path),
+            filter_optional={
+                'percentile_step': percentile_step,
+                'length_laststep': length_laststep,
+            },
+            num_cores=2,
+        )
 
-        summary_rows.append({
-            'concentration': conc,
-            'n_vesicles':    len(df),
-            'mean_occupation': mu,
-            'pct_empty':     float(dist[0]) * 100,
-            'pct_1':         float(dist[1]) * 100 if 1 in dist.index else 0.0,
-            'pct_2plus':     float(dist[2:].sum()) * 100,
-        })
+        result_file = tmpdir_path / f'{stem}_result.csv'
+        if not result_file.exists():
+            logging.error(f"  quickpbsa did not produce result file: {result_file}")
+            return
 
-    axes[0].set_ylabel('Fraction of vesicles', fontsize=FONTSIZE_LABEL)
-    axes[-1].legend(fontsize=FONTSIZE_LEGEND, frameon=False)
+        output_csv.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(result_file), str(output_csv))
 
-    fig.tight_layout(h_pad=3.0, w_pad=3.0)
-    fig.savefig(output_dir / 'occupation_histograms.pdf', dpi=450, bbox_inches='tight')
-    plt.close(fig)
-    logging.info(f"Saved occupation_histograms.pdf → {output_dir}")
-
-    # Summary CSV
-    pd.DataFrame(summary_rows).to_csv(output_dir / 'occupation_summary.csv', index=False)
-
-
-def plot_mean_occupation(
-    data_by_conc: Dict[str, pd.DataFrame],
-    output_dir: Path,
-    palette: Optional[List[str]] = None,
-) -> None:
-    """
-    Plot mean proteins-per-vesicle vs. loading concentration.
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    concs = _sort_concentrations(list(data_by_conc.keys()))
-
-    means = [mean_occupation(data_by_conc[c]) for c in concs]
-
-    fig, ax = plt.subplots(figsize=(2.5, 2.5))
-    x = np.arange(len(concs))
-    ax.bar(x, means, color=COLORS['blue'], edgecolor='black', linewidth=0.5, width=0.6)
-    ax.set_xticks(x)
-    ax.set_xticklabels(concs, fontsize=FONTSIZE_TICK)
-    ax.set_xlabel('Loading concentration', fontsize=FONTSIZE_LABEL)
-    ax.set_ylabel('Mean proteins per vesicle', fontsize=FONTSIZE_LABEL)
-    apply_axis_standards(ax)
-    fig.tight_layout()
-    fig.savefig(output_dir / 'occupation_mean.pdf', dpi=450, bbox_inches='tight')
-    plt.close(fig)
-    logging.info(f"Saved occupation_mean.pdf → {output_dir}")
+    # Log summary
+    try:
+        raw = pd.read_csv(str(output_csv), skiprows=1)
+        fk = raw[raw['type'] == 'fluors_kv']
+        n_good = int((fk['flag'] == 1).sum())
+    except Exception:
+        n_good = -1
+    logging.info(f"  Saved → {output_csv}  ({N_norm} traces, {n_good} flag=1)")
 
 
-def plot_occupation_across_replicates(
-    replicates: Dict[str, Dict[str, pd.DataFrame]],
-    output_dir: Path,
-    max_n: int = 10,
-) -> None:
-    """
-    Overlay multiple replicates on the same occupation plot.
+def run_pipeline_mode(cfg: dict) -> None:
+    """Run the full pipeline for all concentrations specified in the config."""
+    picasso_dir      = Path(cfg['picasso_dir'])
+    output_dir       = Path(cfg.get('pipeline_output_dir',
+                                    cfg.get('traces_dir',
+                                    cfg.get('output_dir', '.'))))
+    conc_slide       = cfg.get('conc_slide', {})
+    channel_640      = cfg.get('channel_640', '640nm_TIRF2xLP_50pr')
+    boxsize          = int(cfg.get('boxsize', 7))
+    bg_frames        = int(cfg.get('bg_frames', 50))
+    kv_threshold     = float(cfg.get('kv_threshold', 75.0))
+    max_steps        = int(cfg.get('kv_max_steps', 100))
+    percentile_step  = int(cfg.get('percentile_step', 95))
+    length_laststep  = int(cfg.get('length_laststep', 5))
 
-    Args:
-        replicates: Dict mapping replicate name → {concentration → DataFrame}.
-        output_dir: Output directory.
-        max_n: Max proteins to show individually.
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get sorted concentrations from first replicate
-    all_concs = set()
-    for rep_data in replicates.values():
-        all_concs.update(rep_data.keys())
-    concs = _sort_concentrations(list(all_concs))
-
-    palette = [COLORS['blue'], COLORS['sky_blue'], COLORS['orange'],
-               COLORS['vermillion'], COLORS['pink']]
-
-    fig, ax = plt.subplots(figsize=(3.5, 2.5))
-    for idx, (rep_name, rep_data) in enumerate(replicates.items()):
-        means = []
-        for conc in concs:
-            df = rep_data.get(conc, pd.DataFrame())
-            means.append(mean_occupation(df))
-        color = palette[idx % len(palette)]
-        ax.plot(range(len(concs)), means, 'o-', color=color,
-                lw=0.8, ms=3, label=rep_name)
-
-    ax.set_xticks(range(len(concs)))
-    ax.set_xticklabels(concs, fontsize=FONTSIZE_TICK)
-    ax.set_xlabel('Loading concentration', fontsize=FONTSIZE_LABEL)
-    ax.set_ylabel('Mean proteins per vesicle', fontsize=FONTSIZE_LABEL)
-    ax.legend(fontsize=FONTSIZE_LEGEND, frameon=False)
-    apply_axis_standards(ax)
-    fig.tight_layout()
-    fig.savefig(output_dir / 'occupation_replicates.pdf', dpi=450, bbox_inches='tight')
-    plt.close(fig)
-    logging.info(f"Saved occupation_replicates.pdf → {output_dir}")
+    for conc, slide_name in conc_slide.items():
+        slide_dir  = picasso_dir / slide_name
+        output_csv = output_dir / f'{conc}_result.csv'
+        process_slide_pipeline(
+            slide_dir, output_csv,
+            channel_640=channel_640,
+            boxsize=boxsize,
+            bg_frames=bg_frames,
+            kv_threshold=kv_threshold,
+            max_steps=max_steps,
+            percentile_step=percentile_step,
+            length_laststep=length_laststep,
+            concentration=conc,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -485,31 +490,15 @@ def main() -> None:
     cfg = load_config(args.config)
     setup_logging(cfg.get('log_level', 'INFO'))
 
-    output_dir = Path(cfg['output_dir'])
-    output_dir.mkdir(parents=True, exist_ok=True)
-    max_n = cfg.get('max_proteins', 10)
+    mode = cfg.get('mode', 'pipeline')
 
-    replicates: Dict[str, Dict[str, pd.DataFrame]] = {}
-    for rep_name, rep_cfg in cfg['replicates'].items():
-        logging.info(f"=== Replicate: {rep_name} ===")
-        traces_dir = Path(rep_cfg['traces_dir'])
-        concentrations = rep_cfg.get('concentrations', None)
-        rep_data = load_concentration_series(
-            traces_dir,
-            concentrations=concentrations,
-            good_flag_only=cfg.get('good_flag_only', True),
-        )
-        replicates[rep_name] = rep_data
+    if mode == 'pipeline':
+        run_pipeline_mode(cfg)
+        logging.info("Pipeline complete.")
+        return
 
-        # Per-replicate histograms
-        rep_out = output_dir / rep_name
-        plot_occupation_histograms(rep_data, rep_out, max_n=max_n)
-        plot_mean_occupation(rep_data, rep_out)
-
-    if len(replicates) > 1:
-        plot_occupation_across_replicates(replicates, output_dir, max_n=max_n)
-
-    logging.info("Done.")
+    logging.error(f"Unknown mode: '{mode}'. Only 'pipeline' is supported.")
+    sys.exit(1)
 
 
 if __name__ == '__main__':
