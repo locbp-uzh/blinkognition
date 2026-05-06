@@ -3,8 +3,8 @@ io:
   run_name: "loocv_tcn"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
-  uid_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/UniqueIDs"
+  traces_path: "/Volumes/MediumBerth/AllMovies/DK/Traces_AllExps_May1/Grx1_K20Ac_optparam_001/ProteinTracesIN/Filtered"
+  uid_path: "/Volumes/MediumBerth/AllMovies/DK/Traces_AllExps_May1/Grx1_K20Ac_optparam_001/UniqueIDs"
   dataset:
     Grx1:
       channels: ["minmax", "zscored"]
@@ -41,6 +41,6 @@ uncertainty:
 
 system:
   compile: false
-  n_gpus: 4
+  n_gpus: 1
   seed: 840410
   verbose: false

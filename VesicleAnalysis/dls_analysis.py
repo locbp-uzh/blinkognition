@@ -421,27 +421,19 @@ def _draw_dist_panel(
     apply_axis_standards(ax)
 
 
-def plot_dls_size_distributions(
+def plot_dls_preparation(
     sample_dirs: List[Path],
     output_dir: Path,
 ) -> None:
     """
-    Plot intensity-weighted size distributions for the Unlabelled condition
-    as two separate figures (mean ± std shading across sample_dirs).
+    Plot intensity-weighted size distributions for the three preparation stages
+    (mean ± std shading across sample_dirs). Saves dls_preparation.pdf.
 
-    Figure 1 — preparation stages  (dls_preparation.pdf)
-        Solid  / orange     : before extrusion
+        Solid  / black      : before extrusion
         Dotted / blue       : after extrusion
         Dashed / vermillion : after SEC column
-
-    Figure 2 — stability at 25 °C  (dls_stability.pdf)
-        Solid / lapaz, decreasing weight : 1, 2, 4, 6, 21, 24 h
-                                           (widest → thinnest)
     """
-    _lapaz = _load_cmap("lapaz")
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    # ── Figure 1: preparation stages ─────────────────────────────────────────
     prep_categories = [
         ('*Unlabelled_preextr*25d*', 'Before extrusion',  COLORS['black'],      '-',  1.1),
         ('*Unlabelled_extr*25d*',    'After extrusion',   COLORS['blue'],       ':',  1.1),
@@ -456,12 +448,23 @@ def plot_dls_size_distributions(
     plt.close(fig)
     logging.info(f"Saved dls_preparation.pdf → {output_dir}")
 
-    # ── Figure 2: time-stability at 25 °C ────────────────────────────────────
+
+def plot_dls_stability(
+    sample_dirs: List[Path],
+    output_dir: Path,
+) -> None:
+    """
+    Plot intensity-weighted size distributions for stability timepoints at 25 °C
+    (mean ± std shading across sample_dirs). Saves dls_stability.pdf.
+
+        Solid lines, lapaz colormap, widest → thinnest: 1, 2, 4, 6, 21, 24 h
+    """
+    _lapaz = _load_cmap("lapaz")
+    output_dir.mkdir(parents=True, exist_ok=True)
     time_labels = ['1h', '2h', '4h', '6h', '21h', '24h']
     n_t = len(time_labels)
     lapaz_colors = [_lapaz(0.05 + 0.80 * i / (n_t - 1)) for i in range(n_t)]
     line_widths  = np.linspace(1.5, 0.5, n_t)
-
     stab_categories = [
         (f'*Unlabelled_{t}_25d*', f'{t.rstrip("h")} h', lapaz_colors[i], '-', line_widths[i])
         for i, t in enumerate(time_labels)

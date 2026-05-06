@@ -12,8 +12,8 @@ quantifies what fraction of protein localisations are found inside each
 vesicle population over time.
 
 Experimental design (Puentener 2026, Figure S5):
-  Population A: Atto520 (C3, 515 nm) vesicles + unlabelled HaloTag
-  Population B: Atto425 (C4, 405 nm) vesicles + HT-JN275 (C1, 640 nm)
+  Population A: Atto520 (C3, 515 nm) vesicles + HT-JN275 (C1, 640 nm)
+  Population B: Atto425 (C4, 405 nm) vesicles + unlabelled HaloTag
 
   Slides:
     Slide_01_Mix_1h       → timepoint  1 h
@@ -181,16 +181,12 @@ def classify_fov(
     """
     Classify protein localisations for one FOV (one set of three HDF5 files).
 
-    Classification:
-      PV_A520: protein within max_dist of an Atto520 vesicle (C3)
-      PV_A425: protein within max_dist of an Atto425 vesicle (C4)
+    Classification (mutually exclusive):
+      PV_A520: protein within max_dist of Atto520 (C3) only
+      PV_A425: protein within max_dist of Atto425 (C4) only
+      PV_both: protein within max_dist of both vesicle types
       P_free:  protein not colocalized with any vesicle
-      n_protein: total protein localisations
-      n_ves_A520: total Atto520 vesicle localisations
-      n_ves_A425: total Atto425 vesicle localisations
-
-    Note: a protein may colocalize with both vesicle types; it is counted
-    in both PV_A520 and PV_A425. P_free is the complement of (PV_A520 | PV_A425).
+      PV_A520 + PV_A425 + PV_both + P_free == n_protein
     """
     prot  = locs_to_xy(load_locs(c1_hdf5))
     ves_a = locs_to_xy(load_locs(c3_hdf5))  # Atto520 (C3, 515 nm)
@@ -198,13 +194,12 @@ def classify_fov(
 
     in_a = colocalize_protein_to_vesicles(prot, ves_a, max_dist)
     in_b = colocalize_protein_to_vesicles(prot, ves_b, max_dist)
-    either = in_a | in_b if len(prot) > 0 else np.array([], dtype=bool)
 
     return {
-        'PV_A520':    int(in_a.sum()),
-        'PV_A425':    int(in_b.sum()),
-        'PV_both':    int((in_a & in_b).sum()) if len(prot) > 0 else 0,
-        'P_free':     int((~either).sum()) if len(prot) > 0 else 0,
+        'PV_A520':    int((in_a & ~in_b).sum()),
+        'PV_A425':    int((in_b & ~in_a).sum()),
+        'PV_both':    int((in_a &  in_b).sum()),
+        'P_free':     int((~in_a & ~in_b).sum()),
         'n_protein':  len(prot),
         'n_ves_A520': len(ves_a),
         'n_ves_A425': len(ves_b),
@@ -351,90 +346,6 @@ def analyze_experiment(
 # Plotting
 # ---------------------------------------------------------------------------
 
-def plot_kinetics(
-    results_by_replicate: Dict[str, pd.DataFrame],
-    output_dir: Path,
-    palette: Optional[List[str]] = None,
-) -> None:
-    """
-    Plot fraction of protein in each vesicle type over time.
-
-    For the exchange experiment, the key signal is `pct_in_A425`:
-    JN275 protein appearing in Atto425 vesicles indicates cargo transfer.
-
-    Args:
-        results_by_replicate: Dict mapping replicate name to DataFrame.
-        output_dir: Directory for output files.
-        palette: Hex colours per replicate.
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    if palette is None:
-        palette = [COLORS['blue'], COLORS['sky_blue'], COLORS['orange']]
-
-    # Save data
-    combined = pd.concat(
-        [df.assign(replicate=rep) for rep, df in results_by_replicate.items()],
-        ignore_index=True,
-    )
-    combined.to_csv(output_dir / 'cargo_exchange_results.csv', index=False)
-
-    fig, axes = plt.subplots(1, 2, figsize=(5.5, 2.5))
-
-    metrics = [
-        ('pct_in_A425', 'Protein in Atto425 vesicles (%)'),
-        ('pct_in_A520', 'Protein in Atto520 vesicles (%)'),
-    ]
-    for ax, (metric, ylabel) in zip(axes, metrics):
-        for idx, (rep, df) in enumerate(results_by_replicate.items()):
-            mixed = df[~df['is_control']].sort_values('timepoint_h')
-            if mixed.empty:
-                continue
-            color = palette[idx % len(palette)]
-            ax.plot(
-                mixed['timepoint_h'], mixed[metric],
-                'o-', color=color, lw=0.8, ms=3, label=rep,
-            )
-        ax.set_xlabel('Time (h)', fontsize=FONTSIZE_LABEL)
-        ax.set_ylabel(ylabel, fontsize=FONTSIZE_LABEL)
-        apply_axis_standards(ax)
-        ax.legend(fontsize=FONTSIZE_LEGEND, frameon=False)
-
-    fig.tight_layout(h_pad=3.0, w_pad=3.0)
-    fig.savefig(output_dir / 'cargo_exchange_kinetics.pdf', dpi=450, bbox_inches='tight')
-    plt.close(fig)
-    logging.info(f"Saved cargo_exchange_kinetics.pdf → {output_dir}")
-
-    # Stacked bar of classifications per slide (for one replicate, as QC)
-    for rep, df in results_by_replicate.items():
-        mixed = df[~df['is_control']].sort_values('timepoint_h')
-        if mixed.empty:
-            continue
-        fig, ax = plt.subplots(figsize=(3.5, 2.5))
-        x = np.arange(len(mixed))
-        ax.bar(x, mixed['pct_in_A520'], label='In Atto520 ves.',
-               color=COLORS['green'], edgecolor='black', linewidth=0.3)
-        ax.bar(x, mixed['pct_in_A425'], bottom=mixed['pct_in_A520'],
-               label='In Atto425 ves.', color=COLORS['orange'],
-               edgecolor='black', linewidth=0.3)
-        ax.bar(x, mixed['pct_free'],
-               bottom=mixed['pct_in_A520'] + mixed['pct_in_A425'],
-               label='Free protein', color=COLORS['sky_blue'],
-               edgecolor='black', linewidth=0.3)
-        ax.set_xticks(x)
-        ax.set_xticklabels([f"{h:.0f}h" for h in mixed['timepoint_h']],
-                           fontsize=FONTSIZE_TICK)
-        ax.set_xlabel('Timepoint', fontsize=FONTSIZE_LABEL)
-        ax.set_ylabel('Protein locs (%)', fontsize=FONTSIZE_LABEL)
-        ax.set_ylim(0, 100)
-        ax.legend(fontsize=FONTSIZE_LEGEND, frameon=False, loc='upper right')
-        apply_axis_standards(ax)
-        ax.set_title(rep, fontsize=FONTSIZE_TITLE, pad=9)
-        fig.tight_layout()
-        fig.savefig(output_dir / f'cargo_exchange_stack_{rep}.pdf',
-                    dpi=450, bbox_inches='tight')
-        plt.close(fig)
-
-
 # ---------------------------------------------------------------------------
 # Config and CLI
 # ---------------------------------------------------------------------------
@@ -485,7 +396,11 @@ def main() -> None:
         df.to_csv(output_dir / f'cargo_exchange_{rep_name}.csv', index=False)
         results_by_replicate[rep_name] = df
 
-    plot_kinetics(results_by_replicate, output_dir)
+    combined = pd.concat(
+        [df.assign(replicate=rep) for rep, df in results_by_replicate.items()],
+        ignore_index=True,
+    )
+    combined.to_csv(output_dir / 'cargo_exchange_results.csv', index=False)
     logging.info("Done.")
 
 

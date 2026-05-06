@@ -2075,6 +2075,7 @@ def detect_accelerator():
 
 class _NoopScaler:
     def scale(self, x): return x
+    def unscale_(self, opt): pass
     def step(self, opt): opt.step()
     def update(self): pass
     def __bool__(self): return False

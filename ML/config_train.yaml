@@ -5,7 +5,7 @@ io:
 
 data:
   #traces_path: "../Data/traces"
-  traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/ProteinTracesIN/Filtered"
+  traces_path: "/Volumes/MediumBerth/AllMovies/DK/Traces_AllExps_May1/Grx1_K20Ac_optparam_001/ProteinTracesIN/Filtered"
   
 # Available proteins (uncomment to use):
   dataset:

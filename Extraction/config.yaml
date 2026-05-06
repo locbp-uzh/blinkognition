@@ -5,7 +5,7 @@
 # Pipeline Orchestration
 # =============================================================================
 # Start from specific step: paramfinder, localize, extract, combine, filter, diagnose
-start_from: localize
+start_from: paramfinder
 resume_run_folder:
 
 # =============================================================================
@@ -46,15 +46,15 @@ has_ground_truth: true
 # =============================================================================
 # I/O and Data Organization
 # =============================================================================
-input_folder: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT
-output_folder_base: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/NewRepo
+input_folder: /Volumes/MediumBerth/AllMovies/
+output_folder_base: /Volumes/MediumBerth/AllMovies/Paperfig
 
 proteins:
   - HTHTL
-  - snap
-  - HTIA
-  - Grx1
-  - K20Ac
+#  - snap
+#  - HTIA
+#  - Grx1
+#  - K20Ac
 
 
 # Channel specification
@@ -87,7 +87,7 @@ max_darktime: 4000                  # Max dark frames for linking (frames)
 
 # Background trace extraction (from non-localization pixels)
 # Set to 0 to disable, or N > 0 to extract N background traces per movie
-n_background_traces: 50
+n_background_traces: 0
 
 # Filter contaminated background traces using two complementary steps:
 #   1. Spatial buffer: reject background ROIs within background_buffer pixels of any protein ROI

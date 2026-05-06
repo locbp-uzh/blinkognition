@@ -6,24 +6,25 @@
 """
 Nested leave-one-out cross-validation across DK acquisition experiments.
 
-Five DK experiments are used: 20250713_DK_Exp5, 20250714_DK_Exp6,
-20250729_DK_Exp7, 20250730_DK_Exp8, 20251127_DK_Exp9.
+Six DK experiments are used: 20250713-DK_Exp5, 20250714-DK_Exp6,
+20250729-DK_Exp7, 20250730-DK_Exp8, 20251127_DK_Exp9, 20251202_DK_Exp10.
+Note: Exp5–8 use a hyphen separator in their folder names; Exp9–10 use underscore.
 
-Design (20 training runs total):
-  Outer loop (5): hold one experiment as TEST.
-  Inner loop (4): for each remaining experiment as VAL, train TCN on the other 3.
+Design (30 training runs total):
+  Outer loop (6): hold one experiment as TEST.
+  Inner loop (5): for each remaining experiment as VAL, train TCN on the other 4.
 
-Each run evaluates on the outer TEST set.  The 4 test evaluations per outer fold
-are averaged → per-experiment mean±std confusion matrix.  All 5 outer folds are
+Each run evaluates on the outer TEST set.  The 5 test evaluations per outer fold
+are averaged → per-experiment mean±std confusion matrix.  All 6 outer folds are
 aggregated → overall confusion matrix.
 
 Multi-GPU dispatch follows the same dynamic work-stealing queue pattern used in
 ML/crossval.py.  Each task is a (test_exp, val_exp) tuple.
 
-Usage (HPC):
+Usage (HPC, multi-GPU):
     python loocv.py -c config_loocv.yaml --n-gpus 4
 
-Usage (single GPU debug):
+Usage (single GPU / MPS / CPU):
     python loocv.py -c config_loocv.yaml --n-gpus 1
 """
 
@@ -86,7 +87,7 @@ mpl.rcParams.update({
     'savefig.bbox':     'tight',
 })
 
-_DK_RE = re.compile(r"(\d{8}_DK_Exp\d+)")
+_DK_RE = re.compile(r"(\d{8}[-_]DK_Exp\d+)")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -553,9 +554,10 @@ def _gpu_worker_loop(
 ):
     import warnings
     warnings.filterwarnings('ignore')
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
 
     import torch
+    if torch.cuda.is_available():
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     from utils import detect_accelerator, setup_precision_and_flags, dataloader_kwargs_for
 
     accel = detect_accelerator()
