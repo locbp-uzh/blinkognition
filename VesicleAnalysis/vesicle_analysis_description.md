@@ -44,16 +44,18 @@ maximum 1000 iterations, camera baseline 79 ADU, sensitivity 16.0 e⁻/ADU, gain
 For the colocalization step, all protein localizations and all vesicle localizations
 from a given FOV (pooled across all frames) are treated as spatial point clouds.
 For each protein localization, the nearest vesicle localization in each channel is found
-via a KD-tree query [1]. A protein localization is classified as:
+via a KD-tree query [1]. Each protein localization is assigned to exactly one of four
+mutually exclusive categories:
 
-- **PV_A520**: within `max_dist` pixels (default 3.0) of any Atto520 (C3) localization.
-- **PV_A425**: within `max_dist` pixels of any Atto425 (C4) localization.
+- **PV_A520**: within `max_dist` pixels (default 3.0) of an Atto520 (C3) localization but
+  not of any Atto425 (C4) localization.
+- **PV_A425**: within `max_dist` pixels of an Atto425 (C4) localization but not of any
+  Atto520 (C3) localization.
+- **PV_both**: within `max_dist` pixels of both an Atto520 and an Atto425 localization
+  simultaneously.
 - **P_free**: not within `max_dist` of either vesicle type.
 
-A protein localization may satisfy both PV_A520 and PV_A425 simultaneously (if both vesicle
-types are present within `max_dist`); such cases are counted in both categories and tracked
-separately as **PV_both**. The free fraction is the complement of the union: protein
-localizations that are within `max_dist` of neither vesicle type. Classification counts are
+By construction, PV_A520 + PV_A425 + PV_both + P_free = n_protein. Classification counts are
 summed across all FOVs within a slide and expressed as percentages of the total protein
 localization count for that slide.
 

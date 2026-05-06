@@ -43,10 +43,12 @@ Colocalization strategy:
     1. Load all localisations across all frames for each channel.
     2. For each protein loc (C1), query the nearest vesicle loc in C3 and C4
        using a KD-tree.
-    3. Classify:
-       PV_A520: protein within max_dist of a C3 (Atto520) vesicle
-       PV_A425: protein within max_dist of a C4 (Atto425) vesicle
+    3. Classify into four mutually exclusive categories:
+       PV_A520: protein within max_dist of Atto520 only (not also Atto425)
+       PV_A425: protein within max_dist of Atto425 only (not also Atto520)
+       PV_both: protein within max_dist of both vesicle types
        P_free:  protein not colocalized with either vesicle type
+       PV_A520 + PV_A425 + PV_both + P_free == n_protein
     4. Aggregate classification counts per slide, then per timepoint.
 
 ND2 channel layout (confirmed from file metadata):
