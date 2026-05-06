@@ -97,14 +97,21 @@ FONTSIZE_TITLE  = 7
 FONTSIZE_LEGEND = 6
 
 mpl.rcParams.update({
-    'font.family': 'sans-serif',
-    'font.sans-serif': ['Helvetica', 'Arial', 'DejaVu Sans'],
+    'font.family':       'sans-serif',
+    'font.sans-serif':   ['Helvetica', 'Arial', 'DejaVu Sans'],
     'font.size':         FONTSIZE_LABEL,
     'axes.titlesize':    FONTSIZE_TITLE,
     'axes.labelsize':    FONTSIZE_LABEL,
     'xtick.labelsize':   FONTSIZE_TICK,
     'ytick.labelsize':   FONTSIZE_TICK,
     'legend.fontsize':   FONTSIZE_LEGEND,
+    'axes.facecolor':    'white',
+    'figure.facecolor':  'white',
+    'axes.grid':         False,
+    'text.color':        'black',
+    'axes.labelcolor':   'black',
+    'xtick.color':       'black',
+    'ytick.color':       'black',
     'figure.dpi':        150,
     'savefig.dpi':       450,
     'savefig.bbox':      'tight',
@@ -113,12 +120,20 @@ mpl.rcParams.update({
 })
 
 def apply_axis_standards(ax: plt.Axes) -> None:
+    ax.set_facecolor('white')
+    ax.grid(False)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_linewidth(1.1)
-    ax.spines['bottom'].set_linewidth(1.1)
-    ax.tick_params(axis='both', which='major', labelsize=6, length=4, width=0.8, direction='out')
-    ax.tick_params(axis='both', which='minor', length=2, width=0.6, direction='out')
+    for side in ('left', 'bottom'):
+        ax.spines[side].set_linewidth(0.5)
+        ax.spines[side].set_color('black')
+    ax.tick_params(axis='both', which='major', labelsize=FONTSIZE_TICK, length=3, width=0.5,
+                   direction='out', colors='black')
+    ax.tick_params(axis='both', which='minor', length=2, width=0.5,
+                   direction='out', colors='black')
+    ax.xaxis.label.set_color('black')
+    ax.yaxis.label.set_color('black')
+    ax.title.set_color('black')
 
 
 # Canonical timepoint ordering (label → hours for sorting)
