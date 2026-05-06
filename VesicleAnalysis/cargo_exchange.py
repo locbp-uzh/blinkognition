@@ -7,9 +7,16 @@
 """
 Cargo Exchange Analysis — Protein Transfer Kinetics
 
-Reads Picasso HDF5 localization files from 4-channel TIRF experiments and
-quantifies what fraction of protein localisations are found inside each
-vesicle population over time.
+Two operating modes, selected by ``mode`` in the config file:
+
+mode: analyze  (default)
+    Reads pre-existing Picasso HDF5 localization files and quantifies what
+    fraction of protein localisations co-localise with each vesicle population.
+
+mode: pipeline
+    Standalone end-to-end pipeline.  Reads multi-channel ND2 movies directly,
+    runs Picasso MLE localization on each channel, then performs colocalization.
+    Requires picasso-env with the nd2 and picasso packages.
 
 Experimental design (Puentener 2026, Figure S5):
   Population A: Atto520 (C3, 515 nm) vesicles + HT-JN275 (C1, 640 nm)
@@ -42,8 +49,19 @@ Colocalization strategy:
        P_free:  protein not colocalized with either vesicle type
     4. Aggregate classification counts per slide, then per timepoint.
 
+ND2 channel layout (confirmed from file metadata):
+  Index 0: 638/640 nm  → C1 (protein JN275)
+  Index 1: 488 nm      → unused
+  Index 2: 515 nm      → C3 (Atto520 vesicles)
+  Index 3: 405 nm      → C4 (Atto425 vesicles)
+
+Localization parameters (from original Picasso YAML sidecar files):
+  box_size: 7, min_net_gradient: 20000, method: mle (sigma), eps: 0.001,
+  max_it: 1000, camera: baseline=79, sensitivity=16.0, gain=300
+
 Usage:
-    python cargo_exchange.py -c config_cargo_exchange.yaml
+    python cargo_exchange.py -c config.yaml           # analyze mode
+    python cargo_exchange.py -c config_pipeline.yaml  # pipeline mode
 """
 from __future__ import annotations
 
@@ -347,6 +365,182 @@ def analyze_experiment(
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
+# Pipeline mode — ND2 → localize → colocalize
+# ---------------------------------------------------------------------------
+
+def _localize_channel(
+    frame: np.ndarray,
+    box_size: int,
+    min_net_gradient: float,
+    camera_info: dict,
+) -> np.ndarray:
+    """
+    Localize spots in a single 2D frame with Picasso MLE fitting.
+
+    Returns (N, 2) float32 array of (x, y) pixel coordinates.
+    """
+    from picasso import localize as _loc
+    movie = frame[np.newaxis, :, :]  # (1, H, W) required by identify/fit
+    # threaded=False avoids a Picasso 0.8.8 bug where np.hstack is called on
+    # an empty list when a frame contains no spots above the gradient threshold
+    try:
+        ids = _loc.identify(movie, min_net_gradient, box_size, threaded=False)
+    except ValueError:
+        return np.empty((0, 2), dtype=np.float32)
+    if len(ids) == 0:
+        return np.empty((0, 2), dtype=np.float32)
+    locs = _loc.fit(movie, camera_info, ids, box_size, eps=0.001, max_it=1000)
+    return np.column_stack([locs['x'], locs['y']]).astype(np.float32)
+
+
+def _iter_nd2_positions(
+    nd2_path: Path,
+    ch_c1: int,
+    ch_c3: int,
+    ch_c4: int,
+):
+    """
+    Yield (c1_frame, c3_frame, c4_frame) for every FOV in an ND2 file.
+
+    Handles both single-position (C, Y, X) and multi-position (P, C, Y, X)
+    files transparently by checking whether the 'P' dimension is present.
+    """
+    import nd2 as _nd2
+    with _nd2.ND2File(str(nd2_path)) as f:
+        arr = f.asarray()
+        has_positions = 'P' in f.sizes
+    if has_positions:
+        for p in range(arr.shape[0]):
+            yield arr[p, ch_c1], arr[p, ch_c3], arr[p, ch_c4]
+    else:
+        yield arr[ch_c1], arr[ch_c3], arr[ch_c4]
+
+
+def analyze_slide_pipeline(
+    nd2_slide_dir: Path,
+    channel_c1: int = 0,
+    channel_c3: int = 2,
+    channel_c4: int = 3,
+    box_size: int = 7,
+    min_net_gradient: float = 20000,
+    camera_info: Optional[dict] = None,
+    max_dist: float = 3.0,
+    nd2_pattern: str = 'Liposomes_*.nd2',
+) -> Dict[str, int]:
+    """
+    Localize and colocalize all FOVs from ND2 files in one slide directory.
+
+    Finds all ND2 files matching nd2_pattern, iterates over every position in
+    each file, localizes the three relevant channels, and aggregates
+    colocalization counts.  Returns the same dict structure as analyze_slide().
+    """
+    if camera_info is None:
+        camera_info = {'Baseline': 79.0, 'Sensitivity': 16.0, 'Gain': 300.0}
+
+    nd2_files = sorted(nd2_slide_dir.glob(nd2_pattern))
+    logging.info(f"  {nd2_slide_dir.name}: {len(nd2_files)} ND2 file(s)")
+
+    totals: Dict[str, int] = {
+        'PV_A520': 0, 'PV_A425': 0, 'PV_both': 0, 'P_free': 0,
+        'n_protein': 0, 'n_ves_A520': 0, 'n_ves_A425': 0, 'n_fovs': 0,
+    }
+
+    for nd2_path in nd2_files:
+        for c1_frame, c3_frame, c4_frame in _iter_nd2_positions(
+            nd2_path, channel_c1, channel_c3, channel_c4
+        ):
+            prot  = _localize_channel(c1_frame, box_size, min_net_gradient, camera_info)
+            ves_a = _localize_channel(c3_frame, box_size, min_net_gradient, camera_info)
+            ves_b = _localize_channel(c4_frame, box_size, min_net_gradient, camera_info)
+
+            in_a = colocalize_protein_to_vesicles(prot, ves_a, max_dist)
+            in_b = colocalize_protein_to_vesicles(prot, ves_b, max_dist)
+
+            totals['PV_A520']    += int((in_a & ~in_b).sum())
+            totals['PV_A425']    += int((in_b & ~in_a).sum())
+            totals['PV_both']    += int((in_a &  in_b).sum())
+            totals['P_free']     += int((~in_a & ~in_b).sum())
+            totals['n_protein']  += len(prot)
+            totals['n_ves_A520'] += len(ves_a)
+            totals['n_ves_A425'] += len(ves_b)
+            totals['n_fovs']     += 1
+
+    return totals
+
+
+def run_pipeline_mode(cfg: dict) -> None:
+    """Run ND2 → localize → colocalize for all replicates in the config."""
+    output_dir = Path(cfg['output_dir'])
+    output_dir.mkdir(parents=True, exist_ok=True)
+    max_dist           = float(cfg.get('max_dist', 3.0))
+    channel_c1         = int(cfg.get('channel_c1', 0))
+    channel_c3         = int(cfg.get('channel_c3', 2))
+    channel_c4         = int(cfg.get('channel_c4', 3))
+    box_size           = int(cfg.get('box_size', 7))
+    min_net_gradient   = float(cfg.get('min_net_gradient', 20000))
+    camera_info        = {
+        'Baseline':    float(cfg.get('camera_baseline', 79.0)),
+        'Sensitivity': float(cfg.get('camera_sensitivity', 16.0)),
+        'Gain':        float(cfg.get('camera_gain', 300.0)),
+    }
+
+    results_by_replicate: Dict[str, pd.DataFrame] = {}
+    for rep_name, rep_cfg in cfg['replicates'].items():
+        logging.info(f"=== Replicate: {rep_name} ===")
+        nd2_root    = Path(rep_cfg['nd2_root'])
+        tp_map_raw  = rep_cfg.get('timepoints', {})
+        tp_map      = {k: (None if v is None else float(v))
+                       for k, v in tp_map_raw.items()}
+
+        rows = []
+        for slide_name, tp in tp_map.items():
+            slide_dir = nd2_root / slide_name
+            if not slide_dir.exists():
+                logging.warning(f"  Slide dir not found: {slide_dir}")
+                continue
+            logging.info(f"Analysing slide: {slide_name}")
+            counts = analyze_slide_pipeline(
+                slide_dir,
+                channel_c1=channel_c1, channel_c3=channel_c3, channel_c4=channel_c4,
+                box_size=box_size, min_net_gradient=min_net_gradient,
+                camera_info=camera_info, max_dist=max_dist,
+            )
+            n = counts['n_protein']
+            rows.append({
+                'slide':              slide_name,
+                'timepoint_h':        tp,
+                'is_control':         tp is None,
+                'PV_A520':            counts['PV_A520'],
+                'PV_A425':            counts['PV_A425'],
+                'PV_both':            counts['PV_both'],
+                'P_free':             counts['P_free'],
+                'n_protein':          n,
+                'n_ves_A520':         counts['n_ves_A520'],
+                'n_ves_A425':         counts['n_ves_A425'],
+                'n_fovs':             counts['n_fovs'],
+                'pct_in_A520':        100.0 * counts['PV_A520'] / n if n > 0 else 0.0,
+                'pct_in_A425':        100.0 * counts['PV_A425'] / n if n > 0 else 0.0,
+                'pct_free':           100.0 * counts['P_free']  / n if n > 0 else 0.0,
+                'pct_A425_also_A520': 100.0 * counts['PV_both'] / counts['PV_A425']
+                                      if counts['PV_A425'] > 0 else 0.0,
+            })
+
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df = df.sort_values('timepoint_h', na_position='last').reset_index(drop=True)
+        df.to_csv(output_dir / f'cargo_exchange_{rep_name}.csv', index=False)
+        results_by_replicate[rep_name] = df
+        logging.info(f"Saved cargo_exchange_{rep_name}.csv")
+
+    combined = pd.concat(
+        [df.assign(replicate=rep) for rep, df in results_by_replicate.items()],
+        ignore_index=True,
+    )
+    combined.to_csv(output_dir / 'cargo_exchange_results.csv', index=False)
+    logging.info("Pipeline complete.")
+
+
+# ---------------------------------------------------------------------------
 # Config and CLI
 # ---------------------------------------------------------------------------
 
@@ -371,6 +565,10 @@ def main() -> None:
 
     cfg = load_config(args.config)
     setup_logging(cfg.get('log_level', 'INFO'))
+
+    if cfg.get('mode') == 'pipeline':
+        run_pipeline_mode(cfg)
+        return
 
     output_dir = Path(cfg['output_dir'])
     output_dir.mkdir(parents=True, exist_ok=True)
