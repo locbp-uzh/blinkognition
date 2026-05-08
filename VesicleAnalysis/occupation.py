@@ -256,6 +256,27 @@ def add_empty_vesicles(df: pd.DataFrame, n_total_vesicles: int) -> pd.DataFrame:
 # Pipeline mode — standalone trace extraction and KV step detection
 # ---------------------------------------------------------------------------
 
+def occupation_distribution(
+    df: pd.DataFrame,
+    max_n: int = 10,
+) -> pd.Series:
+    """
+    Compute the distribution of proteins-per-vesicle.
+
+    Args:
+        df: DataFrame with an 'occupation' column (one row per vesicle).
+        max_n: Group all counts >= max_n into a single >=max_n bin.
+
+    Returns:
+        Series with index = number of proteins (0, 1, 2, ... >=max_n)
+        and values = fraction of vesicles (normalised to 1).
+    """
+    counts = df['occupation'].clip(upper=max_n).value_counts().sort_index()
+    full_index = list(range(max_n + 1))
+    counts = counts.reindex(full_index, fill_value=0)
+    return counts / counts.sum()
+
+
 def _read_pkl_compat(path: Path) -> pd.DataFrame:
     """
     Read a pandas 1.x DataFrame pickle file under pandas 2.x.
