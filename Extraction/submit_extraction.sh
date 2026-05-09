@@ -5,5 +5,4 @@
 #SBATCH --mem=256G                     # Memory per node
 #SBATCH --time=23:59:59               # Maximum execution time (HH:MM:SS)
 
-module load miniforge3
-conda run -n picasso-env python run_pipeline.py -c config.yaml
+/home/pabriv/data/conda/envs/picasso-env/bin/python run_pipeline.py -c config.yaml
