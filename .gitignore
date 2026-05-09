@@ -1,5 +1,7 @@
 CLAUDE.md
 .DS_Store
+._*
+**/._*
 Inputs/
 Results/
 assets/

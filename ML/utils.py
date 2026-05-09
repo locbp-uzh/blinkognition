@@ -213,23 +213,20 @@ def build_dataset_from_keys(dataset_keys, traces_path, trim_end=0, max_traces_pe
         random_seed (int): Random seed for reproducibility
 
     Returns:
-        tuple: (X, y, class_map, in_channels)
+        tuple: (X, y, class_map, in_channels, unique_ids)
     """
-    # Convert keys to file paths
     dataset_dict = {}
     for protein_key, config in dataset_keys.items():
         if isinstance(config, dict) and "channels" in config:
-            # Explicit channel specification
             channels = config["channels"]
             dataset_dict[protein_key] = discover_protein_files(traces_path, protein_key, channels)
         else:
-            # Auto-discovery mode (backward compatibility with {} or None)
             dataset_dict[protein_key] = discover_protein_files(traces_path, protein_key)
 
-    return build_dataset(dataset_dict, trim_end, max_traces_per_class, random_seed)  # includes unique_ids
+    return _build_dataset(dataset_dict, trim_end, max_traces_per_class, random_seed)
 
 
-def build_dataset(dataset_dict, trim_end=0, max_traces_per_class=None, random_seed=42):
+def _build_dataset(dataset_dict, trim_end=0, max_traces_per_class=None, random_seed=42):
     sample_names = list(dataset_dict.keys())
     X_list, y_list, uid_list = [], [], []
 
@@ -326,7 +323,7 @@ def _balance_dataset(X, y, random_seed=42):
     balanced_indices = np.array(balanced_indices)
     rng.shuffle(balanced_indices)
 
-    return X[balanced_indices], y[balanced_indices]
+    return X[balanced_indices], y[balanced_indices], balanced_indices
 
 
 def _make_tensor_dataset(X, y):
@@ -337,7 +334,7 @@ def _make_tensor_dataset(X, y):
 
 # --- Dataloaders ---
 def create_dataloaders(X, y, batch_size, balance_train=True, balance_test=False, balance_val=False,
-                       random_seed=42, **dl_kwargs):
+                       random_seed=42, unique_ids=None, **dl_kwargs):
     """
     Create train/val/test dataloaders.
 
@@ -349,29 +346,38 @@ def create_dataloaders(X, y, batch_size, balance_train=True, balance_test=False,
         balance_test: Whether to balance test set by subsampling majority classes
         balance_val: Whether to balance val set by subsampling majority classes
         random_seed: Random seed for reproducibility
+        unique_ids: Optional array of per-trace IDs (length N); if provided, the test
+            subset's IDs are returned as the 5th element of the return tuple.
         **dl_kwargs: Additional arguments for DataLoader
 
     Returns:
-        train_loader, val_loader, test_loader, y_train
+        train_loader, val_loader, test_loader, y_train, uid_test
     """
-    X_train, X_temp, y_train, y_temp = train_test_split(
-        X, y, test_size=0.30, stratify=y, random_state=random_seed
+    all_indices = np.arange(len(X))
+    train_idx, temp_idx = train_test_split(
+        all_indices, test_size=0.30, stratify=y, random_state=random_seed
     )
-    X_val, X_test, y_val, y_test = train_test_split(
-        X_temp, y_temp, test_size=0.50, stratify=y_temp, random_state=random_seed
+    val_idx, test_idx = train_test_split(
+        temp_idx, test_size=0.50, stratify=y[temp_idx], random_state=random_seed
     )
+    X_train, y_train = X[train_idx], y[train_idx]
+    X_val,   y_val   = X[val_idx],   y[val_idx]
+    X_test,  y_test  = X[test_idx],  y[test_idx]
+    uid_test = unique_ids[test_idx] if unique_ids is not None else None
 
     # Balance val set if requested
     if balance_val:
         original_val_size = len(y_val)
-        X_val, y_val = _balance_dataset(X_val, y_val, random_seed=random_seed)
+        X_val, y_val, _ = _balance_dataset(X_val, y_val, random_seed=random_seed)
         print(f"Balanced val set: {original_val_size} -> {len(y_val)} samples")
         print(f"  Val set class distribution: {Counter(y_val)}")
 
     # Balance test set if requested
     if balance_test:
         original_test_size = len(y_test)
-        X_test, y_test = _balance_dataset(X_test, y_test, random_seed=random_seed)
+        X_test, y_test, bal_idx = _balance_dataset(X_test, y_test, random_seed=random_seed)
+        if uid_test is not None:
+            uid_test = uid_test[bal_idx]
         print(f"Balanced test set: {original_test_size} -> {len(y_test)} samples")
         print(f"  Test set class distribution: {Counter(y_test)}")
 
@@ -417,13 +423,14 @@ def create_dataloaders(X, y, batch_size, balance_train=True, balance_test=False,
     val_loader  = DataLoader(val_ds,  batch_size=batch_size, shuffle=False, **dl_kwargs, **extra)
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, **dl_kwargs, **extra)
 
-    return train_loader, val_loader, test_loader, y_train
+    return train_loader, val_loader, test_loader, y_train, uid_test
 
 
 def create_dataloaders_with_augmentation(X, y, batch_size, balance_train=True, balance_test=False,
                                          balance_val=False, random_seed=42, augment_train=False,
                                          aug_factor=2, time_warp_sigma=0.03, noise_sigma=0.02,
-                                         magnitude_jitter=0.02, include_mirror=False, **dl_kwargs):
+                                         magnitude_jitter=0.02, include_mirror=False,
+                                         unique_ids=None, **dl_kwargs):
     """
     Create train/val/test dataloaders with augmentation applied ONLY to training set.
 
@@ -443,18 +450,25 @@ def create_dataloaders_with_augmentation(X, y, batch_size, balance_train=True, b
         noise_sigma: Sigma for Gaussian noise augmentation
         magnitude_jitter: Magnitude jitter factor
         include_mirror: If True, add one time-reversed copy of every training trace
+        unique_ids: Optional array of per-trace IDs (length N); if provided, the test
+            subset's IDs are returned as the 5th element of the return tuple.
         **dl_kwargs: Additional arguments for DataLoader
 
     Returns:
-        train_loader, val_loader, test_loader, y_train
+        train_loader, val_loader, test_loader, y_train, uid_test
     """
     # Split FIRST, before any augmentation
-    X_train, X_temp, y_train, y_temp = train_test_split(
-        X, y, test_size=0.30, stratify=y, random_state=random_seed
+    all_indices = np.arange(len(X))
+    train_idx, temp_idx = train_test_split(
+        all_indices, test_size=0.30, stratify=y, random_state=random_seed
     )
-    X_val, X_test, y_val, y_test = train_test_split(
-        X_temp, y_temp, test_size=0.50, stratify=y_temp, random_state=random_seed
+    val_idx, test_idx = train_test_split(
+        temp_idx, test_size=0.50, stratify=y[temp_idx], random_state=random_seed
     )
+    X_train, y_train = X[train_idx], y[train_idx]
+    X_val,   y_val   = X[val_idx],   y[val_idx]
+    X_test,  y_test  = X[test_idx],  y[test_idx]
+    uid_test = unique_ids[test_idx] if unique_ids is not None else None
 
     print(f"\nOriginal split sizes:")
     print(f"  Train: {X_train.shape[0]} samples")
@@ -464,14 +478,16 @@ def create_dataloaders_with_augmentation(X, y, batch_size, balance_train=True, b
     # Balance val set if requested
     if balance_val:
         original_val_size = len(y_val)
-        X_val, y_val = _balance_dataset(X_val, y_val, random_seed=random_seed)
+        X_val, y_val, _ = _balance_dataset(X_val, y_val, random_seed=random_seed)
         print(f"\nBalanced val set: {original_val_size} -> {len(y_val)} samples")
         print(f"  Val set class distribution: {Counter(y_val)}")
 
     # Balance test set if requested
     if balance_test:
         original_test_size = len(y_test)
-        X_test, y_test = _balance_dataset(X_test, y_test, random_seed=random_seed)
+        X_test, y_test, bal_idx = _balance_dataset(X_test, y_test, random_seed=random_seed)
+        if uid_test is not None:
+            uid_test = uid_test[bal_idx]
         print(f"\nBalanced test set: {original_test_size} -> {len(y_test)} samples")
         print(f"  Test set class distribution: {Counter(y_test)}")
 
@@ -542,7 +558,7 @@ def create_dataloaders_with_augmentation(X, y, batch_size, balance_train=True, b
     val_loader  = DataLoader(val_ds,  batch_size=batch_size, shuffle=False, **dl_kwargs, **extra)
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, **dl_kwargs, **extra)
 
-    return train_loader, val_loader, test_loader, y_train
+    return train_loader, val_loader, test_loader, y_train, uid_test
 
 
 # --- CM helper ---
@@ -1440,11 +1456,8 @@ def evaluate_uncertainty_filtered(
     trace_loss=50.0,
     verbose=False,
     optimal_threshold=None,
-    embeddings=None,
-    umap_coords=None,
     traces=None,
     unique_ids=None,
-    random_state=42,
 ):
     """
     Evaluate Monte Carlo dropout predictions with Wasserstein uncertainty filtering.
@@ -1454,18 +1467,14 @@ def evaluate_uncertainty_filtered(
         y_true: True labels
         threshold: Wasserstein distance threshold for filtering. If None, auto-selects
             threshold that maximizes accuracy while keeping trace loss <= trace_loss.
-            Set to a specific value (e.g., 0.1) to use a fixed threshold.
         class_names: List of class names
         show_plots: Whether to show plots
         save_dir: Directory to save results
         trace_loss: Maximum acceptable trace loss percentage when auto-selecting threshold.
-            Only used when threshold=None.
         verbose: Verbose output
         optimal_threshold: Optimal prediction threshold from validation set
-        embeddings: Optional embeddings array for UMAP (only used if umap_coords not provided)
-        umap_coords: Pre-computed UMAP coordinates (N, 2) for consistent visualization
         traces: Optional traces array (N, C, T) for saving with Wasserstein distances
-        random_state: Random state for UMAP (only used if umap_coords not provided)
+        unique_ids: Optional unique IDs per trace for audit linkage
 
     Returns:
         dict: Evaluation metrics with uncertainty filtering
@@ -1505,165 +1514,6 @@ def evaluate_uncertainty_filtered(
             save_kwargs['unique_ids'] = unique_ids
         np.savez(traces_with_uncertainty_path, **save_kwargs)
         print(f"Saved traces with Wasserstein distances to: {traces_with_uncertainty_path}")
-
-        # Create quartile visualization plot: 4x4 grid (rows=quartiles, cols=traces)
-        rng = np.random.default_rng(seed=random_state)
-        quartiles = np.percentile(w_dists, [25, 50, 75])
-        quartile_labels = ['Q1 (least certain)', 'Q2', 'Q3', 'Q4 (most certain)']
-        quartile_ranges = [
-            (w_dists.min(), quartiles[0]),
-            (quartiles[0], quartiles[1]),
-            (quartiles[1], quartiles[2]),
-            (quartiles[2], w_dists.max() + 1e-9)
-        ]
-
-        unique_classes = np.unique(y_true)
-        n_examples_per_class = 2
-        traces_np = traces.numpy() if hasattr(traces, 'numpy') else traces
-
-        # 4 rows (quartiles) x (n_classes * n_examples_per_class) columns
-        n_cols = len(unique_classes) * n_examples_per_class
-        fig, axes = plt.subplots(4, n_cols, figsize=(4 * n_cols, 12))
-
-        for q_idx, (q_min, q_max) in enumerate(quartile_ranges):
-            q_mask = (w_dists >= q_min) & (w_dists < q_max)
-            col_idx = 0  # Track column position
-
-            for cls_idx, cls in enumerate(unique_classes):
-                cls_mask = (y_true == cls) & q_mask
-                cls_indices = np.where(cls_mask)[0]
-                cls_name = class_names[cls] if class_names and cls < len(class_names) else f"Class {cls}"
-                color = COLORS[list(COLORS.keys())[cls_idx % len(COLORS)]]
-
-                # Select random examples
-                n_select = min(n_examples_per_class, len(cls_indices))
-                if len(cls_indices) > 0:
-                    selected_indices = rng.choice(cls_indices, size=n_select, replace=False)
-                else:
-                    selected_indices = []
-
-                # Plot each trace in its own subplot
-                for i in range(n_examples_per_class):
-                    ax = axes[q_idx, col_idx]
-                    if i < len(selected_indices):
-                        idx = selected_indices[i]
-                        trace = traces_np[idx]
-                        # If multi-channel, use first channel for visualization
-                        if trace.ndim == 2:
-                            trace = trace[0]
-                        ax.plot(trace, color=color, linewidth=1.2)
-                        ax.set_title(f"{cls_name}, W={w_dists[idx]:.3f}", fontsize=FONTSIZE_LABEL)
-                    else:
-                        ax.set_title(f"{cls_name}, N/A", fontsize=FONTSIZE_LABEL)
-                        ax.text(0.5, 0.5, "No samples", ha='center', va='center', transform=ax.transAxes)
-
-                    # Only add y-label on leftmost column
-                    if col_idx == 0:
-                        ax.set_ylabel(f"{quartile_labels[q_idx]}\nIntensity", fontsize=FONTSIZE_LABEL)
-                    # Only add x-label on bottom row
-                    if q_idx == 3:
-                        ax.set_xlabel("Time", fontsize=FONTSIZE_LABEL)
-
-                    apply_axis_standards(ax)
-                    col_idx += 1
-
-        plt.suptitle("Example traces by Wasserstein distance quartile", fontsize=FONTSIZE_TITLE, y=1.02)
-        plt.tight_layout(h_pad=3.0, w_pad=3.0)
-
-        if show_plots:
-            plt.show()
-        else:
-            # Save to folder with plot.png and data.csv
-            quartile_plot_dir = os.path.join(save_dir, "traces_by_wasserstein_quartile")
-            os.makedirs(quartile_plot_dir, exist_ok=True)
-            plt.savefig(os.path.join(quartile_plot_dir, "plot.pdf"), dpi=450, bbox_inches='tight')
-            plt.close()
-            # Save quartile data
-            quartile_data = {
-                'quartile': [], 'quartile_label': [], 'w_min': [], 'w_max': [],
-                'n_samples': []
-            }
-            for q_idx, (q_min, q_max) in enumerate(quartile_ranges):
-                q_mask = (w_dists >= q_min) & (w_dists < q_max)
-                quartile_data['quartile'].append(q_idx + 1)
-                quartile_data['quartile_label'].append(quartile_labels[q_idx])
-                quartile_data['w_min'].append(q_min)
-                quartile_data['w_max'].append(q_max)
-                quartile_data['n_samples'].append(int(q_mask.sum()))
-            pd.DataFrame(quartile_data).to_csv(os.path.join(quartile_plot_dir, "data.csv"), index=False)
-            print(f"Saved quartile trace plot to: {quartile_plot_dir}")
-
-    # UMAP visualization colored by Wasserstein distance with class-specific markers
-    if umap_coords is not None or embeddings is not None:
-        try:
-            # Use pre-computed UMAP coordinates if provided, otherwise compute
-            if umap_coords is None:
-                import umap
-                print("Computing UMAP coordinates...")
-                reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, metric='euclidean', random_state=random_state)
-                umap_coords_plot = reducer.fit_transform(embeddings)
-            else:
-                print("Using pre-computed UMAP coordinates for Wasserstein visualization...")
-                umap_coords_plot = umap_coords
-
-            # Define markers for different classes
-            markers = ['o', '^', 's', 'D', 'v', 'p', 'h', '*', 'X', 'P']  # circle, triangle, square, diamond, etc.
-            unique_classes = np.unique(y_true)
-
-            fig, ax = plt.subplots(figsize=(10, 8))
-
-            # Plot each class with different marker, colored by Wasserstein distance
-            scatter_handles = []
-            for idx, cls in enumerate(unique_classes):
-                mask_cls = y_true == cls
-                marker = markers[idx % len(markers)]
-                sc = ax.scatter(
-                    umap_coords_plot[mask_cls, 0], umap_coords_plot[mask_cls, 1],
-                    c=w_dists[mask_cls], cmap=_LAPAZ, s=35, alpha=0.7,
-                    marker=marker, vmin=w_dists.min(), vmax=w_dists.max(),
-                    edgecolors='black', linewidths=0.5
-                )
-                # Create legend handle with class name
-                cls_name = class_names[cls] if class_names and cls < len(class_names) else f"Class {cls}"
-                handle = plt.Line2D([0], [0], marker=marker, color='#808080', linestyle='',
-                                    markersize=8, label=cls_name)
-                scatter_handles.append(handle)
-
-            ax.set_xlabel('UMAP component 1', fontsize=FONTSIZE_LABEL)
-            ax.set_ylabel('UMAP component 2', fontsize=FONTSIZE_LABEL)
-            ax.set_title('UMAP projection colored by Wasserstein distance', fontsize=FONTSIZE_TITLE)
-            apply_axis_standards(ax)
-
-            # Add colorbar
-            cbar = plt.colorbar(sc, ax=ax)
-            cbar.set_label('Wasserstein distance (certainty)')
-
-            # Add legend for class markers at top
-            ax.legend(handles=scatter_handles, loc='upper center', bbox_to_anchor=(0.5, 1.15),
-                     framealpha=0.95, fontsize=FONTSIZE_LEGEND, title='Classes', ncol=len(unique_classes))
-
-            plt.tight_layout()
-
-            if show_plots:
-                plt.show()
-            else:
-                # Save to folder with plot.png and data.csv
-                umap_uncertainty_dir = os.path.join(save_dir, "umap_wasserstein")
-                os.makedirs(umap_uncertainty_dir, exist_ok=True)
-                plt.savefig(os.path.join(umap_uncertainty_dir, "plot.pdf"), dpi=450, bbox_inches='tight')
-                plt.close()
-                # Save UMAP data with Wasserstein distances
-                umap_data = pd.DataFrame({
-                    'umap_1': umap_coords_plot[:, 0],
-                    'umap_2': umap_coords_plot[:, 1],
-                    'wasserstein_distance': w_dists,
-                    'true_label': y_true,
-                    'predicted_label': pred_labels
-                })
-                umap_data.to_csv(os.path.join(umap_uncertainty_dir, "data.csv"), index=False)
-                print(f"Saved UMAP uncertainty plot to: {umap_uncertainty_dir}")
-        except Exception as e:
-            print(f"Could not generate UMAP uncertainty plot: {e}")
 
     # Threshold sweep
     thresholds = np.linspace(0, w_dists.max() if w_dists.size else 1.0, 50)
@@ -1761,199 +1611,6 @@ def evaluate_uncertainty_filtered(
     }
 
 
-
-
-@torch.no_grad()
-def extract_embeddings(model, data_loader, device=None, autocast_ctx=None):
-    """
-    Extract embeddings from a trained model.
-
-    Args:
-        model: Trained model with get_embedding() method
-        data_loader: DataLoader providing input data
-        device: Device to run inference on (defaults to model's device)
-        autocast_ctx: Optional autocast context for mixed precision
-
-    Returns:
-        embeddings: numpy array of shape (N, embedding_dim)
-        labels: numpy array of shape (N,) with true labels
-        indices: list of sample indices (if available)
-    """
-    if device is None:
-        device = next(model.parameters()).device
-    autocast_ctx = autocast_ctx or (lambda: nullcontext())
-
-    model.eval()
-    embeddings_list = []
-    labels_list = []
-
-    for batch in data_loader:
-        # Handle different batch formats
-        if len(batch) == 2:
-            inputs, labels = batch
-        elif len(batch) == 3:
-            inputs, labels, _ = batch  # Ignore indices for now
-        else:
-            raise ValueError(f"Unexpected batch format with {len(batch)} elements")
-
-        inputs = inputs.to(device)
-
-        with autocast_ctx():
-            emb = model.get_embedding(inputs)
-
-        # Convert to float32 if needed (bfloat16 not supported by numpy)
-        embeddings_list.append(emb.float().cpu().numpy())
-        labels_list.append(labels.cpu().numpy())
-
-    embeddings = np.concatenate(embeddings_list, axis=0)
-    labels = np.concatenate(labels_list, axis=0)
-
-    return embeddings, labels
-
-
-def plot_umap_embeddings(embeddings, labels, class_names, save_path, max_per_class=10000, random_state=42, umap_coords=None):
-    """
-    Generate and plot UMAP projection of embeddings with balanced class sampling.
-
-    Args:
-        embeddings: numpy array of shape (N, embedding_dim)
-        labels: numpy array of shape (N,) with class labels
-        class_names: list of class names
-        save_path: path to save the UMAP plot
-        max_per_class: maximum number of samples per class (default: 10000)
-        random_state: random seed for reproducibility
-        umap_coords: optional pre-computed UMAP coordinates (N, 2). If provided,
-                     uses these instead of computing UMAP, and skips subsampling.
-
-    Returns:
-        umap_data_path: path to saved CSV with UMAP coordinates
-    """
-    np.random.seed(random_state)
-
-    # Get unique classes and their counts
-    unique_labels = np.unique(labels)
-    n_classes = len(unique_labels)
-
-    # If pre-computed UMAP coordinates provided, use all points
-    if umap_coords is not None:
-        print(f"Using pre-computed UMAP coordinates for {len(labels)} samples ({n_classes} classes)...")
-        embeddings_subset = embeddings
-        labels_subset = labels
-        embeddings_2d = umap_coords
-    else:
-        # Import umap only when needed
-        try:
-            import umap
-        except ImportError:
-            print("WARNING: umap-learn not installed. Skipping UMAP visualization.")
-            print("Install with: pip install umap-learn")
-            return None
-
-        # Sample balanced subset for visualization
-        selected_indices = []
-        for label in unique_labels:
-            label_indices = np.where(labels == label)[0]
-            n_available = len(label_indices)
-
-            # For the most populous class, use max_per_class
-            # For other classes, scale proportionally
-            if n_available > max_per_class:
-                n_to_sample = max_per_class
-            else:
-                n_to_sample = n_available
-
-            # Randomly sample
-            if n_to_sample < n_available:
-                sampled = np.random.choice(label_indices, size=n_to_sample, replace=False)
-            else:
-                sampled = label_indices
-
-            selected_indices.extend(sampled)
-
-        selected_indices = np.array(selected_indices)
-        embeddings_subset = embeddings[selected_indices]
-        labels_subset = labels[selected_indices]
-
-        print(f"Running UMAP on {len(selected_indices)} samples ({n_classes} classes)...")
-
-        # Fit UMAP
-        reducer = umap.UMAP(
-            n_neighbors=15,
-            min_dist=0.1,
-            n_components=2,
-            metric='euclidean',
-            random_state=random_state,
-            verbose=False
-        )
-
-        embeddings_2d = reducer.fit_transform(embeddings_subset)
-
-    # Determine output paths
-    if save_path.endswith('.png'):
-        # Legacy mode: save as PDF regardless
-        plot_path = save_path.replace('.png', '.pdf')
-        data_path = save_path.replace('.png', '_data.csv')
-    else:
-        # Folder mode: save plot.pdf and data.csv in directory
-        os.makedirs(save_path, exist_ok=True)
-        plot_path = os.path.join(save_path, "plot.pdf")
-        data_path = os.path.join(save_path, "data.csv")
-
-    # Save UMAP coordinates as CSV
-    data_rows = []
-    for i, (x, y) in enumerate(embeddings_2d):
-        label_idx = labels_subset[i]
-        class_name = class_names[label_idx] if label_idx < len(class_names) else f"Class_{label_idx}"
-        data_rows.append([x, y, class_name, int(label_idx)])
-
-    df_umap = pd.DataFrame(data_rows, columns=['UMAP1', 'UMAP2', 'class', 'label_idx'])
-    df_umap.to_csv(data_path, index=False)
-    print(f"  Saved UMAP data to: {os.path.basename(data_path)}")
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(12, 10))
-
-    # Define color palette and markers (same as cluster.py)
-    colors = ['dodgerblue', 'gold', 'lightcoral', 'firebrick', 'teal',
-              'darkorange', 'orchid', 'forestgreen', 'palegreen', 'peru']
-    markers = ['o', '^', 's', 'D', 'v', 'P', '*', 'X', 'p', 'h']
-
-    # Extend colors and markers if we have more than 10 classes
-    if n_classes > 10:
-        colors = colors * ((n_classes // 10) + 1)
-        markers = markers * ((n_classes // 10) + 1)
-
-    for i, label in enumerate(unique_labels):
-        mask = labels_subset == label
-        class_name = class_names[label] if label < len(class_names) else f"Class_{label}"
-        n_samples = mask.sum()
-
-        ax.scatter(
-            embeddings_2d[mask, 0],
-            embeddings_2d[mask, 1],
-            c=colors[i],
-            marker=markers[i],
-            s=50,
-            alpha=0.7,
-            label=f'{class_name} (n={n_samples})',
-            edgecolors='black',
-            linewidths=0.3
-        )
-
-    ax.set_xlabel('UMAP component 1', fontsize=FONTSIZE_LABEL)
-    ax.set_ylabel('UMAP component 2', fontsize=FONTSIZE_LABEL)
-    ax.set_title('UMAP projection of trace embeddings', fontsize=FONTSIZE_TITLE)
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), framealpha=0.95, fontsize=FONTSIZE_LEGEND)
-    # Apply axis standards (keeping original color scheme as requested)
-    apply_axis_standards(ax)
-
-    plt.tight_layout()
-    plt.savefig(plot_path, dpi=450, bbox_inches='tight')
-    plt.close()
-
-    print(f"  Saved UMAP plot to: {os.path.basename(plot_path)}")
-
-    return data_path
 
 
 # --- Data Augmentation ---

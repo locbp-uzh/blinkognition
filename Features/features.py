@@ -31,24 +31,18 @@ GMM peak detection uses:
     channel 0 (minmax) as input to gmm_classify_frames
     channel 1 (zscored) for per-peak mean intensity reporting
 
-Six per-trace features are computed in a 2×3 grid (clockwise from top-left):
+Three per-trace features are computed in a 1×3 panel:
 
-  Row 1:
   A) Mean off-time  — mean dark-interval per trace, converted to ms
   B) Mean on-time   — mean peak duration per trace, converted to ms
-  C) Blinking rate  — peaks per second (active window)
-
-  Row 2:
-  D) Duty cycle     — fraction of active window in the "on" state
-  E) CV on-times    — coefficient of variation of peak durations per trace
-  F) CV off-times   — coefficient of variation of off-times per trace
+  C) Duty cycle     — fraction of active window in the "on" state
 
 Usage:
-    # per-experiment (default, requires locbplots or numpy>=2 env for PKL loading):
-    python assets/blink_features.py -c assets/blink_features_config_hthtl_htia_mcd.yaml
+    # pooled (WD-filtered, used in the paper):
+    python features.py -c config.yaml
 
-    # pooled (WD-filtered):
-    python assets/blink_features.py -c assets/blink_features_config_hthtl_htia_mcd.yaml
+    # per-experiment (one output per acquisition date):
+    python features.py -c config.yaml   # with analysis_mode: per_experiment
 
 Output (in output_path/):
   per_experiment mode → {proteins}_exp_{timestamp}/{exp_name}/features/
@@ -142,7 +136,7 @@ def _trace_features(
     gmm_proba: float,
     min_peak_width: int,
     frame_interval_ms: float,
-) -> tuple[list, list, float, list, float]:
+) -> tuple[list, list, float, list]:
     """
     Compute blink features for a single trace.
 
@@ -152,9 +146,8 @@ def _trace_features(
     Returns:
         durations        — list of per-peak durations in frames
         mean_intensities — list of per-peak mean z-scored intensities
-        duty_cycle       — fraction of frames classified as "on"
+        duty_cycle       — fraction of active window in the "on" state
         off_times        — list of dark-interval durations in frames
-        blinking_rate    — peaks per second
     """
     _, _, signal_mask = gmm_classify_frames(minmax_vals, gmm_proba, 0.0)
 
@@ -163,10 +156,8 @@ def _trace_features(
     mean_intensities = [float(np.mean(zscored_vals[l:r + 1])) for l, r in runs]
     off_times            = [runs[i + 1][0] - runs[i][1] - 1 for i in range(len(runs) - 1)]
     active_window_frames = runs[-1][1] - runs[0][0] + 1
-    active_window_s      = active_window_frames * frame_interval_ms / 1000.0
     duty_cycle           = float(np.sum(signal_mask) / active_window_frames)
-    blinking_rate        = len(runs) / active_window_s
-    return durations, mean_intensities, duty_cycle, off_times, blinking_rate
+    return durations, mean_intensities, duty_cycle, off_times
 
 
 def process_protein(
@@ -187,59 +178,45 @@ def process_protein(
         frame_interval_ms: Frame duration in milliseconds.
 
     Returns a list of per-trace dicts with keys:
-        durations, intensities, duty_cycle, off_times, blinking_rate,
-        n_blinks, mean_on, mean_off, cv_on, cv_off
+        durations, intensities, duty_cycle, off_times, mean_on, mean_off
     """
     nan = float('nan')
     traces = []
     for i in range(len(traces_array)):
         minmax_vals  = traces_array[i, 0, :]
         zscored_vals = traces_array[i, 1, :]
-        dur, inten, dc, off, rate = _trace_features(
+        dur, inten, dc, off = _trace_features(
             minmax_vals, zscored_vals, gmm_proba, min_peak_width, frame_interval_ms,
         )
-        n = len(dur)
         traces.append({
-            'durations':     dur,
-            'intensities':   inten,
-            'duty_cycle':    dc,
-            'off_times':     off,
-            'blinking_rate': rate,
-            'n_blinks':      n,
-            'mean_on':       float(np.mean(dur))               if n >= 1       else nan,
-            'mean_off':      float(np.mean(off))               if len(off) >= 1 else nan,
-            'cv_on':         float(np.std(dur) / np.mean(dur)) if n >= 2       else nan,
-            'cv_off':        float(np.std(off) / np.mean(off)) if len(off) >= 2 else nan,
+            'durations':   dur,
+            'intensities': inten,
+            'duty_cycle':  dc,
+            'off_times':   off,
+            'mean_on':     float(np.mean(dur)) if len(dur) >= 1  else nan,
+            'mean_off':    float(np.mean(off)) if len(off) >= 1  else nan,
         })
 
     logging.info("  %-12s  %d traces processed", label, len(traces_array))
     return traces
 
 
-def _flatten(traces_by_protein: dict) -> tuple[
-    dict, dict, dict, dict, dict, dict, dict, dict, dict, dict
-]:
+def _flatten(traces_by_protein: dict) -> tuple[dict, dict, dict, dict, dict, dict]:
     """Flatten per-trace dicts into protein-level lists for plotting."""
     durations_all, intensities_all, duty_cycles_all = {}, {}, {}
-    off_times_all, blinking_rates_all = {}, {}
-    n_blinks_all, mean_on_all, mean_off_all, cv_on_all, cv_off_all = {}, {}, {}, {}, {}
+    off_times_all, mean_on_all, mean_off_all = {}, {}, {}
     for protein, traces in traces_by_protein.items():
-        durations_all[protein]      = [d for t in traces for d in t['durations']]
-        intensities_all[protein]    = [i for t in traces for i in t['intensities']]
-        duty_cycles_all[protein]    = [t['duty_cycle']    for t in traces]
-        off_times_all[protein]      = [o for t in traces for o in t['off_times']]
-        blinking_rates_all[protein] = [t['blinking_rate'] for t in traces]
-        n_blinks_all[protein]       = [t['n_blinks']      for t in traces]
-        mean_on_all[protein]        = [t['mean_on']       for t in traces]
-        mean_off_all[protein]       = [t['mean_off']      for t in traces]
-        cv_on_all[protein]          = [t['cv_on']         for t in traces]
-        cv_off_all[protein]         = [t['cv_off']        for t in traces]
+        durations_all[protein]   = [d for t in traces for d in t['durations']]
+        intensities_all[protein] = [i for t in traces for i in t['intensities']]
+        duty_cycles_all[protein] = [t['duty_cycle'] for t in traces]
+        off_times_all[protein]   = [o for t in traces for o in t['off_times']]
+        mean_on_all[protein]     = [t['mean_on']    for t in traces]
+        mean_off_all[protein]    = [t['mean_off']   for t in traces]
         logging.info(
             "  %-12s  %d traces  %d peaks",
             protein, len(traces), len(durations_all[protein]),
         )
-    return (durations_all, intensities_all, duty_cycles_all, off_times_all, blinking_rates_all,
-            n_blinks_all, mean_on_all, mean_off_all, cv_on_all, cv_off_all)
+    return durations_all, intensities_all, duty_cycles_all, off_times_all, mean_on_all, mean_off_all
 
 
 def _mannwhitney_stats(vals1: list, vals2: list) -> tuple[float, float]:
@@ -559,8 +536,7 @@ def _run_feature_analysis(
 
     # Flatten
     logging.info("Flattening features …")
-    (_, _, duty_cycles_all, _, blinking_rates_all,
-     _, mean_on_all, mean_off_all, cv_on_all, cv_off_all) = _flatten(traces_by_protein)
+    (_, _, duty_cycles_all, _, mean_on_all, mean_off_all) = _flatten(traces_by_protein)
 
     def _to_ms_nan(d):
         return {p: [v * frame_interval_ms if v == v else v for v in vals]
@@ -570,35 +546,30 @@ def _run_feature_analysis(
     mean_off_all = _to_ms_nan(mean_off_all)
 
     # Statistics: Mann-Whitney U + BH-FDR (only for exactly 2 proteins)
-    panel_data = [mean_off_all, mean_on_all, blinking_rates_all,
-                  duty_cycles_all, cv_on_all, cv_off_all]
+    panel_data = [mean_off_all, mean_on_all, duty_cycles_all]
     if len(proteins) == 2:
         raw_stats = [_mannwhitney_stats(d[proteins[0]], d[proteins[1]]) for d in panel_data]
         p_adj_all = _bh_correct([s[0] for s in raw_stats])
         logging.info("Mann-Whitney U (BH-corrected p-values):")
         for lbl, (p_raw, r), p_adj in zip(
-            ["Mean off-time", "Mean on-time", "Blinking rate",
-             "Duty cycle", "CV on-times", "CV off-times"],
+            ["Mean off-time", "Mean on-time", "Duty cycle"],
             raw_stats, p_adj_all,
         ):
             logging.info("  %-16s  p_raw=%.2e  p_adj=%.2e  r=%.3f",
                          lbl, p_raw, p_adj, r)
     else:
-        raw_stats = [(None, None)] * 6
-        p_adj_all = [None] * 6
+        raw_stats = [(None, None)] * 3
+        p_adj_all = [None] * 3
 
-    # Figure: 2 rows × 3 columns — scale width with number of proteins
+    # Figure: 1 row x 3 columns — scale width with number of proteins
     fig_w = max(11, 5.5 * len(proteins))
-    fig, axes = plt.subplots(2, 3, figsize=(fig_w, 8))
+    fig, axes = plt.subplots(1, 3, figsize=(fig_w, 4))
     if title:
         fig.suptitle(title, fontsize=FONTSIZE_TITLE, y=1.01)
 
-    _draw_violin_panel(axes[0, 0], mean_off_all,       proteins, "Mean off-time (ms)",                   "Mean off-time",  p_adj=p_adj_all[0], effect_r=raw_stats[0][1])
-    _draw_violin_panel(axes[0, 1], mean_on_all,        proteins, "Mean on-time (ms)",                    "Mean on-time",   p_adj=p_adj_all[1], effect_r=raw_stats[1][1])
-    _draw_violin_panel(axes[0, 2], blinking_rates_all, proteins, "Blinking rate (peaks s\u207b\u00b9)",  "Blinking rate",  p_adj=p_adj_all[2], effect_r=raw_stats[2][1])
-    _draw_violin_panel(axes[1, 0], duty_cycles_all,    proteins, "Duty cycle",    "Duty cycle",    p_adj=p_adj_all[3], effect_r=raw_stats[3][1])
-    _draw_violin_panel(axes[1, 1], cv_on_all,          proteins, "CV on-times",   "CV on-times",   p_adj=p_adj_all[4], effect_r=raw_stats[4][1])
-    _draw_violin_panel(axes[1, 2], cv_off_all,         proteins, "CV off-times",  "CV off-times",  p_adj=p_adj_all[5], effect_r=raw_stats[5][1])
+    _draw_violin_panel(axes[0], mean_off_all,    proteins, "Mean off-time (ms)", "Mean off-time", p_adj=p_adj_all[0], effect_r=raw_stats[0][1])
+    _draw_violin_panel(axes[1], mean_on_all,     proteins, "Mean on-time (ms)",  "Mean on-time",  p_adj=p_adj_all[1], effect_r=raw_stats[1][1])
+    _draw_violin_panel(axes[2], duty_cycles_all, proteins, "Duty cycle",         "Duty cycle",    p_adj=p_adj_all[2], effect_r=raw_stats[2][1])
 
     plt.tight_layout(h_pad=3.0, w_pad=3.0)
     fig.savefig(features_dir / "plot.pdf", bbox_inches='tight')
@@ -607,11 +578,8 @@ def _run_feature_analysis(
 
     _save_csv(mean_off_all,       features_dir, "data_panel_A.csv")
     _save_csv(mean_on_all,        features_dir, "data_panel_B.csv")
-    _save_csv(blinking_rates_all, features_dir, "data_panel_C.csv")
-    _save_csv(duty_cycles_all,    features_dir, "data_panel_D.csv")
-    _save_csv(cv_on_all,          features_dir, "data_panel_E.csv")
-    _save_csv(cv_off_all,         features_dir, "data_panel_F.csv")
-    logging.info("Saved features/data_panel_A–F.csv")
+    _save_csv(duty_cycles_all, features_dir, "data_panel_C.csv")
+    logging.info("Saved features/data_panel_A–C.csv")
 
 
 def main() -> None:

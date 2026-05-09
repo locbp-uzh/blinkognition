@@ -51,7 +51,6 @@ import yaml
 
 # Project utilities
 from utils import (
-    build_dataset,
     build_dataset_from_keys,
     mc_dropout_predict,
     plot_confusion_matrix_with_std,
@@ -1098,34 +1097,14 @@ def main():
     max_traces_val = data_cfg.get("max_traces_per_class") or cfg.get("max_traces_per_class")
     print(f"Data config - trim_end: {trim_end_val}, max_traces_per_class: {max_traces_val}")
 
-    # Build dataset fully in memory
-    # Check if dataset contains file paths (old format) or protein keys (new format)
-    first_key = next(iter(dataset_dict))
-    first_value = dataset_dict[first_key]
-
-    if isinstance(first_value, (list, str)) and (
-        (isinstance(first_value, str) and first_value.endswith('.pkl')) or
-        (isinstance(first_value, list) and len(first_value) > 0 and first_value[0].endswith('.pkl'))
-    ):
-        # Old format: file paths specified directly
-        print("Using legacy dataset format with explicit file paths")
-        X, y, class_map, in_channels, _ = build_dataset(
-            dataset_dict,
-            trim_end=trim_end_val,
-            max_traces_per_class=max_traces_val,
-            random_seed=cfg.get("system", {}).get("seed", 840410),
-        )
-    else:
-        # New format: protein keys with file discovery
-        traces_path = data_cfg.get("traces_path", "../Data/traces")
-        print(f"Using new dataset format with protein keys, discovering files in: {traces_path}")
-        X, y, class_map, in_channels = build_dataset_from_keys(
-            dataset_dict,
-            traces_path,
-            trim_end=trim_end_val,
-            max_traces_per_class=max_traces_val,
-            random_seed=cfg.get("system", {}).get("seed", 840410),
-        )
+    traces_path = data_cfg.get("traces_path", "../Data/traces")
+    X, y, class_map, in_channels, _ = build_dataset_from_keys(
+        dataset_dict,
+        traces_path,
+        trim_end=trim_end_val,
+        max_traces_per_class=max_traces_val,
+        random_seed=cfg.get("system", {}).get("seed", 840410),
+    )
     class_names = [class_map[i] for i in sorted(class_map)]
 
     print(f"Dataset loaded: {X.shape[0]} samples, {X.shape[1]} channels, {X.shape[2]} timesteps")

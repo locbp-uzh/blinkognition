@@ -12,11 +12,9 @@ import numpy as np
 import torch
 from torch import nn
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.model_selection import train_test_split
 import yaml
 
 from utils import (
-    build_dataset,
     build_dataset_from_keys,
     create_dataloaders,
     create_dataloaders_with_augmentation,
@@ -26,8 +24,6 @@ from utils import (
     estimate_batch_size,
     mc_dropout_predict,
     evaluate_uncertainty_filtered,
-    extract_embeddings,
-    plot_umap_embeddings,
 )
 
 from utils import (
@@ -154,7 +150,6 @@ def main():
     checkpoint_path  = os.path.join(run_dir, "checkpoint.pth")
     loss_plot_dir    = os.path.join(run_dir, "loss_curve")
     conf_matrix_dir  = os.path.join(run_dir, "confusion_matrix")
-    umap_dir         = os.path.join(run_dir, "umap_embeddings")
 
     # data params
     trim_end = int(data_cfg.get("trim_end", cfg.get("trim_end", 0))) or None
@@ -165,25 +160,9 @@ def main():
     traces_path = data_cfg.get("traces_path", "../Data/traces")
 
     print("Loading dataset...")
-    # Check if dataset contains file paths (old format) or protein keys (new format)
-    first_key = next(iter(dataset))
-    first_value = dataset[first_key]
-
-    if isinstance(first_value, (list, str)) and (
-        (isinstance(first_value, str) and first_value.endswith('.pkl')) or
-        (isinstance(first_value, list) and len(first_value) > 0 and first_value[0].endswith('.pkl'))
-    ):
-        # Old format: file paths specified directly
-        print("Using legacy dataset format with explicit file paths")
-        X, y, class_map, in_channels, unique_ids = build_dataset(
-            dataset, trim_end=trim_end, max_traces_per_class=max_traces_per_class, random_seed=seed_val
-        )
-    else:
-        # New format: protein keys with file discovery
-        print(f"Using new dataset format with protein keys, discovering files in: {traces_path}")
-        X, y, class_map, in_channels, unique_ids = build_dataset_from_keys(
-            dataset, traces_path, trim_end=trim_end, max_traces_per_class=max_traces_per_class, random_seed=seed_val
-        )
+    X, y, class_map, in_channels, unique_ids = build_dataset_from_keys(
+        dataset, traces_path, trim_end=trim_end, max_traces_per_class=max_traces_per_class, random_seed=seed_val
+    )
 
     # Dataset information logging
     class_names = [class_map[i] for i in sorted(class_map)]
@@ -219,7 +198,7 @@ def main():
 
     if use_augmentation:
         # Use augmented dataloaders (augmentation applied ONLY to training set)
-        train_loader, val_loader, test_loader, _ytrain = create_dataloaders_with_augmentation(
+        train_loader, val_loader, test_loader, _ytrain, unique_ids_test = create_dataloaders_with_augmentation(
             X, y,
             batch_size=batch_size,
             balance_train=balance_train,
@@ -232,34 +211,15 @@ def main():
             noise_sigma=augmentation_cfg.get("noise_sigma", 0.02),
             magnitude_jitter=augmentation_cfg.get("magnitude_jitter", 0.02),
             include_mirror=augmentation_cfg.get("include_mirror", False),
+            unique_ids=unique_ids,
             **loader_kwargs
         )
     else:
         # Standard dataloaders without augmentation
-        train_loader, val_loader, test_loader, _ytrain = create_dataloaders(
+        train_loader, val_loader, test_loader, _ytrain, unique_ids_test = create_dataloaders(
             X, y, batch_size=batch_size, balance_train=balance_train, balance_test=balance_test,
-            balance_val=balance_val, random_seed=seed_val, **loader_kwargs
+            balance_val=balance_val, random_seed=seed_val, unique_ids=unique_ids, **loader_kwargs
         )
-
-    # Save split indices for TRM to use (prevents data leakage)
-    # Note: These are the ORIGINAL stratified split indices before any balancing
-    # Recreate the split to get indices
-    indices = np.arange(len(X))
-    train_idx, temp_idx = train_test_split(
-        indices, test_size=0.30, stratify=y, random_state=seed_val
-    )
-    y_temp = y[temp_idx]
-    val_idx, test_idx = train_test_split(
-        temp_idx, test_size=0.50, stratify=y_temp, random_state=seed_val
-    )
-    split_indices_path = os.path.join(run_dir, "split_indices.npz")
-    np.savez(split_indices_path, train_idx=train_idx, val_idx=val_idx, test_idx=test_idx,
-             balance_test=balance_test)
-    print(f"Saved split indices to: {split_indices_path}")
-    print(f"  Original split - Train: {len(train_idx)}, Val: {len(val_idx)}, Test: {len(test_idx)}")
-    if balance_test:
-        actual_test_size = len(test_loader.dataset)
-        print(f"  Balanced test set used for evaluation: {actual_test_size} samples")
 
     # model configuration (simplified - defaults are in model zoo)
     num_classes = len(class_map) if class_map else len(np.unique(y))
@@ -383,25 +343,6 @@ def main():
         json.dump(metrics_json, f, indent=2)
     print(f"Test metrics saved to '{test_metrics_path}'")
 
-    # Generate UMAP embeddings visualization
-    print(f"Generating UMAP visualization of test set embeddings to '{umap_dir}'...")
-    test_embeddings, test_labels = extract_embeddings(model, test_loader, device=device, autocast_ctx=autocast_ctx)
-
-    # Compute UMAP once for consistent visualization across plots
-    import umap
-    print("Computing UMAP coordinates for test embeddings...")
-    umap_reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, metric='euclidean', random_state=seed_val)
-    test_umap_coords = umap_reducer.fit_transform(test_embeddings)
-
-    plot_umap_embeddings(
-        embeddings=test_embeddings,
-        labels=test_labels,
-        class_names=label_names,
-        save_path=umap_dir,
-        umap_coords=test_umap_coords,
-        random_state=seed_val
-    )
-
     # MC Dropout
     mcd_cfg = uncert_cfg.get("mc_dropout", cfg.get("mc_dropout", {"enabled": True, "n_mc": 100, "trace_loss": 50.0}))
     if mcd_cfg.get("enabled", True):
@@ -416,20 +357,6 @@ def main():
             y_list.append(yb.cpu())
         X_test = torch.cat(X_list, dim=0).contiguous()
         y_test = torch.cat(y_list, dim=0).numpy()
-
-        # Match X_test traces back to UniqueIDs via fingerprint on first channel, first 10 values.
-        # X is cast to float32 to match the DataLoader's tensor conversion.
-        X_fp = X.astype(np.float32)
-        fp_lookup = {tuple(X_fp[i, 0, :10].tolist()): unique_ids[i] for i in range(len(X))}
-        unique_ids_test = np.array(
-            [fp_lookup.get(tuple(X_test[i, 0, :10].numpy().tolist()), -1) for i in range(len(X_test))],
-            dtype=np.int64,
-        )
-        n_unmatched = int((unique_ids_test == -1).sum())
-        if n_unmatched:
-            print(f"Warning: {n_unmatched}/{len(X_test)} test traces could not be matched to a UniqueID.")
-        else:
-            print(f"UniqueID matching: all {len(X_test)} test traces matched.")
 
         with torch.no_grad():
             probs_mc = mc_dropout_predict(
@@ -455,11 +382,8 @@ def main():
             trace_loss=float(mcd_cfg.get("trace_loss", 50.0)),
             verbose=verbose,
             optimal_threshold=optimal_threshold,
-            embeddings=test_embeddings,
-            umap_coords=test_umap_coords,
             traces=X_test,
             unique_ids=unique_ids_test,
-            random_state=seed_val,
         )
 
         # Save MC dropout metrics
