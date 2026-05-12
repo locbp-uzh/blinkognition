@@ -1701,11 +1701,14 @@ def apply_augmentation(X, y, aug_factor=2, time_warp_sigma=0.03, noise_sigma=0.0
     # matching the peak-detection approach used in features.py.
     # Baseline frames outside the active window are left unchanged.
     if include_mirror:
-        import sys as _sys, os as _os
-        _extraction = _os.path.join(_os.path.dirname(__file__), "..", "Extraction")
-        if _extraction not in _sys.path:
-            _sys.path.insert(0, _extraction)
-        from utils import gmm_classify_frames  # Extraction/utils.py
+        import importlib.util as _ilu, os as _os
+        _ext_utils_path = _os.path.normpath(
+            _os.path.join(_os.path.dirname(__file__), "..", "Extraction", "utils.py")
+        )
+        _ext_spec = _ilu.spec_from_file_location("extraction_utils", _ext_utils_path)
+        _ext_utils = _ilu.module_from_spec(_ext_spec)
+        _ext_spec.loader.exec_module(_ext_utils)
+        gmm_classify_frames = _ext_utils.gmm_classify_frames
 
         X_mirrored = X.copy()
         for i in range(N):
