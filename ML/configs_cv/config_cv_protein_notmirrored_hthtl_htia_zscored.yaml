@@ -1,13 +1,13 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "mirrored_hthtl_snap_zscored"
+  run_name: "protein_notmirrored_hthtl_htia_zscored"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
+  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
   dataset:
     HTHTL:
       channels: ["zscored"]
-    snap:
+    HTIA:
       channels: ["zscored"]
 
 
@@ -67,7 +67,7 @@ augmentation_sweep:
   enabled: true
   factors: [0, 3, 5]
   augmentation_params:
-    time_warp_sigma: 0.05
-    noise_sigma: 0.05
-    magnitude_jitter: 0.05
-    include_mirror: true
+    time_warp_sigma: 0.5
+    noise_sigma: 0.5
+    magnitude_jitter: 0.5
+    include_mirror: false
