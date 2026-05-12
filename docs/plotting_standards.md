@@ -4,7 +4,7 @@ This document defines the visual standards for all plots and figures in this rep
 
 ## Core Principles
 
-1. **Font**: Sans-serif with DejaVu Sans fallback (cross-platform compatible), never smaller than 7 points
+1. **Font**: Arial (primary), Helvetica (macOS fallback), DejaVu Sans (Linux/HPC fallback), never smaller than 7 points
 2. **Font weight**: Regular (no bold unless specifically requested)
 3. **Axes**: Only draw left (y-axis) and bottom (x-axis) spines (remove top and right)
 4. **Grid**: No grid unless specifically requested
@@ -20,7 +20,7 @@ import matplotlib as mpl
 
 # Set font to sans-serif with cross-platform fallbacks
 mpl.rcParams['font.family'] = 'sans-serif'
-mpl.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Helvetica', 'Arial']
+mpl.rcParams['font.sans-serif'] = ['Arial', 'Helvetica', 'DejaVu Sans']
 mpl.rcParams['font.size'] = 9  # Base font size
 
 # Font sizes for different elements
@@ -30,7 +30,7 @@ FONTSIZE_TITLE = 10     # Plot titles
 FONTSIZE_LEGEND = 8     # Legend text
 ```
 
-Note: DejaVu Sans is available on most systems (Linux, macOS, Windows) and is the fallback when Helvetica is not installed (e.g., on HPC clusters).
+Note: Arial is the primary font (available on macOS and Windows). Helvetica is the macOS system fallback. DejaVu Sans is the Linux/HPC fallback (bundled with matplotlib).
 
 ### Color Palette
 
@@ -127,7 +127,7 @@ import matplotlib as mpl
 
 # Configure matplotlib
 mpl.rcParams['font.family'] = 'sans-serif'
-mpl.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Helvetica', 'Arial']
+mpl.rcParams['font.sans-serif'] = ['Arial', 'Helvetica', 'DejaVu Sans']
 mpl.rcParams['font.size'] = 9
 
 # Color-blind friendly palette (Okabe-Ito)
@@ -418,7 +418,7 @@ plt.savefig(output_dir / 'plot.png', dpi=300, bbox_inches='tight')  # Raster for
 ## Testing Your Plot
 
 A quick checklist:
-- [ ] Font is sans-serif (DejaVu Sans / Helvetica / Arial)
+- [ ] Font is Arial / Helvetica / DejaVu Sans (in priority order)
 - [ ] No text smaller than 7pt
 - [ ] No bold text (unless intentional)
 - [ ] Top and right spines removed
