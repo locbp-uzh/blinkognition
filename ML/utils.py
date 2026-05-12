@@ -1695,11 +1695,28 @@ def apply_augmentation(X, y, aug_factor=2, time_warp_sigma=0.03, noise_sigma=0.0
 
         print(f"    Generated augmentation version {aug_idx}/{aug_factor - 1}")
 
-    # Mirror augmentation: one time-reversed copy of every original trace.
-    # Added after all warp/noise/jitter versions so it is easy to reason about
-    # the total dataset size (N * aug_factor + N if mirror).
+    # Mirror augmentation: time-reverse the active window of every original trace.
+    # The active window spans from the first frame of the first peak to the last
+    # frame of the last peak, identified via GMM on channel 0 (minmax-normalised),
+    # matching the peak-detection approach used in features.py.
+    # Baseline frames outside the active window are left unchanged.
     if include_mirror:
-        X_mirrored = X[:, :, ::-1].copy()
+        import sys as _sys, os as _os
+        _extraction = _os.path.join(_os.path.dirname(__file__), "..", "Extraction")
+        if _extraction not in _sys.path:
+            _sys.path.insert(0, _extraction)
+        from utils import gmm_classify_frames  # Extraction/utils.py
+
+        X_mirrored = X.copy()
+        for i in range(N):
+            _, _, signal_mask = gmm_classify_frames(X[i, 0, :], proba_threshold=0.9,
+                                                    min_separation=0.0)
+            on_frames = np.where(signal_mask)[0]
+            if len(on_frames) == 0:
+                X_mirrored[i] = X[i, :, ::-1]   # no peaks detected — full reversal
+                continue
+            fp, lp = int(on_frames[0]), int(on_frames[-1])
+            X_mirrored[i, :, fp:lp + 1] = X[i, :, fp:lp + 1][:, ::-1]
         X_list.append(X_mirrored)
         y_list.append(y)
         print(f"    Added mirrored (time-reversed) version: {X_mirrored.shape[0]} traces")
