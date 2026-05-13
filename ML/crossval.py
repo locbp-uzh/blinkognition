@@ -897,6 +897,17 @@ def _distribute_tasks_to_gpus(
     for p in workers:
         p.join()
 
+    # Explicitly drain and close queues so their background feeder threads
+    # terminate cleanly before interpreter shutdown (prevents exit-code 120).
+    for q in (task_queue, result_queue):
+        try:
+            while not q.empty():
+                q.get_nowait()
+        except Exception:
+            pass
+        q.close()
+        q.join_thread()
+
     print(f"All {len(tasks)} tasks completed")
     return results
 
@@ -1044,6 +1055,16 @@ def _aggregate_augmentation_results(all_results: List[dict]) -> pd.DataFrame:
 # ---------------------------- main ---------------------------- #
 
 def main():
+    # Suppress unraisable exceptions emitted by Queue feeder threads during
+    # interpreter shutdown — they indicate no real failure, just GC ordering.
+    import sys as _sys
+    _orig_hook = _sys.unraisablehook
+    def _quiet_hook(ur):
+        if _sys.is_finalizing():
+            return
+        _orig_hook(ur)
+    _sys.unraisablehook = _quiet_hook
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", required=True, help="Path to config_cv.yaml")
     parser.add_argument("--models", type=str, default="", help="Comma-separated model names to compare")
