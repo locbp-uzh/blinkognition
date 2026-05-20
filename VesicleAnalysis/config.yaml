@@ -11,8 +11,8 @@ output_folder_base: /Volumes/MediumBerth/DoroData/Results
 # Protein Selection
 # =============================================================================
 proteins:
-  - HTHTL
-  - K20Ac
+  - HaloD106
+  - scGrx1AcK20
 
 # =============================================================================
 # Channel Configuration

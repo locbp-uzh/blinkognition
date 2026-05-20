@@ -1,13 +1,13 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "protein_mirrored_grx1_k20ac_both"
+  run_name: "protein_mirrored_halod106_snapc148_both"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
+  traces_path: "../Inputs/FinalTraces/ProteinTracesIN/Filtered"
   dataset:
-    Grx1:
+    HaloD106:
       channels: ["minmax", "zscored"]
-    K20Ac:
+    SNAPC148:
       channels: ["minmax", "zscored"]
 
 

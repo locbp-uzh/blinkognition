@@ -7,7 +7,7 @@
 Classify background (noise) traces using a pre-trained TCN model.
 
 Loads the model saved in pretrained_model_dir, runs a deterministic forward
-pass and MC Dropout (100 passes) on background traces from both Grx1 and K20Ac.
+pass and MC Dropout (100 passes) on background traces from both HaloD106 and SNAPC148.
 Produces the same rich inference outputs as ML/train.py.
 
 Outputs (inside a timestamped run directory):

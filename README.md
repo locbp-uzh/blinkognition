@@ -32,9 +32,8 @@ python download_data.py --dataset movies
 python download_data.py --dataset all
 ```
 
-After downloading, update the `traces_path` (and background path) in
-`ML/config_train.yaml`, `ML/config_cv.yaml`, `Features/config.yaml`, and
-the Controls configs to point to `Inputs/FinalTraces/...`.
+All config files in `ML/`, `Features/`, and `Controls/` are pre-configured to read
+from `Inputs/FinalTraces/` so no path edits are needed after downloading.
 
 ## Environments
 
@@ -84,10 +83,32 @@ Compares model architectures and augmentation strategies using stratified K-fold
 ```bash
 cd ML
 python crossval.py -c configs_cv/config_cv_<name>.yaml
-# or: sbatch submit_cv.sh
 ```
 
 See `docs/crossval.md`.
+
+#### Reproducing the paper's CV experiments
+
+The paper compares three protein pairs across three channel normalizations and three trace types (protein mirrored, protein not-mirrored, background not-mirrored), giving 27 jobs in total. Pre-built configs are in `ML/configs_cv/`. On an HPC cluster with SLURM, submit all 27 jobs in three batches:
+
+```bash
+cd ML
+bash submit_cv_halod106_vs_snapc148.sh       # HaloD106 vs SNAPC148 (9 jobs)
+bash submit_cv_halod106_vs_halok117.sh       # HaloD106 vs HaloK117 (9 jobs)
+bash submit_cv_scgrx1_vs_scgrx1ack20.sh     # scGrx1 vs scGrx1AcK20 (9 jobs)
+```
+
+Each job runs on 3× A100/H100 80 GB GPUs and takes up to 24 hours. Results are written to `Results/CrossVal/<run_name>/`. To run a single config locally (e.g., for debugging):
+
+```bash
+cd ML
+python crossval.py -c configs_cv/config_cv_protein_mirrored_halod106_snapc148_minmax.yaml
+```
+
+Config naming convention: `config_cv_{trace_type}_{protein1}_{protein2}_{channel}.yaml`
+- `trace_type`: `protein_mirrored`, `protein_notmirrored`, `background_notmirrored`
+- `protein1/2`: `halod106`, `halok117`, `snapc148`, `scgrx1`, `scgrx1ack20`
+- `channel`: `minmax`, `zscored`, `both`
 
 ### Feature Extraction
 

@@ -1,13 +1,13 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "background_notmirrored_grx1_k20ac_zscored"
+  run_name: "background_notmirrored_halod106_halok117_zscored"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/BackgroundTraces/Filtered"
+  traces_path: "../Inputs/FinalTraces/BackgroundTraces/Filtered"
   dataset:
-    Grx1:
+    HaloD106:
       channels: ["zscored"]
-    K20Ac:
+    HaloK117:
       channels: ["zscored"]
 
 

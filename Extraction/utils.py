@@ -344,8 +344,8 @@ def discover_protein_folders(
 
     Expected structure:
         experiment_folder/
-        ├── Grx1/
-        ├── K20Ac/
+        ├── HaloD106/
+        ├── SNAPC148/
         └── ...
 
     Args:
@@ -492,11 +492,11 @@ def discover_all_data(
     Expected structure:
         input_folder/
         ├── Exp1/
-        │   ├── Grx1/
-        │   │   ├── Grx1_640nm_..._0001.nd2
-        │   │   ├── Grx1_488nm_..._0001.nd2  (optional, if has ground truth)
+        │   ├── HaloD106/
+        │   │   ├── HaloD106_640nm_..._0001.nd2
+        │   │   ├── HaloD106_488nm_..._0001.nd2  (optional, if has ground truth)
         │   │   └── ...
-        │   └── K20Ac/
+        │   └── SNAPC148/
         │       └── ...
         └── Exp2/
             └── ...

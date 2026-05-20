@@ -1,13 +1,13 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "protein_notmirrored_hthtl_snap_minmax"
+  run_name: "protein_notmirrored_halod106_snapc148_minmax"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
+  traces_path: "../Inputs/FinalTraces/ProteinTracesIN/Filtered"
   dataset:
-    HTHTL:
+    HaloD106:
       channels: ["minmax"]
-    snap:
+    SNAPC148:
       channels: ["minmax"]
 
 

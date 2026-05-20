@@ -1,13 +1,13 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "protein_mirrored_hthtl_snap_minmax"
+  run_name: "protein_mirrored_scgrx1_scgrx1ack20_minmax"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
+  traces_path: "../Inputs/FinalTraces/ProteinTracesIN/Filtered"
   dataset:
-    HTHTL:
+    scGrx1:
       channels: ["minmax"]
-    snap:
+    scGrx1AcK20:
       channels: ["minmax"]
 
 

@@ -173,7 +173,7 @@ def main() -> None:
         dest="run_folder",
         required=True,
         type=str,
-        help="Path to localization run folder (e.g., Results/Extract/Grx1_K20Ac_grad640-12000_grad488-4000_001)",
+        help="Path to localization run folder (e.g., Results/Extract/HaloD106_SNAPC148_grad640-12000_grad488-4000_001)",
     )
     args = parser.parse_args()
 

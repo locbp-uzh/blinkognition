@@ -94,7 +94,7 @@ def load_optimized_params(
     2. Protein-level params (from legacy per-protein optimization)
 
     Args:
-        protein_folder: Path to protein folder (e.g., /path/to/Exp1/Grx1).
+        protein_folder: Path to protein folder (e.g., /path/to/Exp1/HaloD106).
         has_ground_truth: Whether to load params for ground truth mode or no ground truth mode.
         experiment_folder: Path to experiment folder (e.g., /path/to/Exp1). If None, skips experiment-level check.
 
@@ -169,7 +169,7 @@ def generate_run_folder_name(proteins: list, cfg: dict, use_optimized: bool = Fa
     Format (with ground truth, config): {proteins}_gradP-{value}_gradGT-{value}_{number}
     Format (no ground truth, optimized): {proteins}_optparam_{number}
     Format (no ground truth, config): {proteins}_gradP-{value}_{number}
-    Example: Grx1_K20Ac_optparam_001 or Grx1_K20Ac_gradP-12000_gradGT-4000_001
+    Example: HaloD106_SNAPC148_optparam_001 or HaloD106_SNAPC148_gradP-12000_gradGT-4000_001
 
     Args:
         proteins: List of protein names.
@@ -374,7 +374,7 @@ def main() -> None:
         "--protein",
         type=str,
         default=None,
-        help="Process only this protein (e.g., 'Grx1'). If not specified, processes all proteins from config.",
+        help="Process only this protein (e.g., 'HaloD106'). If not specified, processes all proteins from config.",
     )
     args = parser.parse_args()
 

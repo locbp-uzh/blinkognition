@@ -3,11 +3,11 @@ io:
   run_name: "smoketest"
 
 data:
-  traces_path: "/Volumes/MediumBerth/SalomePaperData/FinalDataset/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
+  traces_path: "../Inputs/FinalTraces/ProteinTracesIN/Filtered"
   dataset:
-    HTHTL:
+    HaloD106:
       channels: ["minmax", "zscored"]
-    snap:
+    SNAPC148:
       channels: ["minmax", "zscored"]
 
 

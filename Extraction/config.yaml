@@ -50,11 +50,11 @@ input_folder: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT
 output_folder_base: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces
 
 proteins:
-  - HTHTL
-  - snap
-  - HTIA
-  - Grx1
-  - K20Ac
+  - HaloD106
+  - SNAPC148
+  - HaloK117
+  - scGrx1
+  - scGrx1AcK20
 
 
 # Channel specification

@@ -1,13 +1,13 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "background_notmirrored_hthtl_htia_zscored"
+  run_name: "protein_mirrored_halod106_snapc148_zscored"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/BackgroundTraces/Filtered"
+  traces_path: "../Inputs/FinalTraces/ProteinTracesIN/Filtered"
   dataset:
-    HTHTL:
+    HaloD106:
       channels: ["zscored"]
-    HTIA:
+    SNAPC148:
       channels: ["zscored"]
 
 
@@ -70,3 +70,4 @@ augmentation_sweep:
     time_warp_sigma: 0.5
     noise_sigma: 0.5
     magnitude_jitter: 0.5
+    include_mirror: true

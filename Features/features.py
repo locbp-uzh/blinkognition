@@ -327,10 +327,11 @@ def _save_csv(data_per_protein: dict, output_dir: Path, filename: str) -> None:
 
 
 PROTEIN_COLORS = {
-    'HTHTL': '#0072B2',  # blue
-    'HTIA':  '#E69F00',  # orange
-    'Grx1':  '#009E73',  # green
-    'snap':  '#CC79A7',  # pink/purple
+    'HaloD106':    '#0072B2',  # blue
+    'HaloK117':    '#E69F00',  # orange
+    'scGrx1':      '#009E73',  # green
+    'SNAPC148':    '#CC79A7',  # pink/purple
+    'scGrx1AcK20': '#D55E00',  # vermillion
 }
 
 

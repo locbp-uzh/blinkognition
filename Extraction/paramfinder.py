@@ -20,7 +20,7 @@ Standalone usage:
     python paramfinder.py -c config.yaml
 
     # Optimize specific protein/experiment only
-    python paramfinder.py -c config.yaml --protein Grx1 --experiment Exp1
+    python paramfinder.py -c config.yaml --protein HaloD106 --experiment Exp1
 
 Integrated usage (recommended):
     python run_pipeline.py -c config.yaml  # Runs all steps including paramfinder

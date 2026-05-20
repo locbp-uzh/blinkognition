@@ -1,14 +1,14 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "protein_mirrored_hthtl_snap_both"
+  run_name: "background_notmirrored_scgrx1_scgrx1ack20_zscored"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
+  traces_path: "../Inputs/FinalTraces/BackgroundTraces/Filtered"
   dataset:
-    HTHTL:
-      channels: ["minmax", "zscored"]
-    snap:
-      channels: ["minmax", "zscored"]
+    scGrx1:
+      channels: ["zscored"]
+    scGrx1AcK20:
+      channels: ["zscored"]
 
 
 trim_end: 2000
@@ -70,4 +70,3 @@ augmentation_sweep:
     time_warp_sigma: 0.5
     noise_sigma: 0.5
     magnitude_jitter: 0.5
-    include_mirror: true

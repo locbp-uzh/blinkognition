@@ -1,14 +1,14 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "protein_mirrored_grx1_k20ac_minmax"
+  run_name: "background_notmirrored_halod106_snapc148_both"
 
 data:
-  traces_path: "/shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
+  traces_path: "../Inputs/FinalTraces/BackgroundTraces/Filtered"
   dataset:
-    Grx1:
-      channels: ["minmax"]
-    K20Ac:
-      channels: ["minmax"]
+    HaloD106:
+      channels: ["minmax", "zscored"]
+    SNAPC148:
+      channels: ["minmax", "zscored"]
 
 
 trim_end: 2000
@@ -70,4 +70,3 @@ augmentation_sweep:
     time_warp_sigma: 0.5
     noise_sigma: 0.5
     magnitude_jitter: 0.5
-    include_mirror: true

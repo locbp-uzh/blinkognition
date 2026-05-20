@@ -1,6 +1,6 @@
-traces_path: "/Volumes/MediumBerth/SalomePaperData/FinalDataset/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
+traces_path: "../../../Inputs/FinalTraces/ProteinTracesIN/Filtered"
 
-proteins: ["HTHTL", "snap"]
+proteins: ["HaloD106", "SNAPC148"]
 channel: "minmax"
 
 output_root: "../../Results/Controls/RandomForest"
