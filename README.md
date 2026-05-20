@@ -18,23 +18,34 @@ blinkognition/
 
 ## Input Data
 
-The raw trace files and sample movies are archived on Zenodo (DOI: pending). Download
-them into `Inputs/` before running the pipeline:
+Two datasets are archived on Zenodo (DOI: pending). They serve different purposes
+and are independent of each other.
+
+### Filtered traces (for ML, Features, and Controls)
 
 ```bash
-# Filtered traces for ML, Features, and Controls (~5.2 GB)
 python download_data.py --dataset traces
-
-# Sample ND2 movies for re-running the Extraction pipeline (~5.3 GB)
-python download_data.py --dataset movies
-
-# Both datasets
-python download_data.py --dataset all
 ```
 
-`ML/`, `Controls/label_scrambling/`, and `Controls/random_forest/` configs are
-pre-configured to read from `Inputs/FinalTraces/` — no path edits needed.
-Two configs require a path after training:
+Downloads pre-processed, filtered traces (~5.2 GB) into `Inputs/FinalTraces/`. This
+is the dataset used to train the classifier, run cross-validation, and compute
+photophysical features. All `ML/`, `Controls/label_scrambling/`, and
+`Controls/random_forest/` configs read from here — no path edits needed after
+downloading.
+
+### Sample movies (for evaluating the Extraction pipeline)
+
+```bash
+python download_data.py --dataset movies
+```
+
+Downloads a representative set of raw ND2 movies (~5.3 GB) into `Inputs/SampleMovies/`.
+These are provided so reviewers can verify that the full Extraction pipeline runs
+end-to-end. The output goes to `Outputs/Extraction/` and is not used as input to ML —
+the sample movies cover only a subset of the data and do not produce enough traces for
+training. To reproduce the ML experiments, use the pre-processed traces above.
+
+Two configs require a path set after training:
 - `Features/config.yaml` — set `mcd_filter.npz_path` to the `.npz` file from your training run
 - `Controls/noise_classification/config_noise.yaml` — set `pretrained_model_dir` to your training run folder
 
