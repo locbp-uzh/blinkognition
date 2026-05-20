@@ -47,7 +47,7 @@ has_ground_truth: true
 # I/O and Data Organization
 # =============================================================================
 input_folder: ../Inputs/SampleMovies     # downloaded by: python download_data.py --dataset movies
-output_folder_base: ../Outputs/Extraction  # sample-movie output; not used for ML (download traces instead)
+output_folder_base: ../Results/Extraction  # sample-movie output; not used for ML (download traces instead)
 
 proteins:
   - HaloD106

@@ -40,7 +40,7 @@ python download_data.py --dataset movies
 
 Downloads a representative set of raw ND2 movies (~5.3 GB) into `Inputs/SampleMovies/`.
 These are provided so reviewers can verify that the full Extraction pipeline runs
-end-to-end. The output goes to `Outputs/Extraction/` and is not used as input to ML —
+end-to-end. The output goes to `Results/Extraction/` and is not used as input to ML —
 the sample movies cover only a subset of the data and do not produce enough traces for
 training. To reproduce the ML experiments, use the pre-processed traces above.
 
