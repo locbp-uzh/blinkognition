@@ -1,22 +1,25 @@
 io:
   output_root: "../Results/Train"
-  run_name: "smoketest"
+  run_name: "my_run"   # output goes to Results/Train/<run_name>/
 
 
 data:
+  # Path is relative to the ML/ directory where train.py is run.
   traces_path: "../Inputs/FinalTraces/ProteinTracesIN/Filtered"
+
   dataset:
+    # List the two proteins to classify. Keys must match PKL filename prefixes in traces_path.
+    # Available proteins: HaloD106, HaloK117, SNAPC148, scGrx1, scGrx1AcK20
     HaloD106:
-      channels: ["minmax", "zscored"]
+      channels: ["minmax", "zscored"]   # "minmax", "zscored", or both
     SNAPC148:
       channels: ["minmax", "zscored"]
 
-
   trim_end: 2000
-  max_traces_per_class: 2000
+  max_traces_per_class: 10000  # Cap per protein (paper: 10000; set lower for quick tests)
   balance_train: true
-  balance_val: true   # Balance val set by subsampling majority classes (prevents biased early stopping)
-  balance_test: true  # Balance test set by subsampling majority classes
+  balance_val: true
+  balance_test: true
 
   # Data augmentation (applied ONLY to training set to prevent data leakage)
   # Helps improve model generalization and performance, especially with limited data

@@ -25,15 +25,18 @@ them into `Inputs/` before running the pipeline:
 # Filtered traces for ML, Features, and Controls (~5.2 GB)
 python download_data.py --dataset traces
 
-# Sample ND2 movies for re-running the Extraction pipeline
+# Sample ND2 movies for re-running the Extraction pipeline (~5.3 GB)
 python download_data.py --dataset movies
 
 # Both datasets
 python download_data.py --dataset all
 ```
 
-All config files in `ML/`, `Features/`, and `Controls/` are pre-configured to read
-from `Inputs/FinalTraces/` so no path edits are needed after downloading.
+`ML/`, `Controls/label_scrambling/`, and `Controls/random_forest/` configs are
+pre-configured to read from `Inputs/FinalTraces/` — no path edits needed.
+Two configs require a path after training:
+- `Features/config.yaml` — set `mcd_filter.npz_path` to the `.npz` file from your training run
+- `Controls/noise_classification/config_noise.yaml` — set `pretrained_model_dir` to your training run folder
 
 ## Environments
 

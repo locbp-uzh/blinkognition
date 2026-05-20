@@ -1,7 +1,9 @@
+# Path is relative to Controls/random_forest/ where rf_pipeline.py is run.
 traces_path: "../../../Inputs/FinalTraces/ProteinTracesIN/Filtered"
 
+# Available proteins: HaloD106, HaloK117, SNAPC148, scGrx1, scGrx1AcK20
 proteins: ["HaloD106", "SNAPC148"]
-channel: "minmax"
+channel: "minmax"   # "minmax" or "zscored"
 
 output_root: "../../Results/Controls/RandomForest"
 

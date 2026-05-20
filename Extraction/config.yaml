@@ -46,8 +46,8 @@ has_ground_truth: true
 # =============================================================================
 # I/O and Data Organization
 # =============================================================================
-input_folder: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT
-output_folder_base: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces
+input_folder: /path/to/raw/movies          # root folder containing per-experiment subdirectories
+output_folder_base: /path/to/raw/movies/FinalTraces  # where filtered traces are written
 
 proteins:
   - HaloD106

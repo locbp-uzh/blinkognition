@@ -3,24 +3,27 @@ io:
   run_name: "label_scrambled"
 
 data:
+  # Path is relative to Controls/label_scrambling/ where scramble_train.py is run.
   traces_path: "../../../Inputs/FinalTraces/ProteinTracesIN/Filtered"
+
   dataset:
+    # Available proteins: HaloD106, HaloK117, SNAPC148, scGrx1, scGrx1AcK20
     HaloD106:
       channels: ["minmax", "zscored"]
     SNAPC148:
       channels: ["minmax", "zscored"]
   trim_end: 2000
-  max_traces_per_class: 2000
+  max_traces_per_class: 10000  # Cap per protein (paper: 10000; set lower for quick tests)
   balance_train: true
   balance_val: true
   balance_test: true
   augmentation:
-    enabled: false
+    enabled: false   # Augmentation is intentionally off for this control
     aug_factor: 0
     include_mirror: false
 
 model:
-  name: "resnet1d"
+  name: "resnet1d"   # one of: orig_conv_gru, resnet1d, tcn
 
 optimization:
   batch_size: 64

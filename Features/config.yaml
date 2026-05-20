@@ -1,13 +1,13 @@
-# Features/config.yaml
 # Configuration for Features/features.py
-#
-# Results are saved to: blinkognition/Results/Features/{proteins}_mcd_{timestamp}/
+# Results are saved to Results/Features/{proteins}_mcd_{timestamp}/
 
 # =============================================================================
 # MCD certainty filter
 # =============================================================================
+# Path to the traces_with_wasserstein.npz file produced by a training run.
+# Found at: Results/Train/<run_name>/MCD_results/traces_with_wasserstein.npz
 mcd_filter:
-  npz_path: /path/to/MCD_results/traces_with_wasserstein.npz
+  npz_path: "/path/to/Results/Train/<run_name>/MCD_results/traces_with_wasserstein.npz"
   wasserstein_min: 0.7    # keep traces with WD >= this value; range ~0–1
                           # 0.7 → ~54% of traces, balanced certainty
                           # 0.9 → ~40% of traces, highest certainty
@@ -30,4 +30,4 @@ frame_interval_ms: 30.0      # camera frame interval in milliseconds
 # =============================================================================
 # Reproducibility
 # =============================================================================
-seed: 42
+seed: 840410

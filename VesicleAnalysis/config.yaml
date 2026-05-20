@@ -4,8 +4,8 @@
 # =============================================================================
 # I/O Configuration
 # =============================================================================
-input_folder: /Volumes/MediumBerth/DoroData/
-output_folder_base: /Volumes/MediumBerth/DoroData/Results
+input_folder: /path/to/vesicle/data       # root folder containing per-experiment ND2 files
+output_folder_base: /path/to/vesicle/data/Results
 
 # =============================================================================
 # Protein Selection
