@@ -82,33 +82,58 @@ Compares model architectures and augmentation strategies using stratified K-fold
 
 ```bash
 cd ML
-python crossval.py -c configs_cv/config_cv_<name>.yaml
+python crossval.py -c config_cv.yaml
 ```
 
-See `docs/crossval.md`.
+Edit `ML/config_cv.yaml` to choose proteins, channels, models, and augmentation settings. The file is annotated with the exact values used in the paper. See `docs/crossval.md` for all options.
 
 #### Reproducing the paper's CV experiments
 
-The paper compares three protein pairs across three channel normalizations and three trace types (protein mirrored, protein not-mirrored, background not-mirrored), giving 27 jobs in total. Pre-built configs are in `ML/configs_cv/`. On an HPC cluster with SLURM, submit all 27 jobs in three batches:
+The paper compared three protein pairs across two normalizations (minmax, zscored) and three trace variants (protein with mirroring, protein without mirroring, background traces), using all three model architectures and an augmentation factor sweep — 27 combinations in total. To reproduce any one of them, edit `config_cv.yaml` with the settings below and run `python crossval.py -c config_cv.yaml`.
+
+Key settings for all paper runs:
+
+```yaml
+compare:
+  models: ["orig_conv_gru", "resnet1d", "tcn"]
+
+cv:
+  n_splits: 4
+
+augmentation_sweep:
+  enabled: true
+  factors: [0, 3, 5]
+  augmentation_params:
+    time_warp_sigma: 0.5
+    noise_sigma: 0.5
+    magnitude_jitter: 0.5
+    include_mirror: true  # set false for the not-mirrored variant
+
+system:
+  n_gpus: 3  # each run used 3× A100/H100 80 GB on SLURM
+```
+
+Per-comparison settings:
+
+| Protein pair | `dataset` keys | `traces_path` | `channels` |
+|---|---|---|---|
+| HaloD106 vs SNAPC148 | `HaloD106`, `SNAPC148` | `ProteinTracesIN/Filtered` | `["minmax", "zscored"]` |
+| HaloD106 vs HaloK117 | `HaloD106`, `HaloK117` | `ProteinTracesIN/Filtered` | `["minmax", "zscored"]` |
+| scGrx1 vs scGrx1AcK20 | `scGrx1`, `scGrx1AcK20` | `ProteinTracesIN/Filtered` | `["minmax", "zscored"]` |
+| Background (noise control) | same pairs | `BackgroundTraces/Filtered` | `["minmax", "zscored"]` |
+
+On SLURM, submit each run as a batch job:
 
 ```bash
 cd ML
-bash submit_cv_halod106_vs_snapc148.sh       # HaloD106 vs SNAPC148 (9 jobs)
-bash submit_cv_halod106_vs_halok117.sh       # HaloD106 vs HaloK117 (9 jobs)
-bash submit_cv_scgrx1_vs_scgrx1ack20.sh     # scGrx1 vs scGrx1AcK20 (9 jobs)
+sbatch --job-name=cv_halod106_snapc148 \
+  --account=<account> --partition=standard \
+  --gres=gpu:3 --constraint=GPUMEM80GB \
+  --cpus-per-task=12 --mem=192G --time=23:59:00 \
+  --wrap="module load miniforge3 && conda activate blink2-cuda && python crossval.py -c config_cv.yaml"
 ```
 
-Each job runs on 3× A100/H100 80 GB GPUs and takes up to 24 hours. Results are written to `Results/CrossVal/<run_name>/`. To run a single config locally (e.g., for debugging):
-
-```bash
-cd ML
-python crossval.py -c configs_cv/config_cv_protein_mirrored_halod106_snapc148_minmax.yaml
-```
-
-Config naming convention: `config_cv_{trace_type}_{protein1}_{protein2}_{channel}.yaml`
-- `trace_type`: `protein_mirrored`, `protein_notmirrored`, `background_notmirrored`
-- `protein1/2`: `halod106`, `halok117`, `snapc148`, `scgrx1`, `scgrx1ack20`
-- `channel`: `minmax`, `zscored`, `both`
+Results are written to `Results/CrossVal/<run_name>/`.
 
 ### Feature Extraction
 

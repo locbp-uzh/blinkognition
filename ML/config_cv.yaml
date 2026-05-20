@@ -1,29 +1,35 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "smoketest"
+  run_name: "my_cv_run"          # output goes to Results/CrossVal/<run_name>/
 
 data:
+  # Paths are relative to the ML/ directory where crossval.py is run.
+  # ProteinTracesIN for protein-vs-protein comparisons; BackgroundTraces for noise controls.
   traces_path: "../Inputs/FinalTraces/ProteinTracesIN/Filtered"
+
   dataset:
+    # List the two proteins to compare. Keys must match PKL filename prefixes in traces_path.
+    # Available proteins: HaloD106, HaloK117, SNAPC148, scGrx1, scGrx1AcK20
     HaloD106:
-      channels: ["minmax", "zscored"]
+      channels: ["minmax", "zscored"]   # "minmax", "zscored", or both
     SNAPC148:
       channels: ["minmax", "zscored"]
 
-
-trim_end: 2000
-max_traces_per_class: 2000
-balance_train: true
-balance_val: true
-balance_test: true
+  trim_end: 2000               # Truncate each trace to this many frames from the end
+  max_traces_per_class: 10000  # Cap per protein per fold (paper: 10000; set lower for quick tests)
+  balance_train: true
+  balance_val: true
+  balance_test: true
 
 
 compare:
+  # Models to compare in each CV fold. All three were used in the paper.
+  # "orig_conv_gru", "resnet1d", "tcn"
   models: ["resnet1d"]
 
 
 cv:
-  n_splits: 2
+  n_splits: 4     # Number of stratified K-folds (paper: 4)
   shuffle: true
   seed: 840410
 
@@ -33,25 +39,18 @@ optimization:
   lr: 0.0004
   weight_decay: 0.0004
   max_epochs: 500
-  patience_limit: 5
+  patience_limit: 10   # Early-stopping patience in epochs (paper: 10; set to 5 for quick tests)
   label_smoothing: 0.001
 
-  # Early stopping configuration
   early_stopping:
-    auc_min_delta: 0.005    # Minimum AUC improvement required (0.5%)
-    loss_mode: "relative"   # "relative", "absolute", or "none"
-    loss_tolerance: 1.10    # For relative: loss <= best_loss * 1.10 (max 10% higher)
-    # Alternative checkpoint:
-    auc_tolerance: 0.003  # Max AUC drop from best to allow alternative checkpoint
-    loss_min_delta: 0.005  # Min loss improvement required for alternative checkpoint
+    auc_min_delta: 0.005
+    loss_mode: "relative"
+    loss_tolerance: 1.10
+    auc_tolerance: 0.003
+    loss_min_delta: 0.005
 
-  # Threshold selection method for binary classification
-  # - "argmax": Use standard argmax (no threshold optimization) - RECOMMENDED for balanced datasets
-  # - "mcc": Optimize Matthews Correlation Coefficient
-  # - "balanced_accuracy": Optimize balanced accuracy across classes
-  # - "f1": Optimize F1 score
-  # - "youden": Optimize Youden's J statistic (sensitivity + specificity - 1)
-  # - "min_recall": Maximize minimum recall across both classes
+  # Threshold for binary classification.
+  # "argmax" (recommended for balanced datasets) or "mcc", "f1", "youden", "balanced_accuracy"
   threshold_metric: "argmax"
 
 
@@ -59,24 +58,24 @@ uncertainty:
   mc_dropout:
     enabled: true
     n_mc: 100
-    trace_loss: 50.0              # Maximum trace loss % for auto threshold selection
-    # wasserstein_threshold: 0.1  # Optional: fixed Wasserstein threshold (overrides trace_loss)
+    trace_loss: 50.0              # Max trace loss % for auto Wasserstein threshold selection
+    # wasserstein_threshold: 0.7  # Optional: fix threshold instead of auto-selecting
 
 
 system:
   compile: false
   num_workers: 4
   seed: 840410
-  n_gpus: 1  # Number of GPUs for parallel augmentation sweep
+  n_gpus: 1   # GPUs for the augmentation sweep (paper: 3 × A100 80 GB on SLURM)
 
 
-# Augmentation sweep: compare models across different augmentation levels
-# Enable via config or CLI: --aug-factors 0,2,3,5 --n-gpus 4
+# Augmentation sweep: trains each model at multiple augmentation strengths in parallel.
+# The paper used factors [0, 3, 5] with mirroring enabled.
 augmentation_sweep:
-  enabled: false
-  factors: [0]
+  enabled: false   # Set to true to reproduce the paper's sweep
+  factors: [0, 3, 5]
   augmentation_params:
-    time_warp_sigma: 0.05
-    noise_sigma: 0.05
-    magnitude_jitter: 0.05
-    include_mirror: false
+    time_warp_sigma: 0.5
+    noise_sigma: 0.5
+    magnitude_jitter: 0.5
+    include_mirror: true   # Also trains on time-reversed traces
