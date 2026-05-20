@@ -9,7 +9,6 @@ blinkognition/
 ├── Extraction/         Trace extraction pipeline (ND2 → ML-ready traces)
 ├── Features/           Photophysical feature extraction from classified traces
 ├── ML/                 Model training and cross-validation
-├── VesicleAnalysis/    Vesicle characterization (DLS, FCS, cargo exchange, occupancy)
 ├── Controls/           Validation experiments for the trained classifier
 ├── assets/colormaps/   Crameri colormaps (used by ML/utils.py and VesicleAnalysis)
 ├── docs/               Per-module documentation
@@ -58,12 +57,12 @@ conda env create -f blink2cuda.yaml
 # Apple Silicon
 conda env create -f blink2mac.yaml
 
-# VesicleAnalysis and trace Extraction requires a separate Picasso environment
+# Trace Extraction requires a separate Picasso environment
 conda env create -f picasso-env.yaml
 ```
 
 `blink2cuda` and `blink2mac` cover ML, Features, and Controls.
-`picasso-env` is required for VesicleAnalysis and Extraction.
+`picasso-env` is required for Extraction.
 
 ## Modules
 
@@ -159,21 +158,6 @@ python features.py -c config.yaml
 ```
 
 See `docs/features.md`.
-
-### Vesicle Analysis
-
-Standalone scripts for vesicle characterization experiments. Each script reads a YAML config and writes structured output.
-
-```bash
-cd VesicleAnalysis
-conda activate picasso-env
-python cargo_exchange.py -c config.yaml
-python occupation.py -c config.yaml
-python dls_analysis.py -c config.yaml
-python fcs_analysis.py -c config.yaml
-```
-
-See `docs/analysis_scripts.md`.
 
 ### Control Experiments
 
