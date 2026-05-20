@@ -46,8 +46,8 @@ has_ground_truth: true
 # =============================================================================
 # I/O and Data Organization
 # =============================================================================
-input_folder: /path/to/raw/movies          # root folder containing per-experiment subdirectories
-output_folder_base: /path/to/raw/movies/FinalTraces  # where filtered traces are written
+input_folder: ../Inputs/SampleMovies        # downloaded by: python download_data.py --dataset movies
+output_folder_base: ../Inputs/FinalTraces   # re-extracted traces land here, feeding the ML pipeline
 
 proteins:
   - HaloD106
