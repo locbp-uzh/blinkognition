@@ -1,8 +1,8 @@
-pretrained_model_dir: "/Users/privera/Desktop/Puentener2026_ML/2026-04-14_17-26-33_tcn_noaug_both_mirrored_training_Grx1_K20Ac"
+pretrained_model_dir: "/Volumes/MediumBerth/Agent/repos/Hub/blinkognition/Results/Train/2026-05-19_18-00-47_smoketest_training_HTHTL_snap"
 
-background_traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/BackgroundTraces/Filtered"
+background_traces_path: "/Volumes/MediumBerth/SalomePaperData/FinalDataset/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/BackgroundTraces/Filtered"
 
-proteins: ["Grx1", "K20Ac"]
+proteins: ["HTHTL", "snap"]
 channels: ["minmax", "zscored"]
 
 output_root: "../../Results/Controls/NoiseClassification"

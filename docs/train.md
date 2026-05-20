@@ -1,6 +1,6 @@
 # Training Models (train.py)
 
-Train classification models on labeled protein trace data with uncertainty quantification and embedding visualization.
+Train classification models on labeled protein trace data with uncertainty quantification.
 
 ## Overview
 
@@ -16,7 +16,6 @@ python train.py -c config_train.yaml
 ## Features
 
 - Monte Carlo dropout uncertainty quantification
-- UMAP embedding visualization
 - Cross-platform acceleration (CUDA/MPS/CPU)
 - Mixed precision training (FP16/BF16/FP32)
 - Early stopping with patience
@@ -37,9 +36,9 @@ io:
 data:
   traces_path: "../Data/traces"
   dataset:
-    HTNHS:
+    ProteinA:
       channels: ["minmax", "zscored"]
-    blank:
+    ProteinB:
       channels: ["minmax", "zscored"]
   trim_end: 0
   max_traces_per_class: 200000
@@ -105,9 +104,9 @@ dataset:
 
 The system discovers files matching:
 - Pattern: `{PROTEIN_NAME}*{channel}*.pkl`
-- Example: For `HTNHS` with channels `["minmax", "zscored"]`, it finds:
-  - `HTNHS_minmax.pkl` (channel 0)
-  - `HTNHS_zscored.pkl` (channel 1)
+- Example: For `ProteinA` with channels `["minmax", "zscored"]`, it finds:
+  - `ProteinA_minmax.pkl` (channel 0)
+  - `ProteinA_zscored.pkl` (channel 1)
 
 ### Model Section
 
@@ -241,8 +240,6 @@ Results/YYYY-MM-DD_HH-MM-SS_<run_name>_training_<dataset>/
 ├── confusion_matrix.png                # Test set confusion matrix (argmax or optimal threshold)
 ├── confusion_matrix_argmax.png         # Test set confusion matrix (only if threshold optimization used)
 ├── test_metrics.json                   # Comprehensive test metrics
-├── umap_embeddings.pdf                 # UMAP visualization of embeddings
-├── umap_embeddings_data.csv            # UMAP coordinates and labels
 ├── config_full.json                    # Complete configuration snapshot
 ├── config_summary.json                 # Run summary (device, amp_dtype, num_classes, etc.)
 ├── <run_name>_training_<dataset>.log   # Training log
@@ -336,13 +333,7 @@ Reports comprehensive metrics:
 - **Multiclass**: Accuracy (argmax vs optimal), balanced accuracy, AUC-ROC, macro F1
 - Generates confusion matrices based on threshold_metric setting
 
-### 7. Embedding Visualization
-
-```
-Extract embeddings from test set → Apply UMAP → Plot colored by class
-```
-
-### 8. Monte Carlo Dropout
+### 7. Monte Carlo Dropout
 
 If `mc_dropout.enabled: true`:
 ```
@@ -492,8 +483,7 @@ Currently not supported. Workaround:
 3. Set random seed for reproducibility
 4. Use descriptive `run_name` for easy identification
 5. Monitor training logs for convergence issues
-6. Use UMAP plots to verify embedding quality
-7. Check confusion matrix for systematic errors
+6. Check confusion matrix for systematic errors
 
 ## See Also
 

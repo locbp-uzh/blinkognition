@@ -42,8 +42,6 @@ from utils import (
     estimate_batch_size,
     mc_dropout_predict,
     evaluate_uncertainty_filtered,
-    extract_embeddings,
-    plot_umap_embeddings,
     detect_accelerator,
     setup_precision_and_flags,
     dataloader_kwargs_for,
@@ -139,7 +137,6 @@ def main():
     checkpoint_path = os.path.join(run_dir, "checkpoint.pth")
     loss_plot_dir   = os.path.join(run_dir, "loss_curve")
     conf_matrix_dir = os.path.join(run_dir, "confusion_matrix")
-    umap_dir        = os.path.join(run_dir, "umap_embeddings")
 
     trim_end             = int(data_cfg.get("trim_end", cfg.get("trim_end", 0))) or None
     max_traces_per_class = int(data_cfg.get("max_traces_per_class", cfg.get("max_traces_per_class", 0))) or None
@@ -183,7 +180,7 @@ def main():
 
     print("\nSplitting into train/val/test...")
     if use_augmentation:
-        train_loader, val_loader, test_loader, _ytrain = create_dataloaders_with_augmentation(
+        train_loader, val_loader, test_loader, _ytrain, _uid_test = create_dataloaders_with_augmentation(
             X, y,
             batch_size=batch_size,
             balance_train=balance_train,
@@ -199,7 +196,7 @@ def main():
             **loader_kwargs,
         )
     else:
-        train_loader, val_loader, test_loader, _ytrain = create_dataloaders(
+        train_loader, val_loader, test_loader, _ytrain, _uid_test = create_dataloaders(
             X, y,
             batch_size=batch_size,
             balance_train=balance_train,
@@ -312,20 +309,6 @@ def main():
                 metrics_json[k] = v
         json.dump(metrics_json, f, indent=2)
 
-    print("Generating UMAP...")
-    test_embeddings, test_labels = extract_embeddings(model, test_loader, device=device, autocast_ctx=autocast_ctx)
-    import umap
-    umap_reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, metric='euclidean', random_state=seed_val)
-    test_umap_coords = umap_reducer.fit_transform(test_embeddings)
-    plot_umap_embeddings(
-        embeddings=test_embeddings,
-        labels=test_labels,
-        class_names=dataset_keys,
-        save_path=umap_dir,
-        umap_coords=test_umap_coords,
-        random_state=seed_val,
-    )
-
     mcd_cfg = uncert_cfg.get("mc_dropout", {"enabled": True, "n_mc": 100, "trace_loss": 50.0})
     if mcd_cfg.get("enabled", True):
         bs_hint = batch_size_hint(batch_size, accel)
@@ -368,11 +351,8 @@ def main():
             trace_loss=float(mcd_cfg.get("trace_loss", 50.0)),
             verbose=verbose,
             optimal_threshold=optimal_threshold,
-            embeddings=test_embeddings,
-            umap_coords=test_umap_coords,
             traces=X_test,
             unique_ids=unique_ids_test,
-            random_state=seed_val,
         )
 
         mcd_out = {}

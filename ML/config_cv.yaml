@@ -1,26 +1,25 @@
 io:
   output_root: "../Results/CrossVal"
-  run_name: "crossval_resnet_run_test"
+  run_name: "smoketest"
 
 data:
-  #traces_path: "../Data/traces/"
-  traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/BackgroundTraces/Filtered"
+  traces_path: "/Volumes/MediumBerth/SalomePaperData/FinalDataset/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
   dataset:
     HTHTL:
-      channels: ["minmax"]
-    Grx1:
-      channels: ["minmax"]
+      channels: ["minmax", "zscored"]
+    snap:
+      channels: ["minmax", "zscored"]
 
 
-trim_end: 3000
-max_traces_per_class: 1000
+trim_end: 2000
+max_traces_per_class: 2000
 balance_train: true
-balance_val: true   # Balance validation fold by subsampling majority classes (prevents biased early stopping)
-balance_test: true  # Set true to balance validation fold by subsampling majority classes
+balance_val: true
+balance_test: true
 
 
 compare:
-  models: ["resnet1d", "tcn"]
+  models: ["resnet1d"]
 
 
 cv:
@@ -74,8 +73,8 @@ system:
 # Augmentation sweep: compare models across different augmentation levels
 # Enable via config or CLI: --aug-factors 0,2,3,5 --n-gpus 4
 augmentation_sweep:
-  enabled: true
-  factors: [0, 3]  # 0 = no augmentation (baseline)
+  enabled: false
+  factors: [0]
   augmentation_params:
     time_warp_sigma: 0.05
     noise_sigma: 0.05

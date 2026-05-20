@@ -13,10 +13,6 @@ dependencies:
   - scikit-learn
   - scipy
   - matplotlib
-  - matplotlib-venn
   - torchmetrics
   - pyyaml
-  - optuna
-  - umap-learn
-  - hdbscan
 

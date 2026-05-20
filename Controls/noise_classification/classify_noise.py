@@ -14,9 +14,8 @@ Outputs (inside a timestamped run directory):
   - predicted_class_distribution.pdf   — mean predicted probability per background protein
   - confusion_matrix/                  — standard confusion matrix from evaluate_model
   - test_metrics.json                  — full per-class metrics from evaluate_model
-  - umap_embeddings/                   — UMAP of background trace embeddings
   - MCD_results/                       — full evaluate_uncertainty_filtered outputs
-      wasserstein_histogram.pdf, wd_sweep.pdf, UMAP coloured by WD, traces_with_wasserstein.npz
+      wasserstein_histogram.pdf, wd_sweep.pdf, traces_with_wasserstein.npz
   - mc_dropout_metrics.json
   - config_full.json                   — this run's config
   - config_summary.json
@@ -53,8 +52,6 @@ from utils import (
     mc_dropout_predict,
     evaluate_model,
     evaluate_uncertainty_filtered,
-    extract_embeddings,
-    plot_umap_embeddings,
     detect_accelerator,
     setup_precision_and_flags,
     dataloader_kwargs_for,
@@ -179,8 +176,7 @@ def main():
     run_dir = os.path.join(output_root, f"{ts}_noise_classification")
     mcd_dir = os.path.join(run_dir, "MCD_results")
     conf_matrix_dir = os.path.join(run_dir, "confusion_matrix")
-    umap_dir        = os.path.join(run_dir, "umap_embeddings")
-    for d in (run_dir, mcd_dir, conf_matrix_dir, umap_dir):
+    for d in (run_dir, mcd_dir, conf_matrix_dir):
         os.makedirs(d, exist_ok=True)
 
     log_path = os.path.join(run_dir, f"noise_classification_{_slug('_'.join(proteins))}.log")
@@ -279,23 +275,6 @@ def main():
         json.dump(metrics_json, f, indent=2)
     print(f"Test metrics saved.")
 
-    # UMAP of background trace embeddings
-    print(f"\nExtracting embeddings for UMAP...")
-    embeddings, emb_labels = extract_embeddings(model, bg_loader, device=device, autocast_ctx=autocast_ctx)
-    import umap as umap_lib
-    print("Computing UMAP coordinates...")
-    umap_reducer = umap_lib.UMAP(n_neighbors=15, min_dist=0.1, metric='euclidean', random_state=seed)
-    umap_coords  = umap_reducer.fit_transform(embeddings)
-    plot_umap_embeddings(
-        embeddings=embeddings,
-        labels=emb_labels,
-        class_names=class_names,
-        save_path=umap_dir,
-        umap_coords=umap_coords,
-        random_state=seed,
-    )
-    print("UMAP saved.")
-
     # MC Dropout
     print(f"\nRunning MC Dropout ({n_mc} passes)...")
     bs_hint = batch_size_hint(batch_size, accel)
@@ -331,11 +310,8 @@ def main():
         trace_loss=trace_loss,
         verbose=verbose,
         optimal_threshold=optimal_threshold,
-        embeddings=embeddings,
-        umap_coords=umap_coords,
         traces=X_t,
         unique_ids=unique_ids_bg,
-        random_state=seed,
     )
 
     mcd_out = {}

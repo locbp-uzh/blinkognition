@@ -1287,7 +1287,10 @@ def evaluate_model(model, test_loader, device, label_names=None, save_path=None,
     # AUC metrics
     try:
         if len(np.unique(y_true)) > 1:
-            auc_roc = roc_auc_score(y_true, y_probs, multi_class="ovr")
+            if num_classes == 2:
+                auc_roc = roc_auc_score(y_true, y_probs[:, 1])
+            else:
+                auc_roc = roc_auc_score(y_true, y_probs, multi_class="ovr")
         else:
             auc_roc = np.nan
     except ValueError:

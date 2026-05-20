@@ -1,9 +1,9 @@
 CLAUDE.md
+.claude/
 .DS_Store
 ._*
 **/._*
 Inputs/
 Results/
-assets/
 **/__pycache__/
 slurm*

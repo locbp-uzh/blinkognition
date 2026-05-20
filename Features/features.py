@@ -7,25 +7,14 @@ from __future__ import annotations
 """
 Extract and plot blink feature distributions from protein traces.
 
-Two analysis modes are supported (set via `analysis_mode` in the YAML config):
-
-  per_experiment (default)
-    All traces from the NPZ are used without any Wasserstein filter.
-    Each experiment (date-prefixed acquisition folder) gets its own output
-    folder with a separate 2×3 violin figure and CSVs.  Requires `uid_dir`
-    pointing to the UniqueIDs PKL folder so traces can be mapped to their
-    source experiment.  Optionally restrict to a subset via `experiments:`.
-
-  pooled
-    Traces are filtered by Wasserstein distance (mcd_filter.wasserstein_min)
-    and all passing traces are analysed together in one figure.
+Traces are filtered by Wasserstein distance (mcd_filter.wasserstein_min) and
+all passing traces are analysed together in one output folder.
 
 NPZ layout expected:
     traces               (N, 2, T)  channel 0 = minmax, channel 1 = zscored
     labels               (N,)       integer class indices
     wasserstein_distances (N,)      MCD certainty score per trace (0–1)
     class_names          (C,)       protein name strings
-    unique_ids           (N,)       integer per-protein trace indices
 
 GMM peak detection uses:
     channel 0 (minmax) as input to gmm_classify_frames
@@ -38,21 +27,15 @@ Three per-trace features are computed in a 1×3 panel:
   C) Duty cycle     — fraction of active window in the "on" state
 
 Usage:
-    # pooled (WD-filtered, used in the paper):
     python features.py -c config.yaml
 
-    # per-experiment (one output per acquisition date):
-    python features.py -c config.yaml   # with analysis_mode: per_experiment
-
-Output (in output_path/):
-  per_experiment mode → {proteins}_exp_{timestamp}/{exp_name}/features/
-  pooled mode        → {proteins}_mcd_{timestamp}/features/  +  sample_traces/
+Output:
+    {proteins}_mcd_{timestamp}/features/  +  sample_traces/
 """
 
 import sys
 import argparse
 import logging
-import pickle
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -184,7 +167,7 @@ def process_protein(
     traces = []
     for i in range(len(traces_array)):
         minmax_vals  = traces_array[i, 0, :]
-        zscored_vals = traces_array[i, 1, :]
+        zscored_vals = traces_array[i, 1 if traces_array.shape[1] > 1 else 0, :]
         dur, inten, dc, off = _trace_features(
             minmax_vals, zscored_vals, gmm_proba, min_peak_width, frame_interval_ms,
         )
@@ -418,7 +401,7 @@ def _plot_example_traces(
 
             frames      = np.arange(t_start, t_end)
             minmax_win  = arr[i, 0, t_start:t_end]
-            zscored_win = arr[i, 1, t_start:t_end]
+            zscored_win = arr[i, 1 if arr.shape[1] > 1 else 0, t_start:t_end]
 
             # 4. Recompute GMM on the window for shading
             _, _, sm_win = gmm_classify_frames(minmax_win, gmm_proba, 0.0)
@@ -467,47 +450,6 @@ def _plot_example_traces(
 
     pd.DataFrame(records).to_csv(output_dir / 'data_traces.csv', index=False)
     logging.info("Saved data_traces.csv")
-
-
-def _map_traces_to_experiments(
-    ids: np.ndarray,
-    labels: np.ndarray,
-    class_names: list,
-    uid_dir: Path,
-) -> list[str]:
-    """
-    Map each NPZ trace to its source experiment folder name.
-
-    Loads {protein}_uniqueID_all.pkl for each protein class, reads the
-    'origin' column (file path), and extracts the date-prefixed experiment
-    folder (e.g. '20231130_SP_Exp1').  The lookup key is (protein, uniqueID)
-    because IDs are assigned independently per protein class.
-
-    Returns a list of experiment names, one per trace, in NPZ order.
-    Traces whose (protein, uniqueID) pair is not found receive 'UNKNOWN'.
-    """
-    def _exp_from_origin(origin: str) -> str:
-        for part in str(origin).replace('\\', '/').split('/'):
-            if len(part) >= 8 and part[:8].isdigit():
-                return part
-        return 'UNKNOWN'
-
-    uid_to_exp: dict[tuple, str] = {}
-    for cls_idx, prot in enumerate(class_names):
-        pkl_path = uid_dir / f"{prot}_uniqueID_all.pkl"
-        if not pkl_path.exists():
-            logging.warning("UniqueID PKL not found: %s", pkl_path)
-            continue
-        with open(pkl_path, 'rb') as fh:
-            df = pickle.load(fh)
-        for _, row in df.iterrows():
-            uid_to_exp[(prot, int(row['uniqueID']))] = _exp_from_origin(row['origin'])
-        logging.info("Loaded %s (%d entries)", pkl_path.name, len(df))
-
-    return [
-        uid_to_exp.get((class_names[labels[i]], int(ids[i])), 'UNKNOWN')
-        for i in range(len(ids))
-    ]
 
 
 def _run_feature_analysis(
@@ -599,7 +541,6 @@ def main() -> None:
     gmm_proba         = float(cfg.get("gmm_proba_threshold", 0.8))
     min_peak_width    = int(cfg.get("min_peak_width", 1))
     seed              = int(cfg.get("seed", 42))
-    analysis_mode     = cfg.get("analysis_mode", "per_experiment")
 
     rng = np.random.default_rng(seed)
 
@@ -608,7 +549,7 @@ def main() -> None:
     wd_min   = float(mcd_cfg.get("wasserstein_min", 0.7))
 
     logging.info("NPZ            : %s", npz_path)
-    logging.info("Analysis mode  : %s", analysis_mode)
+    logging.info("WD threshold   : %.2f", wd_min)
     logging.info("GMM proba      : %.2f", gmm_proba)
     logging.info("Min peak width : %d frames", min_peak_width)
     logging.info("Frame interval : %.1f ms", frame_interval_ms)
@@ -618,86 +559,35 @@ def main() -> None:
     all_traces  = data['traces']
     labels      = data['labels']
     wd          = data['wasserstein_distances']
-    ids         = data['unique_ids'] if 'unique_ids' in data else None
     class_names = [str(c) for c in data['class_names']]
     proteins    = class_names
     timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # ── Per-experiment mode ─────────────────────────────────────────────────────
-    if analysis_mode == "per_experiment":
-        if ids is None:
-            raise ValueError(
-                "per_experiment mode requires 'unique_ids' in the NPZ file. "
-                "This NPZ was generated without unique_ids — use analysis_mode: pooled instead."
-            )
-        uid_dir     = Path(cfg["uid_dir"])
-        exp_filter  = cfg.get("experiments", None)  # None = run all found
+    keep_mask = wd >= wd_min
+    logging.info("WD filter: %d / %d traces pass WD≥%.2f",
+                 keep_mask.sum(), len(wd), wd_min)
 
-        logging.info("UID dir        : %s", uid_dir)
-        trace_exps = _map_traces_to_experiments(ids, labels, class_names, uid_dir)
+    traces_by_protein_arrays = {}
+    for cls_idx, name in enumerate(proteins):
+        mask = (labels == cls_idx) & keep_mask
+        traces_by_protein_arrays[name] = all_traces[mask]
+        logging.info("  %-12s  %d traces selected", name, mask.sum())
 
-        # Determine which experiments to process
-        all_exps = sorted(set(e for e in trace_exps if e != 'UNKNOWN'))
-        if exp_filter:
-            run_exps = [e for e in exp_filter if e in all_exps]
-            missing  = [e for e in exp_filter if e not in all_exps]
-            if missing:
-                logging.warning("Experiments not found in data: %s", missing)
-        else:
-            run_exps = all_exps
-        logging.info("Experiments    : %s", run_exps)
+    run_dir = output_root / ("_".join(proteins) + "_mcd_" + timestamp)
+    logging.info("Output         : %s", run_dir)
 
-        run_dir = output_root / ("_".join(proteins) + "_exp_" + timestamp)
-        logging.info("Output root    : %s", run_dir)
+    _run_feature_analysis(
+        traces_by_protein_arrays, proteins,
+        frame_interval_ms, gmm_proba, min_peak_width,
+        output_dir=run_dir,
+    )
 
-        for exp in run_exps:
-            logging.info("\n── %s ──────────────────────────────────────", exp)
-            exp_arrays: dict[str, list] = {p: [] for p in proteins}
-            for i in range(len(all_traces)):
-                if trace_exps[i] == exp:
-                    exp_arrays[class_names[labels[i]]].append(all_traces[i])
-            traces_by_protein_arrays = {
-                p: np.stack(arr) if arr else np.empty((0, 2, all_traces.shape[2]))
-                for p, arr in exp_arrays.items()
-            }
-            for p, arr in traces_by_protein_arrays.items():
-                logging.info("  %-12s  %d traces", p, len(arr))
-            _run_feature_analysis(
-                traces_by_protein_arrays, proteins,
-                frame_interval_ms, gmm_proba, min_peak_width,
-                output_dir=run_dir / exp,
-                title=exp,
-            )
-
-    # ── Pooled mode ─────────────────────────────────────────────────────────────
-    else:
-        logging.info("WD threshold   : %.2f", wd_min)
-        keep_mask = wd >= wd_min
-        logging.info("WD filter: %d / %d traces pass WD≥%.2f",
-                     keep_mask.sum(), len(wd), wd_min)
-
-        traces_by_protein_arrays = {}
-        for cls_idx, name in enumerate(proteins):
-            mask = (labels == cls_idx) & keep_mask
-            traces_by_protein_arrays[name] = all_traces[mask]
-            logging.info("  %-12s  %d traces selected", name, mask.sum())
-
-        run_dir = output_root / ("_".join(proteins) + "_mcd_" + timestamp)
-        logging.info("Output         : %s", run_dir)
-
-        _run_feature_analysis(
-            traces_by_protein_arrays, proteins,
-            frame_interval_ms, gmm_proba, min_peak_width,
-            output_dir=run_dir,
-        )
-
-        # Sample traces (pooled mode only)
-        traces_dir = run_dir / "sample_traces"
-        traces_dir.mkdir(parents=True, exist_ok=True)
-        _plot_example_traces(
-            traces_by_protein_arrays, proteins,
-            gmm_proba, min_peak_width, traces_dir, rng,
-        )
+    traces_dir = run_dir / "sample_traces"
+    traces_dir.mkdir(parents=True, exist_ok=True)
+    _plot_example_traces(
+        traces_by_protein_arrays, proteins,
+        gmm_proba, min_peak_width, traces_dir, rng,
+    )
 
 
 if __name__ == "__main__":

@@ -3,27 +3,24 @@ io:
   run_name: "label_scrambled"
 
 data:
-  traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/ProteinTracesIN/Filtered"
+  traces_path: "/Volumes/MediumBerth/SalomePaperData/FinalDataset/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
   dataset:
-    Grx1:
+    HTHTL:
       channels: ["minmax", "zscored"]
-    K20Ac:
+    snap:
       channels: ["minmax", "zscored"]
-  trim_end: 0
-  max_traces_per_class: 0
+  trim_end: 2000
+  max_traces_per_class: 2000
   balance_train: true
   balance_val: true
   balance_test: true
   augmentation:
-    enabled: true
-    aug_factor: 1
-    time_warp_sigma: 0.0
-    noise_sigma: 0.0
-    magnitude_jitter: 0.0
-    include_mirror: true
+    enabled: false
+    aug_factor: 0
+    include_mirror: false
 
 model:
-  name: "tcn"
+  name: "resnet1d"
 
 optimization:
   batch_size: 64

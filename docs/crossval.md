@@ -43,9 +43,9 @@ io:
 data:
   traces_path: "../Data/traces"
   dataset:
-    HTHTL_IN:
+    ProteinA:
       channels: ["minmax", "zscored"]
-    SNAP_IN:
+    ProteinB:
       channels: ["minmax", "zscored"]
 
 trim_end: 2000
@@ -202,9 +202,9 @@ The augmentation sweep applies data augmentation only to training data:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `time_warp_sigma` | 0.03 | Time warping strength |
-| `noise_sigma` | 0.02 | Gaussian noise amplitude |
-| `magnitude_jitter` | 0.02 | Magnitude scaling jitter |
+| `time_warp_sigma` | 0.5 | Time warping strength |
+| `noise_sigma` | 0.5 | Gaussian noise amplitude |
+| `magnitude_jitter` | 0.5 | Magnitude scaling jitter |
 
 Augmentation factor controls how many augmented copies are created:
 - `0` = No augmentation (baseline)

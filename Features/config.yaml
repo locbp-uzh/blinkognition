@@ -1,35 +1,16 @@
 # Features/config.yaml
-# General-purpose configuration for Features/blink_features.py
+# Configuration for Features/features.py
 #
-# Results are saved to: blinkognition/Results/Features/{proteins}_{mode}_{timestamp}/
-# No output_path needed — it is set automatically relative to the repo root.
+# Results are saved to: blinkognition/Results/Features/{proteins}_mcd_{timestamp}/
 
 # =============================================================================
-# Analysis mode
-# =============================================================================
-# 'pooled'         — all traces pooled; Wasserstein filter applied (mcd_filter required)
-# 'per_experiment' — one output per acquisition date; no WD filter (uid_dir required)
-analysis_mode: pooled
-
-
-# =============================================================================
-# MCD certainty filter  [required for pooled mode]
+# MCD certainty filter
 # =============================================================================
 mcd_filter:
   npz_path: /path/to/MCD_results/traces_with_wasserstein.npz
   wasserstein_min: 0.7    # keep traces with WD >= this value; range ~0–1
-                          # 0.7 → ~65% of traces, higher accuracy
-                          # 0.9 → ~40% of traces, highest accuracy
-
-
-# =============================================================================
-# Per-experiment settings  [required for per_experiment mode only]
-# =============================================================================
-# uid_dir: /path/to/UniqueIDs          # folder containing per-protein PKL files
-#                                      # with unique trace IDs per acquisition date
-# experiments:                         # optional: restrict to a subset of dates
-#   - 20231130_SP_Exp1
-#   - 20231201_SP_Exp2
+                          # 0.7 → ~54% of traces, balanced certainty
+                          # 0.9 → ~40% of traces, highest certainty
 
 
 # =============================================================================

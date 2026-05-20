@@ -1,8 +1,7 @@
-traces_path: "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/ProteinTracesIN/Filtered"
-uid_path:    "/Volumes/MediumBerth/March27_NewRepo/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_002/UniqueIDs"
+traces_path: "/Volumes/MediumBerth/SalomePaperData/FinalDataset/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
 
-proteins: ["Grx1", "K20Ac"]
-channel: "zscored"
+proteins: ["HTHTL", "snap"]
+channel: "minmax"
 
 output_root: "../../Results/Controls/RandomForest"
 

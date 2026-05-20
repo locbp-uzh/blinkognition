@@ -1,28 +1,19 @@
 io:
   output_root: "../Results/Train"
-  run_name: "tcn_noaug_both_mirrored"
+  run_name: "smoketest"
 
 
 data:
-  #traces_path: "../Data/traces"
-  traces_path: "/Volumes/MediumBerth/AllMovies/DK/Traces_AllExps_May1/Grx1_K20Ac_optparam_001/ProteinTracesIN/Filtered"
-  
-# Available proteins (uncomment to use):
+  traces_path: "/Volumes/MediumBerth/SalomePaperData/FinalDataset/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/ProteinTracesIN/Filtered"
   dataset:
-    #HTHTL:
-    #  channels: ["minmax", "zscored"]
-    #snap:
-    #  channels: ["minmax", "zscored"]
-    #HTIA:
-    #  channels: ["minmax", "zscored"]
-    Grx1:
+    HTHTL:
       channels: ["minmax", "zscored"]
-    K20Ac:
+    snap:
       channels: ["minmax", "zscored"]
 
 
-  trim_end: 0
-  max_traces_per_class: 0
+  trim_end: 2000
+  max_traces_per_class: 2000
   balance_train: true
   balance_val: true   # Balance val set by subsampling majority classes (prevents biased early stopping)
   balance_test: true  # Balance test set by subsampling majority classes
@@ -30,22 +21,19 @@ data:
   # Data augmentation (applied ONLY to training set to prevent data leakage)
   # Helps improve model generalization and performance, especially with limited data
   augmentation:
-    enabled: true            # Required to activate include_mirror
-    aug_factor: 1            # No extra augmented copies (mirror adds +1x separately)
-    time_warp_sigma: 0.0     # Disabled
-    noise_sigma: 0.0         # Disabled
-    magnitude_jitter: 0.0    # Disabled
-    include_mirror: true     # Add time-reversed copy of every training trace
+    enabled: false
+    aug_factor: 0
+    include_mirror: false
 
 model:
-  name: "tcn"     # one of: orig_conv_gru, resnet1d, tcn
+  name: "resnet1d"     # one of: orig_conv_gru, resnet1d, tcn
   # Default parameters are hardcoded in the model zoo (models.py)
   # Override specific parameters here if needed
 
 optimization:
   batch_size: 64
   max_epochs: 500
-  patience_limit: 10
+  patience_limit: 15
   lr: 0.0004
   weight_decay: 0.0004
   label_smoothing: 0.001

@@ -298,22 +298,6 @@ from utils import plot_confusion_matrix
 plot_confusion_matrix(y_true, y_pred, class_names=names, save_path="cm.png")
 ```
 
-### plot_umap_embeddings()
-
-Creates UMAP visualizations with class-specific markers:
-
-```python
-from utils import plot_umap_embeddings
-
-plot_umap_embeddings(
-    embeddings=embeddings,
-    labels=labels,
-    class_names=class_names,
-    save_path="umap.png",
-    umap_coords=precomputed_coords  # Optional: use pre-computed UMAP coordinates
-)
-```
-
 ## Uncertainty Visualization
 
 ### Wasserstein Distance Interpretation
@@ -435,4 +419,4 @@ A quick checklist:
 
 ## Reference
 
-The helper functions in `ML/utils.py` (`plot_confusion_matrix`, `plot_confusion_matrix_with_std`, `plot_umap_embeddings`, `plot_losses`) serve as practical examples of these standards applied to the ML pipeline.
+The helper functions in `ML/utils.py` (`plot_confusion_matrix`, `plot_confusion_matrix_with_std`, `plot_losses`) serve as practical examples of these standards applied to the ML pipeline.
