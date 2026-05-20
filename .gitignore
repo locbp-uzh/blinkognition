@@ -3,7 +3,8 @@ CLAUDE.md
 .DS_Store
 ._*
 **/._*
-Inputs/
+Inputs/*
+!Inputs/.gitkeep
 Results/
 **/__pycache__/
 slurm*

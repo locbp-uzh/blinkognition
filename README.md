@@ -12,8 +12,29 @@ blinkognition/
 ├── VesicleAnalysis/    Vesicle characterization (DLS, FCS, cargo exchange, occupancy)
 ├── Controls/           Validation experiments for the trained classifier
 ├── assets/colormaps/   Crameri colormaps (used by ML/utils.py and VesicleAnalysis)
-└── docs/               Per-module documentation
+├── docs/               Per-module documentation
+└── Inputs/             Downloaded data (not committed; see below)
 ```
+
+## Input Data
+
+The raw trace files and sample movies are archived on Zenodo (DOI: pending). Download
+them into `Inputs/` before running the pipeline:
+
+```bash
+# Filtered traces for ML, Features, and Controls (~5.2 GB)
+python download_data.py --dataset traces
+
+# Sample ND2 movies for re-running the Extraction pipeline
+python download_data.py --dataset movies
+
+# Both datasets
+python download_data.py --dataset all
+```
+
+After downloading, update the `traces_path` (and background path) in
+`ML/config_train.yaml`, `ML/config_cv.yaml`, `Features/config.yaml`, and
+the Controls configs to point to `Inputs/FinalTraces/...`.
 
 ## Environments
 
@@ -105,7 +126,3 @@ cd Controls/random_forest     &&  python rf_pipeline.py    -c config_rf.yaml
 ```
 
 See `docs/controls.md`.
-
-### Plotting Standards
-
-Colormaps, color palette, axis conventions, and output conventions used across all modules. See `assets/plotting_standards.md`.
