@@ -3,7 +3,7 @@
 pretrained_model_dir: "/path/to/Results/Train/<run_name>"
 
 # Path is relative to Controls/noise_classification/ where classify_noise.py is run.
-background_traces_path: "../../../Inputs/FinalTraces/BackgroundTraces/Filtered"
+background_traces_path: "../../Inputs/FinalTraces/BackgroundTraces/Filtered"
 
 # Proteins whose background traces to classify.
 # Available: HaloD106, HaloK117, SNAPC148, scGrx1, scGrx1AcK20

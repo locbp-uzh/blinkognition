@@ -15,7 +15,7 @@ cd ML
 python crossval.py -c config_cv.yaml --models tcn,resnet1d,orig_conv_gru
 
 # Augmentation sweep (compare models x augmentation factors)
-python crossval.py -c config_cv.yaml --aug-factors 0,2,3,5 --n-gpus 4
+python crossval.py -c config_cv.yaml --aug-factors 0,3,5 --n-gpus 3
 ```
 
 ## Key Features
@@ -90,11 +90,11 @@ system:
 # Augmentation sweep configuration
 augmentation_sweep:
   enabled: false
-  factors: [0, 2, 3, 5]  # 0 = no augmentation
+  factors: [0, 3, 5]  # 0 = no augmentation
   augmentation_params:
-    time_warp_sigma: 0.03
-    noise_sigma: 0.02
-    magnitude_jitter: 0.02
+    time_warp_sigma: 0.5
+    noise_sigma: 0.5
+    magnitude_jitter: 0.5
 ```
 
 ## Usage Modes
@@ -168,11 +168,11 @@ Results/CrossVal/<timestamp>_crossval_5fold_<dataset>/
 ├── cv_confmat_pre_mc.csv          # Confusion matrices before MC dropout
 ├── cv_confmat_post_mc_best.csv    # Confusion matrices after MC dropout
 ├── cv_wd_sweep.csv                # Wasserstein distance sweep results
-├── pre_mc_confmat_<model>_mean.png
-├── pre_mc_confmat_<model>_std.png
-├── loss_curve_<model>_fold<N>.png # Loss curve for random fold
+├── pre_mc_confmat_<model>_mean.pdf
+├── pre_mc_confmat_<model>_std.pdf
+├── loss_curve_<model>_fold<N>.pdf # Loss curve for random fold
 ├── model_comparison/
-│   ├── plot.png                   # AUC vs time per epoch scatter
+│   ├── plot.pdf                   # AUC vs time per epoch scatter
 │   └── data.csv                   # Comparison data
 └── config_snapshot.json
 ```
@@ -184,15 +184,15 @@ Results/CrossVal/<timestamp>_crossval_5fold_<dataset>/
 ├── cv_folds_metrics.csv               # All fold-level metrics
 ├── augmentation_sweep/
 │   ├── data.csv                       # Aggregated (model x aug_factor) stats
-│   ├── heatmap.png / .pdf             # AUC heatmap (model x aug_factor)
+│   ├── heatmap.pdf                    # AUC heatmap (model x aug_factor)
 │   ├── cv_confmat.csv                 # Pre-MC confusion matrix data (includes aug_label)
 │   ├── cv_confmat_filtered.csv        # Post-MC filtered confusion matrix data
-│   ├── confmat_<model>_<aug>.png/.pdf
-│   └── confmat_<model>_<aug>_filtered.png/.pdf
+│   ├── confmat_<model>_<aug>.pdf
+│   └── confmat_<model>_<aug>_filtered.pdf
 ├── MCD_results/
 │   ├── cv_wd_sweep.csv                # Per-fold WD threshold sweep (model x aug x fold)
-│   └── wd_sweep.png / .pdf            # Retention vs accuracy plot per model
-├── loss_curve_<model>_<aug>_fold<N>.png
+│   └── wd_sweep.pdf                   # Retention vs accuracy plot per model
+├── loss_curve_<model>_<aug>_fold<N>.pdf
 └── config_snapshot.json
 ```
 
@@ -233,10 +233,12 @@ The default `submit_cv.sh` is configured for multi-GPU augmentation sweeps:
 
 ```bash
 #!/bin/bash
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:3
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=256G
 #SBATCH --constraint=GPUMEM80GB
+#SBATCH --account=locbp.chem.uzh
+#SBATCH --partition=standard
 
 N_GPUS=$(nvidia-smi -L | wc -l)
 python crossval.py -c config_cv.yaml --n-gpus ${N_GPUS}
@@ -257,8 +259,8 @@ python crossval.py -c config_cv.yaml --models tcn,resnet1d,orig_conv_gru --k 5
 # Sweep augmentation factors across models
 python crossval.py -c config_cv.yaml \
   --models tcn,resnet1d \
-  --aug-factors 0,2,3,5 \
-  --n-gpus 4
+  --aug-factors 0,3,5 \
+  --n-gpus 3
 ```
 
 ### Workflow 3: Production Comparison on HPC

@@ -2,6 +2,8 @@
 
 A pipeline for classifying single-molecule fluorescence traces by protein identity. Raw ND2 movies are processed into filtered, normalized traces; deep-learning models are trained and cross-validated on those traces; and photophysical features are extracted from model-selected, high-certainty traces. Supplementary vesicle characterization scripts (DLS, FCS, cargo exchange, occupancy) are provided in a separate module.
 
+The old codebase for the 2023 JACS paper can still be found at: https://gitlab.uzh.ch/locbp/public/blinkognition
+
 ## Repository Structure
 
 ```
@@ -10,7 +12,7 @@ blinkognition/
 ├── Features/           Photophysical feature extraction from classified traces
 ├── ML/                 Model training and cross-validation
 ├── Controls/           Validation experiments for the trained classifier
-├── assets/colormaps/   Crameri colormaps (used by ML/utils.py and VesicleAnalysis)
+├── assets/colormaps/   Crameri colormaps (used by ML/utils.py)
 ├── docs/               Per-module documentation
 └── Inputs/             Downloaded data (not committed; see below)
 ```
@@ -39,9 +41,8 @@ python download_data.py --dataset movies
 ```
 
 Downloads a representative set of raw ND2 movies (~5.3 GB) into `Inputs/SampleMovies/`.
-These are provided so reviewers can verify that the full Extraction pipeline runs
-end-to-end. The output goes to `Results/Extraction/` and is not used as input to ML —
-the sample movies cover only a subset of the data and do not produce enough traces for
+These are provided so that the full Extraction pipeline can be tested
+end-to-end and experimented with. The output goes to `Results/Extraction/` and is not used as input to ML because the sample movies cover only a subset of the data and do not produce enough traces for
 training. To reproduce the ML experiments, use the pre-processed traces above.
 
 Two configs require a path set after training:

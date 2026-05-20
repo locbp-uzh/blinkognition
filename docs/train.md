@@ -30,7 +30,7 @@ python train.py -c config_train.yaml
 
 ```yaml
 io:
-  output_root: "../Results/"
+  output_root: "../Results/Train"
   run_name: "my_experiment"
 
 data:
@@ -233,20 +233,28 @@ sbatch submit_train.sh
 Each training run creates a timestamped directory:
 
 ```
-Results/YYYY-MM-DD_HH-MM-SS_<run_name>_training_<dataset>/
+Results/Train/YYYY-MM-DD_HH-MM-SS_<run_name>_training_<dataset>/
 ├── best_model.pth                      # Best model checkpoint (state_dict)
 ├── checkpoint.pth                      # Latest checkpoint (includes optimal_threshold if used)
-├── loss_curve.png                      # Train/val loss plot
-├── confusion_matrix.png                # Test set confusion matrix (argmax or optimal threshold)
-├── confusion_matrix_argmax.png         # Test set confusion matrix (only if threshold optimization used)
+├── loss_curve/
+│   ├── plot.pdf                        # Train/val loss plot
+│   └── data.csv
+├── confusion_matrix/
+│   ├── plot.pdf                        # Test set confusion matrix
+│   └── data.csv
 ├── test_metrics.json                   # Comprehensive test metrics
 ├── config_full.json                    # Complete configuration snapshot
 ├── config_summary.json                 # Run summary (device, amp_dtype, num_classes, etc.)
 ├── <run_name>_training_<dataset>.log   # Training log
 └── MCD_results/                        # Monte Carlo dropout results
-    ├── filtered_confusion_matrix_threshX.XX.png
-    ├── balanced_accuracy_vs_uncertainty.png
-    └── mc_dropout_metrics.json         # MC dropout metrics with threshold info
+    ├── filtered_confusion_matrix/
+    │   ├── plot.pdf
+    │   └── data.csv
+    ├── wasserstein_sweep/
+    │   ├── plot.pdf
+    │   └── data.csv
+    ├── traces_with_wasserstein.npz     # Filtered traces for Features pipeline
+    └── mc_dropout_metrics.json
 ```
 
 See the output structure table above for descriptions of all output files.

@@ -49,7 +49,7 @@ mcd_filter:
 gmm_proba_threshold: 0.9   # GMM posterior threshold for "on" frame classification
 min_peak_width: 1          # minimum consecutive "on" frames to count as a peak
 frame_interval_ms: 30.0    # camera frame interval in milliseconds
-seed: 42                   # RNG seed for example trace selection
+seed: 840410               # RNG seed for example trace selection
 ```
 
 ### Parameter Reference
@@ -61,7 +61,7 @@ seed: 42                   # RNG seed for example trace selection
 | `gmm_proba_threshold` | float | 0.8 | GMM posterior probability threshold |
 | `min_peak_width` | int | 1 | Minimum peak duration in frames |
 | `frame_interval_ms` | float | 30.0 | Frame interval in milliseconds |
-| `seed` | int | 42 | RNG seed for example trace sampling |
+| `seed` | int | 840410 | RNG seed for example trace sampling |
 
 ### Wasserstein Distance Threshold
 

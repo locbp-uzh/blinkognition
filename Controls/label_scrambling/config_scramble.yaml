@@ -4,7 +4,7 @@ io:
 
 data:
   # Path is relative to Controls/label_scrambling/ where scramble_train.py is run.
-  traces_path: "../../../Inputs/FinalTraces/ProteinTracesIN/Filtered"
+  traces_path: "../../Inputs/FinalTraces/ProteinTracesIN/Filtered"
 
   dataset:
     # Available proteins: HaloD106, HaloK117, SNAPC148, scGrx1, scGrx1AcK20

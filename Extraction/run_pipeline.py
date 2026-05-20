@@ -20,7 +20,7 @@ Usage:
   python run_pipeline.py -c config.yaml
 
   # Resume from a specific step
-  python run_pipeline.py -c config.yaml --start-from extract -r Results/Extract/HaloD106_SNAPC148_grad640-12000_grad488-4000_001
+  python run_pipeline.py -c config.yaml --start-from extract -r Results/Extraction/HaloD106_SNAPC148_grad640-12000_grad488-4000_001
 
   # Skip parameter optimization (use existing or config defaults)
   python run_pipeline.py -c config.yaml --start-from localize
@@ -121,7 +121,7 @@ def parse_run_folder_from_output(output: str) -> str | None:
     Returns:
         Run folder path if found, None otherwise.
     """
-    # Look for patterns like: "Output folder: Results/Extract/HaloD106_SNAPC148_grad640-12000_grad488-4000_001"
+    # Look for patterns like: "Output folder: Results/Extraction/HaloD106_SNAPC148_grad640-12000_grad488-4000_001"
     pattern = r"Output folder:\s+(.+?)(?:\n|$)"
     match = re.search(pattern, output)
     if match:
@@ -228,13 +228,13 @@ Examples:
   python run_pipeline.py -c config.yaml --start-from localize
 
   # Resume from extract step
-  python run_pipeline.py -c config.yaml --start-from extract -r Results/Extract/HaloD106_SNAPC148_grad640-12000_grad488-4000_001
+  python run_pipeline.py -c config.yaml --start-from extract -r Results/Extraction/HaloD106_SNAPC148_grad640-12000_grad488-4000_001
 
   # Resume from combine step
-  python run_pipeline.py -c config.yaml --start-from combine -r Results/Extract/HaloD106_SNAPC148_grad640-12000_grad488-4000_001
+  python run_pipeline.py -c config.yaml --start-from combine -r Results/Extraction/HaloD106_SNAPC148_grad640-12000_grad488-4000_001
 
   # Run only diagnostics on existing filtered data
-  python run_pipeline.py -c config.yaml --start-from diagnose -r Results/Extract/HaloD106_SNAPC148_grad640-12000_grad488-4000_001
+  python run_pipeline.py -c config.yaml --start-from diagnose -r Results/Extraction/HaloD106_SNAPC148_grad640-12000_grad488-4000_001
 
   # Debug: Process only one protein in one experiment (useful for testing)
   python run_pipeline.py -c config.yaml --experiment Exp1 --protein HaloD106

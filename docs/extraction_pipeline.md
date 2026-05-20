@@ -47,11 +47,11 @@ conda activate picasso-env
 python Extraction/run_pipeline.py -c Extraction/config.yaml
 
 # Output with optimized parameters:
-# Results/Extract/<proteins>_optparam_001/
+# Results/Extraction/<proteins>_optparam_001/
 
 # Output with config defaults (no optimization):
-# Results/Extract/<proteins>_gradP-12000_gradGT-4000_001/  (with ground truth)
-# Results/Extract/<proteins>_gradP-12000_001/              (no ground truth)
+# Results/Extraction/<proteins>_gradP-12000_gradGT-4000_001/  (with ground truth)
+# Results/Extraction/<proteins>_gradP-12000_001/              (no ground truth)
 ```
 
 ### Resume from Specific Step
@@ -60,7 +60,7 @@ python Extraction/run_pipeline.py -c Extraction/config.yaml
 # Re-run filtering with different thresholds
 python Extraction/run_pipeline.py -c Extraction/config.yaml \
   --start-from filter \
-  -r Results/Extract/<your_run_folder>
+  -r Results/Extraction/<your_run_folder>
 ```
 
 ## Analysis Modes
@@ -131,8 +131,8 @@ Runs Picasso localization on ND2 movies:
 - Configuration: gradient thresholds, camera parameters (fallback if no optimized params)
 
 **Outputs**:
-- `Results/Extract/{proteins}_gradP-{X}_gradGT-{Y}_{N}/` (with ground truth)
-- `Results/Extract/{proteins}_gradP-{X}_{N}/` (no ground truth)
+- `Results/Extraction/{proteins}_gradP-{X}_gradGT-{Y}_{N}/` (with ground truth)
+- `Results/Extraction/{proteins}_gradP-{X}_{N}/` (no ground truth)
   - `localization_params.yaml` - All parameters and input path
   - `Exp*/Protein/*_locs.hdf5` - Localization coordinates
   - `Exp*/Protein/*_locs.yaml` - Metadata
@@ -282,7 +282,7 @@ When background traces are available, the diagnostic step also:
 python Extraction/run_pipeline.py -c Extraction/config.yaml
 
 # Run manually on existing filtered data
-python Extraction/diagnose.py -c Extraction/config.yaml -r Results/Extract/YOUR_RUN_FOLDER
+python Extraction/diagnose.py -c Extraction/config.yaml -r Results/Extraction/YOUR_RUN_FOLDER
 
 # Analyze specific protein only
 python Extraction/diagnose.py -c Extraction/config.yaml -r YOUR_RUN_FOLDER --protein <ProteinName>
@@ -400,7 +400,7 @@ Data/movies/
 
 ### Output Structure (with ground truth)
 ```
-Results/Extract/<your_run_folder>/
+Results/Extraction/<your_run_folder>/
 ├── run_info.yaml                      # Run metadata (proteins, channels, etc.)
 │
 ├── FileLists/
@@ -478,7 +478,7 @@ python Extraction/run_pipeline.py -c Extraction/config.yaml
 # 2. Resume from filter (will also re-run diagnostics)
 python Extraction/run_pipeline.py -c Extraction/config.yaml \
   --start-from filter \
-  -r Results/Extract/<your_run_folder>
+  -r Results/Extraction/<your_run_folder>
 ```
 
 ### Run Diagnostics Only
@@ -486,11 +486,11 @@ python Extraction/run_pipeline.py -c Extraction/config.yaml \
 # Analyze existing filtered data without re-filtering
 python Extraction/run_pipeline.py -c Extraction/config.yaml \
   --start-from diagnose \
-  -r Results/Extract/<your_run_folder>
+  -r Results/Extraction/<your_run_folder>
 
 # Or run diagnose.py directly for more control
 python Extraction/diagnose.py -c Extraction/config.yaml \
-  -r Results/Extract/<your_run_folder> \
+  -r Results/Extraction/<your_run_folder> \
   --protein <ProteinName> --n-examples 20
 ```
 
@@ -508,7 +508,7 @@ python Extraction/run_pipeline.py -c Extraction/config.yaml
 # Resume from combine
 python Extraction/run_pipeline.py -c Extraction/config.yaml \
   --start-from combine \
-  -r Results/Extract/<your_run_folder>
+  -r Results/Extraction/<your_run_folder>
 ```
 
 ## Using Config Defaults (Convenience)
@@ -516,7 +516,7 @@ python Extraction/run_pipeline.py -c Extraction/config.yaml \
 Set defaults in `config.yaml`:
 ```yaml
 start_from: filter
-resume_run_folder: Results/Extract/<your_run_folder>
+resume_run_folder: Results/Extraction/<your_run_folder>
 ```
 
 Then just run:
@@ -543,7 +543,7 @@ $PYTHON Extraction/paramfinder.py -c Extraction/config.yaml
 $PYTHON Extraction/localize.py -c Extraction/config.yaml
 
 # Get run folder from output
-RUN_FOLDER="Results/Extract/<your_run_folder>"
+RUN_FOLDER="Results/Extraction/<your_run_folder>"
 
 # Step 2: Extract traces
 $PYTHON Extraction/extract.py -c Extraction/config.yaml -r $RUN_FOLDER
@@ -637,8 +637,8 @@ The filtered outputs are ready for ML training:
 import pandas as pd
 
 # Load filtered traces for a protein
-grx1_in = pd.read_pickle('Results/Extract/.../ProteinTracesIN/Filtered/ProteinA_IN_filtered_zscored.pkl')
-grx1_out = pd.read_pickle('Results/Extract/.../ProteinTracesOUT/Filtered/ProteinA_OUT_filtered_zscored.pkl')
+grx1_in = pd.read_pickle('Results/Extraction/.../ProteinTracesIN/Filtered/ProteinA_IN_filtered_zscored.pkl')
+grx1_out = pd.read_pickle('Results/Extraction/.../ProteinTracesOUT/Filtered/ProteinA_OUT_filtered_zscored.pkl')
 
 # Shape: (6000 frames × N traces)
 print(f"IN traces: {grx1_in.shape}")
@@ -652,7 +652,7 @@ Or directly in ML config:
 ```yaml
 # ML/config_train.yaml
 data:
-  data_path: /path/to/Results/Extract/<your_run_folder>
+  data_path: /path/to/Results/Extraction/<your_run_folder>
   trace_normalization: zscored_filtered
 ```
 
