@@ -8,16 +8,13 @@ record associated with this repository.
 
 Usage
 -----
-    python download_data.py --dataset traces    # ~5.2 GB
-    python download_data.py --dataset movies    # sample ND2 movies
+    python download_data.py --dataset traces    # ~3.3 GB
+    python download_data.py --dataset movies    # ~3.9 GB
     python download_data.py --dataset all       # both
 
 After downloading, data lands in Inputs/:
     Inputs/FinalTraces/   — use with ML/config_train.yaml and ML/config_cv.yaml
     Inputs/SampleMovies/  — use with Extraction/config.yaml
-
-NOTE: Replace ZENODO_RECORD_ID and the md5 checksums below once the
-Zenodo record is published (available on the record's files tab).
 """
 
 import argparse
@@ -25,26 +22,27 @@ import hashlib
 import sys
 import tarfile
 import urllib.request
+import zipfile
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Zenodo record settings — update after publishing
+# Zenodo record settings
 # ---------------------------------------------------------------------------
-ZENODO_RECORD_ID = "XXXXXXX"  # TODO: replace with the actual Zenodo record ID
+ZENODO_RECORD_ID = "20394521"  # DOI: 10.5281/zenodo.20394521
 _BASE = f"https://zenodo.org/records/{ZENODO_RECORD_ID}/files"
 
 DATASETS = {
     "traces": {
-        "url":         f"{_BASE}/FinalTraces.tar.gz?download=1",
-        "filename":    "FinalTraces.tar.gz",
-        "md5":         None,   # TODO: fill in after upload (from Zenodo files tab)
-        "description": "Filtered protein and background traces (~5.2 GB)",
+        "url":         f"{_BASE}/FinalTraces.zip?download=1",
+        "filename":    "FinalTraces.zip",
+        "md5":         "f0f1e6ec9fc9ae0a2df1603f87ebed13",
+        "description": "Filtered protein and background traces (~3.34 GB)",
     },
     "movies": {
-        "url":         f"{_BASE}/SampleMovies.tar.gz?download=1",
-        "filename":    "SampleMovies.tar.gz",
-        "md5":         None,   # TODO: fill in after upload
-        "description": "Sample ND2 movies for extraction pipeline (~XX GB)",
+        "url":         f"{_BASE}/SampleMovies.zip?download=1",
+        "filename":    "SampleMovies.zip",
+        "md5":         "3b8ef5cca156f8ab425ea0a3280c5afa",
+        "description": "Sample ND2 movies for extraction pipeline (~3.87 GB)",
     },
 }
 
@@ -104,8 +102,15 @@ def _verify_md5(path: Path, expected: str) -> None:
 
 def _extract(archive: Path, dest_dir: Path) -> None:
     print(f"  Extracting → {dest_dir.name}/")
-    with tarfile.open(archive, "r:gz") as tf:
-        tf.extractall(dest_dir)
+    suffixes = "".join(archive.suffixes).lower()
+    if suffixes.endswith((".tar.gz", ".tgz")):
+        with tarfile.open(archive, "r:gz") as tf:
+            tf.extractall(dest_dir)
+    elif suffixes.endswith(".zip"):
+        with zipfile.ZipFile(archive) as zf:
+            zf.extractall(dest_dir)
+    else:
+        raise ValueError(f"Unsupported archive format: {archive.name}")
     print("  Done.")
 
 

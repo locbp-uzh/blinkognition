@@ -19,8 +19,8 @@ blinkognition/
 
 ## Input Data
 
-Two datasets are archived on Zenodo (DOI: pending). They serve different purposes
-and are independent of each other.
+Two datasets are archived on Zenodo ([DOI: 10.5281/zenodo.20394521](https://doi.org/10.5281/zenodo.20394521)).
+They serve different purposes and are independent of each other.
 
 ### Filtered traces (for ML, Features, and Controls)
 
@@ -28,7 +28,7 @@ and are independent of each other.
 python download_data.py --dataset traces
 ```
 
-Downloads pre-processed, filtered traces (~5.2 GB) into `Inputs/FinalTraces/`. This
+Downloads pre-processed, filtered traces (~3.3 GB) into `Inputs/FinalTraces/`. This
 is the dataset used to train the classifier, run cross-validation, and compute
 photophysical features. All `ML/`, `Controls/label_scrambling/`, and
 `Controls/random_forest/` configs read from here — no path edits needed after
@@ -40,7 +40,7 @@ downloading.
 python download_data.py --dataset movies
 ```
 
-Downloads a representative set of raw ND2 movies (~5.3 GB) into `Inputs/SampleMovies/`.
+Downloads a representative set of raw ND2 movies (~3.9 GB) into `Inputs/SampleMovies/`.
 These are provided so that the full Extraction pipeline can be tested
 end-to-end and experimented with. The output goes to `Results/Extraction/` and is not used as input to ML because the sample movies cover only a subset of the data and do not produce enough traces for
 training. To reproduce the ML experiments, use the pre-processed traces above.
