@@ -80,6 +80,7 @@ python Revisions/Bleedthrough/segment.py
 python Revisions/Bleedthrough/coefficients.py
 python Revisions/Bleedthrough/features.py
 python Revisions/Bleedthrough/classify.py
+python Revisions/Bleedthrough/evaluate.py
 ```
 
 `segment.py` and `coefficients.py` accept `--set key.path=value` overrides (the
@@ -90,7 +91,7 @@ run writes `Results/Revisions/Bleedthrough/<stage>/run_NNN/` with a `manifest.ya
 effective config and a copy of all modules in `code/`.
 
 Reference runs: segmentation run_005, coefficients run_005, features run_002,
-classification run_002, qc_channels run_003.
+classification run_002, evaluation run_002, qc_channels run_003.
 Earlier runs are kept as records and are superseded (see "Run history").
 
 ### vesicles.csv columns
@@ -284,6 +285,71 @@ True slide (rows) against assigned label, descriptive only (evaluation is step 4
   6 (7.9 noise SDs, nothing in 405) is 'ATTO525': the presence threshold is what
   separates them, which is the impurity vs dim-ATTO525 ambiguity.
 
+### Step 4: evaluation (evaluation run_002, classification run_002)
+
+Method (agreed 2026-09-24, option A): per true slide, the fraction of objects
+called own dye, other dye (the critical error), dual, no label and unassigned, per
+FOV, summarized as mean +- SD across FOVs (n = 4 ATTO390, 5 ATTO525). Held-out FOVs
+(signatures and model refitted without the scored FOV, 9 folds); other mixing
+ratios (random subsamples, 20 draws each, model refitted per draw, mean +- SD
+across draws); thresholds (presence 3/5/8/10 noise SDs, probability 0.90/0.95/0.99).
+Deterministic (two runs identical). Figure: `evaluation/run_002/evaluation.pdf`.
+
+Base and held-out, % of the slide's objects (mean +- SD across FOVs):
+
+| Method | Slide | own dye | other dye | dual | no label | unassigned |
+|---|---|---|---|---|---|---|
+| A | ATTO390 | 71.7 +- 3.7 | 0.3 +- 0.4 | 8.2 +- 1.7 | 3.3 +- 0.8 | 16.5 +- 2.5 |
+| A | ATTO525 | 75.6 +- 8.5 | 3.3 +- 1.1 | 0.4 +- 0.6 | 14.6 +- 6.9 | 6.1 +- 3.2 |
+| A, held-out FOV | ATTO390 | 81.4 +- 13.2 | 0.3 +- 0.3 | 4.4 +- 5.1 | 3.5 +- 0.8 | 10.4 +- 8.7 |
+| A, held-out FOV | ATTO525 | 72.2 +- 6.4 | 4.2 +- 2.1 | 2.0 +- 3.0 | 14.7 +- 6.3 | 7.0 +- 5.6 |
+| B | ATTO390 | 88.5 +- 1.2 | 1.6 +- 0.3 | 5.9 +- 0.9 | 4.0 +- 0.8 | - |
+| B | ATTO525 | 77.8 +- 7.3 | 3.0 +- 1.1 | 2.1 +- 1.1 | 17.1 +- 6.8 | - |
+
+B with held-out signatures is within 0.2 points of B in every category.
+
+Findings:
+
+1. Wrong-dye calls are rare and mostly set by the sample, not the method.
+   ATTO390 called ATTO525: 0.3 % (A), 1.6 % (B); at most 0.6 % at any mixing ratio
+   (A). ATTO525 called ATTO390: 3-5 % for both methods and every mixing ratio: these
+   are the 405-only objects on the ATTO525 slide. They are dim in 405 (5-8 noise
+   SDs), so raising B's presence threshold to 8 cuts this error to 1.0 % (and
+   ATTO390 into ATTO525 to 0.8 %) at the cost of more 'no label' (12 % ATTO390,
+   24 % ATTO525).
+2. Model A is unstable. Refitted without one FOV, BIC picks 6-9 components, and
+   whether the 515-side tail of the ATTO390 population becomes its own 'dual'
+   component, and so whether about 10-20 % of ATTO390 objects are dual or
+   unassigned, changes from fit to fit (held-out own-dye 81 +- 13 % against
+   72 +- 4 % in the full fit; 5-10 components across mixing draws). The vesicle
+   populations are continuous (brightness follows the size distribution), so the
+   mixture cuts them into pieces whose labels depend on where the cuts fall.
+3. Unmixing B is stable (no fit) and gives the higher yield of correct calls
+   (88.5 % against 71.7 % for ATTO390, similar for ATTO525). Its presence
+   threshold trades yield for error smoothly (threshold_summary.csv).
+4. The impurity vs dim-ATTO525 ambiguity is the threshold: at 3 noise SDs model A
+   calls the dim 515-only cloud ATTO525, which raises ATTO525 own-dye calls to
+   92 % but also calls 4-5 % of the ATTO390-slide objects (the impurities) ATTO525.
+5. Chance overlap in a real mix (overlap.csv): at the densities on these slides
+   (604 ATTO390 and 141 ATTO525 vesicles per FOV of 64 x 64 um), an ATTO525 vesicle
+   has an ATTO390 vesicle within 0.39 um (3 px, where peaks merge) with 6.8 %
+   probability, and within 0.65 um (5 px, inside the aperture) with 17.8 %. Keeping
+   chance overlaps at or below 1 % needs the other dye at or below about 86 vesicles
+   per FOV (0.021 per um2) for 0.39 um, or 31 per FOV (0.0076 per um2) for 0.65 um.
+
+Recommendation (judgement call, to be decided by the user): use per-object
+unmixing (B) with the step 1 signatures for assignment, keep the mixture model and
+the feature-space plot as a diagnostic for populations nobody anticipated, pick the
+presence threshold from the yield/error table for the purpose (5 for yield, 8 for
+fewer wrong-dye calls), measure single-label control slides on the day of each
+mixing experiment to re-derive the signatures (they depend on laser powers), and
+image at a total density several times lower than here.
+
+Limits: one slide per label, so slide-to-slide and day-to-day variation is
+unmeasured; FOVs are repeated measurements; the in-silico mix has no real
+overlaps, so real mixes will show more 'dual' objects (item 5); SD bars across 4-5
+FOVs are themselves imprecise.
+
 ### Verification of step 1 (workflow, 2026-09-24)
 
 Run on coefficients run_002 / segmentation run_003 (before the fixes below).
@@ -330,6 +396,8 @@ kept in the repo; their conclusions are recorded here.
   objects kept with flags (options A and A).
 - 2026-09-24: step 3 model is an unsupervised GMM labeled by the step 1 signatures
   (option A), with per-object unmixing (B) as cross-check.
+- 2026-09-24: step 4 scores per-FOV fractions, mean +- SD across FOVs, with
+  held-out FOVs, mixing ratios and threshold sensitivity (option A).
 
 ## Open decisions
 
@@ -337,7 +405,9 @@ kept in the repo; their conclusions are recorded here.
   1. bleed-through coefficients and their uncertainty (done)
   2. features and scaling fed to the model (done)
   3. model structure (done)
-  4. evaluation on the in-silico mix
+  4. evaluation on the in-silico mix (done)
+- Which method and presence threshold to adopt for the main datasets (see the
+  step 4 recommendation).
 - Which 405 laser power is correct (28.3 % in the metadata, 23.3 % in the readme).
 
 ## Run history
@@ -349,7 +419,9 @@ kept in the repo; their conclusions are recorded here.
   by run_005 (run_004 is identical to run_005 except for the legend layout).
 - qc_channels run_001/run_002: superseded by run_003 (clipped detection noise).
 - features run_001: axes extended past the data; superseded by run_002.
-- classification run_001: identical labels to run_002, only the 'unassigned' color changed.
+- classification run_001: identical labels to run_002, only the 'unassigned' color changed;
+  run_003: identical to run_002 (check after refactoring classify.py).
+- evaluation run_001: identical results to run_002, only the figure's y axis changed.
 
 ## Not verified
 

@@ -103,6 +103,18 @@ classification:
   presence_snr: 5.0         # a label is present if its unmixed amount >= this many home-channel noise SDs
   min_probability: 0.95     # objects below this label probability are 'unassigned'
 
+# Analysis step 4: evaluation (decided 2026-09-24: per-FOV fractions, mean +- SD
+# across FOVs; held-out FOVs, other mixing ratios and threshold sensitivity).
+evaluation:
+  classification_run: run_002
+  mixing_ratios: [0.1, 1.0, 10.0]     # first : second dye under 'dyes' (objects), besides the natural ratio
+  n_draws: 20                         # random subsamples per mixing ratio
+  seed: 42
+  presence_snr_grid: [3, 5, 8, 10]
+  min_probability_grid: [0.90, 0.95, 0.99]
+  overlap_radii_px: [3, 5]            # peak-merging distance and aperture-contamination distance
+  n_jobs: 6
+
 qc:
   match_radius_px: 3        # nearest-neighbor radius for cross-channel matching
   min_matches: 20           # minimum matched spot pairs to report a pooled channel offset

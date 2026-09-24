@@ -120,6 +120,61 @@ def fit_gmm(x: np.ndarray, cc: dict) -> tuple[GaussianMixture, pd.DataFrame]:
     return fits[best], bic
 
 
+def label_components(gmm: GaussianMixture, resp: np.ndarray, sd: np.ndarray, sig: pd.DataFrame, dyes: list[str],
+                     home_idx: list[int], cofactor: float, threshold: float):
+    """Label each component by unmixing its center (u -> z -> flux with the responsibility-weighted noise SD).
+
+    Returns (labels, t per component x dye, centers in z).
+    """
+    centers_z = cofactor * np.sinh(gmm.means_)
+    comp_sd = (resp.T @ sd) / resp.sum(axis=0)[:, None]
+    comp_t = unmix(centers_z * comp_sd, comp_sd, sig) / comp_sd[:, home_idx]
+    return label_from_t(comp_t, dyes, threshold), comp_t, centers_z
+
+
+def assign_labels(resp: np.ndarray, comp_label: np.ndarray, dyes: list[str], min_probability: float):
+    """Per-object label probabilities (summed over components) and the label, or 'unassigned'."""
+    label_set = dyes + [DUAL, NONE]
+    p = pd.DataFrame({f"p_{l}": resp[:, comp_label == l].sum(axis=1) for l in label_set})
+    best = np.array(label_set, dtype=object)[p.to_numpy().argmax(axis=1)]
+    return p, np.where(p.max(axis=1).to_numpy() >= min_probability, best, UNASSIGNED)
+
+
+def label_objects_unmixing(flux: np.ndarray, sd: np.ndarray, sig: pd.DataFrame, dyes: list[str],
+                           home_idx: list[int], threshold: float):
+    """Option B: per-object unmixed amounts t (in home-channel noise SDs) and labels."""
+    t = unmix(flux, sd, sig) / sd[:, home_idx]
+    return t, label_from_t(t, dyes, threshold)
+
+
+def load_inputs(cfg: dict) -> dict:
+    """Features, per-object noise SD and flux, signatures and the runs they come from."""
+    cc = cfg["classification"]
+    feat_run = resolve_run(cfg, "features", cc["features_run"])
+    coef_run = resolve_run(cfg, "coefficients", cc["coefficients_run"])
+    with open(feat_run / "config.yaml") as f:
+        fcfg = yaml.safe_load(f)["features"]
+    with open(feat_run / "manifest.yaml") as f:
+        seg_run = resolve_run(cfg, "segmentation", yaml.safe_load(f)["segmentation_run"])
+    channels, cofactor = fcfg["channels"], fcfg["asinh_cofactor"]
+    dyes = list(cfg["dyes"])
+
+    feat = pd.read_csv(feat_run / "features.csv", dtype=STR_COLUMNS)
+    ves, blanks, _ = load_segmentation(seg_run, cfg)
+    ves, cal = calibrate(ves, blanks, list(cfg["channels"]))
+    sd_wide = cal.pivot_table(index=["slide", "fov"], columns="channel", values="noise_sd")[channels]
+    sd = feat[["slide", "fov"]].merge(sd_wide, left_on=["slide", "fov"], right_index=True, how="left")[channels]
+    if sd.isna().any().any():
+        raise ValueError("Missing noise SD for some objects")
+    sd = sd.to_numpy()
+    flux = feat[[f"z_{c}" for c in channels]].to_numpy() * sd
+    coef = pd.read_csv(coef_run / "coefficients.csv", dtype={"channel": str, "home": str})
+    return {"feat": feat, "sd": sd, "flux": flux, "coef": coef, "sig": signatures(cfg, coef, channels),
+            "channels": channels, "cofactor": cofactor, "dyes": dyes,
+            "home_idx": [channels.index(cfg["dyes"][d]["home_channel"]) for d in dyes],
+            "calibrated_vesicles": ves, "feat_run": feat_run, "coef_run": coef_run, "seg_run": seg_run}
+
+
 # =============================================================================
 # Figure
 # =============================================================================
@@ -189,53 +244,27 @@ def main() -> None:
     cfg = load_config(args.config, args.set)
     cc = cfg["classification"]
 
-    feat_run = resolve_run(cfg, "features", cc["features_run"])
-    coef_run = resolve_run(cfg, "coefficients", cc["coefficients_run"])
-    with open(feat_run / "config.yaml") as f:
-        fcfg = yaml.safe_load(f)["features"]
-    with open(feat_run / "manifest.yaml") as f:
-        seg_run = resolve_run(cfg, "segmentation", yaml.safe_load(f)["segmentation_run"])
-    channels, cofactor = fcfg["channels"], fcfg["asinh_cofactor"]
-    dyes = list(cfg["dyes"])
-
-    feat = pd.read_csv(feat_run / "features.csv", dtype=STR_COLUMNS)
-    ves, blanks, _ = load_segmentation(seg_run, cfg)
-    _, cal = calibrate(ves, blanks, channels)
-    sd_wide = cal.pivot_table(index=["slide", "fov"], columns="channel", values="noise_sd")[channels]
-    sd = feat[["slide", "fov"]].merge(sd_wide, left_on=["slide", "fov"], right_index=True, how="left")[channels]
-    if sd.isna().any().any():
-        raise ValueError("Missing noise SD for some objects")
-    sd = sd.to_numpy()
-    zcols, ucols = [f"z_{c}" for c in channels], [f"u_{c}" for c in channels]
-    flux = feat[zcols].to_numpy() * sd
-    coef = pd.read_csv(coef_run / "coefficients.csv", dtype={"channel": str, "home": str})
-    sig = signatures(cfg, coef, channels)
-    home_idx = [channels.index(cfg["dyes"][d]["home_channel"]) for d in dyes]
+    inp = load_inputs(cfg)
+    feat, sd, flux, sig = inp["feat"], inp["sd"], inp["flux"], inp["sig"]
+    channels, cofactor, dyes, home_idx = inp["channels"], inp["cofactor"], inp["dyes"], inp["home_idx"]
+    ucols = [f"u_{c}" for c in channels]
 
     # --- Option A: mixture model ---
     x = feat[ucols].to_numpy()
     gmm, bic = fit_gmm(x, cc)
     resp = gmm.predict_proba(x)
     comp = resp.argmax(axis=1)
-    centers_z = cofactor * np.sinh(gmm.means_)
-    comp_sd = (resp.T @ sd) / resp.sum(axis=0)[:, None]         # responsibility-weighted noise SD
-    comp_amount = unmix(centers_z * comp_sd, comp_sd, sig)
-    comp_t = comp_amount / comp_sd[:, home_idx]
-    comp_label = label_from_t(comp_t, dyes, cc["presence_snr"])
+    comp_label, comp_t, centers_z = label_components(gmm, resp, sd, sig, dyes, home_idx, cofactor,
+                                                     cc["presence_snr"])
     components = pd.DataFrame({"component": np.arange(gmm.n_components), "weight": gmm.weights_,
                                "n_objects": np.bincount(comp, minlength=gmm.n_components),
                                **{f"center_z_{c}": centers_z[:, i] for i, c in enumerate(channels)},
                                **{f"t_{d}": comp_t[:, j] for j, d in enumerate(dyes)},
                                "label": comp_label})
-    label_set = dyes + [DUAL, NONE]
-    p = pd.DataFrame({f"p_{l}": resp[:, comp_label == l].sum(axis=1) for l in label_set})
-    best_label = np.array(label_set, dtype=object)[p.to_numpy().argmax(axis=1)]
-    label_a = np.where(p.max(axis=1) >= cc["min_probability"], best_label, UNASSIGNED)
+    p, label_a = assign_labels(resp, comp_label, dyes, cc["min_probability"])
 
     # --- Option B: per-object unmixing ---
-    amount = unmix(flux, sd, sig)
-    t = amount / sd[:, home_idx]
-    label_b = label_from_t(t, dyes, cc["presence_snr"])
+    t, label_b = label_objects_unmixing(flux, sd, sig, dyes, home_idx, cc["presence_snr"])
 
     res = feat[["slide", "dye", "fov", "vesicle_id", "detected_by", "crowded", "nonlinear"] + ucols].copy()
     res["component"] = comp
@@ -276,9 +305,9 @@ def main() -> None:
         "[Vesicle composition, dye mol%, buffer and temperature to be added.] "
         + "; ".join(f"{d}: n = {int((res['dye'] == d).sum())} objects" for d in dyes)
         + ". No statistical comparisons were performed.\n")
-    write_manifest(run, cfg, Path(__file__), [feat_run / "features.csv", coef_run / "coefficients.csv"],
-                   extra={"features_run": rel_to_repo(feat_run), "coefficients_run": rel_to_repo(coef_run),
-                          "segmentation_run": rel_to_repo(seg_run), "n_components": int(gmm.n_components)})
+    write_manifest(run, cfg, Path(__file__), [inp["feat_run"] / "features.csv", inp["coef_run"] / "coefficients.csv"],
+                   extra={"features_run": rel_to_repo(inp["feat_run"]), "coefficients_run": rel_to_repo(inp["coef_run"]),
+                          "segmentation_run": rel_to_repo(inp["seg_run"]), "n_components": int(gmm.n_components)})
 
 
 if __name__ == "__main__":
