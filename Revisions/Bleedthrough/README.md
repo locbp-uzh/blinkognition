@@ -350,6 +350,26 @@ unmeasured; FOVs are repeated measurements; the in-silico mix has no real
 overlaps, so real mixes will show more 'dual' objects (item 5); SD bars across 4-5
 FOVs are themselves imprecise.
 
+### Protein (640) in single frames (segmentation run_005, classification run_002)
+
+Question from the user: how many vesicles of each type had protein? Vesicles
+called their own slide's dye by unmixing B (threshold 5); 640 flux zero-point
+corrected and scaled by the empty-aperture noise, exactly as the other channels;
+empty apertures give the false-positive rate at the same cutoff.
+
+| Vesicles | n | 640 >= 3 noise SDs | 640 >= 5 noise SDs | Empty apertures >= 3 / >= 5 |
+|---|---|---|---|---|
+| ATTO390 (HT7-HMSiR-HTL) | 2139 | 14 (0.7 %) | 4 (0.2 %) | 0.0 % / 0.0 % |
+| ATTO525 (SNAP-HMSiR-IA) | 552 | 8 (1.4 %) | 4 (0.7 %) | 0.5 % / 0.1 % |
+
+Per FOV at 3 SDs: 0.4-0.9 % (ATTO390), 0.9-2.5 % (ATTO525). The median 640 signal
+is 0.0-0.1 noise SDs in every brightness tertile, so there is no size-dependent
+protein signal either. A single frame of HMSiR, a spontaneously blinking dye that is
+dark most of the time, cannot distinguish a vesicle without protein from one whose
+proteins are all dark in that frame: these counts are a lower bound, not the
+protein occupancy, which needs the blinking movies. They supersede the 3.2 % and
+5.4 % quoted earlier in the session, which used the uncorrected flux_err.
+
 ### Verification of step 1 (workflow, 2026-09-24)
 
 Run on coefficients run_002 / segmentation run_003 (before the fixes below).
@@ -398,6 +418,10 @@ kept in the repo; their conclusions are recorded here.
   (option A), with per-object unmixing (B) as cross-check.
 - 2026-09-24: step 4 scores per-FOV fractions, mean +- SD across FOVs, with
   held-out FOVs, mixing ratios and threshold sensitivity (option A).
+- 2026-09-24: vesicles are assigned by per-object unmixing (option B, label_B in
+  classification.csv) with the step 1 signatures; the mixture model stays as a
+  diagnostic. The presence threshold is left open (currently 5 noise SDs) and will
+  be tuned by the user.
 
 ## Open decisions
 
@@ -406,8 +430,8 @@ kept in the repo; their conclusions are recorded here.
   2. features and scaling fed to the model (done)
   3. model structure (done)
   4. evaluation on the in-silico mix (done)
-- Which method and presence threshold to adopt for the main datasets (see the
-  step 4 recommendation).
+- Presence threshold for unmixing B on the main datasets (threshold_summary.csv in
+  the evaluation run has the yield/error trade-off for 3, 5, 8 and 10 noise SDs).
 - Which 405 laser power is correct (28.3 % in the metadata, 23.3 % in the readme).
 
 ## Run history
