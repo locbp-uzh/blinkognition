@@ -1,0 +1,48 @@
+# Bleed-through analysis of ATTO390 / ATTO525 labeled SUVs.
+# See README.md in this folder for the plan, decisions and results.
+
+# Raw data are read in place (never copied). Absolute path by design.
+input_root: /Volumes/MediumBerth/SalomePaperData/Revisions
+
+# Outputs, relative to the repo root (Results/ is gitignored).
+output_root: Results/Revisions/Bleedthrough
+
+# One entry per slide. The slide is the ground-truth label of every vesicle on it.
+slides:
+  ATTO390:
+    folder: HT7-ATTO390
+    protein: HT7-HMSiR-HTL
+  ATTO525:
+    folder: SNAP-ATTO525
+    protein: SNAP-HMSiR-IA
+
+# Channel key -> prefix of the ND2 channel name. Order in the file is checked at load.
+channels:
+  "405": "405"
+  "488": "488"
+  "640": "638LP"
+  "515": "515"
+
+# Channels used to find vesicles. 640 (protein) is excluded so that a vesicle is
+# defined by its lipid label only; its 640 intensity is still measured.
+detection_channels: ["405", "488", "515"]
+
+# Pixel size is read from the ND2 metadata (0.13 um for these files).
+background:
+  median_size_px: 25        # median filter window for the slowly varying background (3.25 um)
+
+detection:
+  psf_sigma_px: 1.6         # matched-filter sigma; measured 1.5-1.8 px (qc_channels run_001)
+  snr_threshold: 6.0        # peak height in units of the filtered-image noise
+  min_separation_px: 3      # local-maximum neighborhood radius
+  border_px: 10             # ignore peaks this close to the image edge
+
+photometry:
+  aperture_radius_px: 3     # integration disk
+  annulus_px: [5, 8]        # inner, outer radius of the local-background annulus
+  crowding_radius_px: 8     # flag vesicles with another vesicle closer than this
+
+qc:
+  match_radius_px: 3        # nearest-neighbor radius for cross-channel matching
+  min_matches: 20           # minimum matched spot pairs to report a pooled channel offset
+  min_matches_fov: 15       # ... and a per-FOV offset
