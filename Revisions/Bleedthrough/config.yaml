@@ -53,6 +53,18 @@ blanks:
   min_dist_px: 8            # blank center to nearest vesicle center
   seed: 42
 
+# Analysis step 1: bleed-through coefficients (decided 2026-09-24: per-FOV median of
+# per-vesicle ratios, summarized as mean +- SD across FOVs; LS slope as cross-check).
+bleedthrough:
+  segmentation_run: run_003 # reference segmentation (3 px aperture); run_004 is the 4 px sensitivity run
+  home_channel:
+    ATTO390: "405"
+    ATTO525: "515"
+  min_home_snr: 10          # home flux >= this many blank robust SDs
+  exclude_crowded: true
+  exclude_saturated: true
+  n_brightness_bins: 6      # log-spaced bins for the binned-median trend check
+
 qc:
   match_radius_px: 3        # nearest-neighbor radius for cross-channel matching
   min_matches: 20           # minimum matched spot pairs to report a pooled channel offset

@@ -26,7 +26,7 @@ Outputs (Results/Revisions/Bleedthrough/segmentation/run_NNN/):
     manifest.yaml, config.yaml, segment.py
 
 Usage:
-    python Revisions/Bleedthrough/segment.py [--config path] [--no-qc]
+    python Revisions/Bleedthrough/segment.py [--config path] [--no-qc] [--set key.path=value ...]
 """
 
 from __future__ import annotations
@@ -144,9 +144,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", type=Path, default=None)
     ap.add_argument("--no-qc", action="store_true", help="skip the per-FOV QC figures")
+    ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                    help="override a config value, e.g. photometry.aperture_radius_px=4 (repeatable)")
     args = ap.parse_args()
     setup_logging()
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, args.set)
     fovs = discover_fovs(cfg)
     run = make_run_dir(cfg, "segmentation")
     (run / "qc").mkdir()

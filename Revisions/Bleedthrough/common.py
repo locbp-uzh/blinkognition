@@ -48,12 +48,31 @@ SLIDE_COLORS = {"ATTO390": COLORS["blue"], "ATTO525": COLORS["orange"]}
 # =============================================================================
 
 
-def load_config(path: Path | None = None) -> dict:
-    """Load config.yaml (default: the one next to this file)."""
+def load_config(path: Path | None = None, overrides: list[str] | None = None) -> dict:
+    """Load config.yaml (default: the one next to this file) and apply 'a.b=value' overrides.
+
+    Values are parsed as YAML, so '--set photometry.aperture_radius_px=4' gives an int.
+    The applied overrides are kept in cfg['_overrides'] and end up in the manifest.
+    """
     path = Path(path) if path else HERE / "config.yaml"
     with open(path) as f:
         cfg = yaml.safe_load(f)
+    for item in overrides or []:
+        key, sep, value = item.partition("=")
+        if not sep:
+            raise ValueError(f"Override '{item}' is not of the form key.path=value")
+        node, *parts = key.split(".")
+        target = cfg
+        for part in [node, *parts][:-1]:
+            if part not in target:
+                raise KeyError(f"Override '{item}': '{part}' not in config")
+            target = target[part]
+        leaf = [node, *parts][-1]
+        if leaf not in target:
+            raise KeyError(f"Override '{item}': '{leaf}' not in config")
+        target[leaf] = yaml.safe_load(value)
     cfg["_path"] = str(path.resolve())
+    cfg["_overrides"] = list(overrides or [])
     return cfg
 
 
@@ -232,11 +251,15 @@ def write_manifest(run: Path, cfg: dict, script: Path, inputs: list[Path], extra
     """Record what produced this run: config, script, git state, input checksums, environment."""
     import nd2, scipy, sklearn  # noqa: E401  (versions only)
 
-    shutil.copy(cfg["_path"], run / "config.yaml")
+    # The effective config (after --set overrides), not the file on disk.
+    with open(run / "config.yaml", "w") as f:
+        yaml.safe_dump({k: v for k, v in cfg.items() if not k.startswith("_")}, f, sort_keys=False)
     shutil.copy(script, run / Path(script).name)
     manifest = {
         "created": datetime.now().isoformat(timespec="seconds"),
         "script": str(Path(script).relative_to(REPO_ROOT)),
+        "config_source": cfg["_path"],
+        "config_overrides": cfg.get("_overrides", []),
         "git_commit": _git("rev-parse", "HEAD"),
         "git_branch": _git("rev-parse", "--abbrev-ref", "HEAD"),
         "git_dirty": bool(_git("status", "--porcelain", "--", "Revisions")),
