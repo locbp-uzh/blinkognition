@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import yaml
 from scipy import ndimage
 
@@ -175,6 +176,65 @@ def _plane_settings(description: str) -> list[dict]:
                     "em_gain": int(gain.group(1)) if gain else -1,
                     "lasers_on": ",".join(f"{w}:{p}" for w, p in lasers)})
     return out
+
+
+# =============================================================================
+# Segmentation outputs
+# =============================================================================
+
+
+def resolve_run(cfg: dict, stage: str, name: str, override: Path | None = None) -> Path:
+    """A run directory: override if given, else Results/.../<stage>/<name> (name may also be a path)."""
+    if override:
+        run = Path(override)
+    else:
+        run = Path(name)
+        if not run.is_absolute() and len(run.parts) == 1:
+            run = REPO_ROOT / cfg["output_root"] / stage / name
+        elif not run.is_absolute():
+            run = REPO_ROOT / run
+    if not (run / "manifest.yaml").exists():
+        raise FileNotFoundError(f"No manifest.yaml in {run} (not a {stage} run?)")
+    return run.resolve()
+
+
+def load_segmentation(seg_run: Path, cfg: dict) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """vesicles, blanks and the run's manifest, minus FOVs excluded in the current config."""
+    ves = pd.read_csv(seg_run / "vesicles.csv", dtype=STR_COLUMNS)
+    blanks = pd.read_csv(seg_run / "blanks.csv", dtype=STR_COLUMNS)
+    with open(seg_run / "manifest.yaml") as f:
+        manifest = yaml.safe_load(f)
+    excluded = excluded_fovs(cfg)
+    for name, df in (("vesicles", ves), ("blanks", blanks)):
+        key = df["slide"] + "/" + df["fov"]
+        drop = key.isin(excluded)
+        if drop.any():
+            logging.info(f"Dropping {int(drop.sum())} {name} from excluded FOVs {sorted(set(key[drop]))}")
+        df.drop(index=df.index[drop], inplace=True)
+    return ves.reset_index(drop=True), blanks.reset_index(drop=True), manifest
+
+
+def calibrate(ves: pd.DataFrame, blanks: pd.DataFrame, channels: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Add zero-point-corrected flux F_<ch> and z_<ch> = F / blank robust SD, per slide, FOV and channel."""
+    rows = []
+    for (slide, fov), g in blanks.groupby(["slide", "fov"]):
+        for ch in channels:
+            b = g[f"flux_{ch}"].to_numpy()
+            rows.append({"slide": slide, "fov": fov, "channel": ch, "n_blanks": len(b),
+                         "zero_point": float(np.median(b)), "noise_sd": robust_sigma(b)})
+    cal = pd.DataFrame(rows)
+    have = set(zip(cal["slide"], cal["fov"])) if len(cal) else set()
+    missing = set(zip(ves["slide"], ves["fov"])) - have
+    if missing:
+        raise ValueError(f"No blanks for FOVs {sorted(fov_key(*m) for m in missing)}")
+
+    out = ves.copy()
+    for ch in channels:
+        c = cal[cal["channel"] == ch][["slide", "fov", "zero_point", "noise_sd"]]
+        merged = out[["slide", "fov"]].merge(c, on=["slide", "fov"], how="left", validate="many_to_one")
+        out[f"F_{ch}"] = out[f"flux_{ch}"].to_numpy() - merged["zero_point"].to_numpy()
+        out[f"z_{ch}"] = out[f"F_{ch}"].to_numpy() / merged["noise_sd"].to_numpy()
+    return out, cal
 
 
 # =============================================================================

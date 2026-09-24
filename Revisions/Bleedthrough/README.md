@@ -78,6 +78,7 @@ matplotlib, nd2, pyyaml). No extra packages. Run from the repo root:
 python Revisions/Bleedthrough/qc_channels.py
 python Revisions/Bleedthrough/segment.py
 python Revisions/Bleedthrough/coefficients.py
+python Revisions/Bleedthrough/features.py
 ```
 
 `segment.py` and `coefficients.py` accept `--set key.path=value` overrides (the
@@ -87,7 +88,8 @@ run writes `Results/Revisions/Bleedthrough/<stage>/run_NNN/` with a `manifest.ya
 (git commit and dirty flag, SHA-256 of every input and of every module), the
 effective config and a copy of all modules in `code/`.
 
-Reference runs: segmentation run_005, coefficients run_005, qc_channels run_003.
+Reference runs: segmentation run_005, coefficients run_005, features run_002,
+qc_channels run_003.
 Earlier runs are kept as records and are superseded (see "Run history").
 
 ### vesicles.csv columns
@@ -219,6 +221,24 @@ the ATTO390 k up by at least 3 % (488) and 9 % (515). Net about +-10 % on the
 ATTO390 terms and a few percent on the ATTO525 terms. Negligible for
 classification, where the populations are 3.4 decades apart.
 
+### Step 2: model features (features run_002, segmentation run_005)
+
+Method (agreed 2026-09-24, options A and A): channels 405, 488 and 515 (640 is the
+protein, not a label); per object and channel z = (flux - blank median) / blank
+robust SD, per FOV, and u = asinh(z / 5). Every detected object is kept (3123:
+2417 ATTO390 slide, 706 ATTO525 slide), with its crowded and nonlinear flags.
+Checked against its definition from the raw segmentation outputs (bit-identical,
+no missing values). Figure: `features/run_002/feature_space.pdf`.
+
+- The expected pure-dye curves from the step 1 coefficients run through the middle
+  of both populations, so the feature space behaves as the physics predicts.
+- In 405 vs 515 the two labels form separate bands, apart from objects near the
+  noise.
+- Three groups the model will have to deal with: dim 515-only objects from both
+  slides at 3-5 noise SDs in 515, next to the empty-aperture cloud; the mixed
+  ATTO390 objects spraying toward higher 515 and 488; and dim ATTO390 vesicles
+  whose 405 signal is within a few noise SDs.
+
 ### Verification of step 1 (workflow, 2026-09-24)
 
 Run on coefficients run_002 / segmentation run_003 (before the fixes below).
@@ -261,12 +281,14 @@ kept in the repo; their conclusions are recorded here.
   from the unwashed slides, but similar objects may appear in cleaner datasets.
 - 2026-09-24: step 1 uses the per-FOV median of per-vesicle ratios, summarized as
   mean +- SD across FOVs (options A and A); 3 px aperture kept after the 4 px check.
+- 2026-09-24: step 2 features are asinh(z / 5) of 405, 488 and 515, all detected
+  objects kept with flags (options A and A).
 
 ## Open decisions
 
 - Classification analysis, agreed one step at a time before any code runs:
   1. bleed-through coefficients and their uncertainty (done)
-  2. features and scaling fed to the model
+  2. features and scaling fed to the model (done)
   3. model structure (mixture with odd-object components, unassigned option).
      Must also handle the mixed ATTO390 objects (ATTO390 plus an ATTO525-like
      emitter) found in step 1, which will look dual-labeled in a real mix.
@@ -281,6 +303,7 @@ kept in the repo; their conclusions are recorded here.
 - coefficients run_001 (panel order bug), run_002 (verified), run_003 (4 px): superseded
   by run_005 (run_004 is identical to run_005 except for the legend layout).
 - qc_channels run_001/run_002: superseded by run_003 (clipped detection noise).
+- features run_001: axes extended past the data; superseded by run_002.
 
 ## Not verified
 

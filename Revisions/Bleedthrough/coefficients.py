@@ -51,13 +51,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import yaml
 from matplotlib.legend_handler import HandlerTuple
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter
 
-from common import (REPO_ROOT, STR_COLUMNS, apply_axis_standards, dye_colors, excluded_fovs, fov_key,
-                    load_config, make_run_dir, rel_to_repo, robust_sigma, save_pdf, setup_logging,
+from common import (apply_axis_standards, calibrate, dye_colors, excluded_fovs, load_config,
+                    load_segmentation, make_run_dir, rel_to_repo, resolve_run, save_pdf, setup_logging,
                     write_manifest)
 
 # --- Constants ---
@@ -78,53 +77,6 @@ ZERO_LINE = {"color": "black", "lw": 0.5, "alpha": 0.4}
 # =============================================================================
 # Data
 # =============================================================================
-
-
-def segmentation_run(cfg: dict, override: Path | None) -> Path:
-    """The segmentation run to analyze: --seg-run if given, else bleedthrough.segmentation_run."""
-    run = Path(override) if override else REPO_ROOT / cfg["output_root"] / "segmentation" / cfg["bleedthrough"]["segmentation_run"]
-    if not (run / "vesicles.csv").exists():
-        raise FileNotFoundError(f"No vesicles.csv in {run}")
-    return run.resolve()
-
-
-def load_segmentation(seg_run: Path, cfg: dict) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """vesicles, blanks and the run's manifest, minus FOVs excluded in the current config."""
-    ves = pd.read_csv(seg_run / "vesicles.csv", dtype=STR_COLUMNS)
-    blanks = pd.read_csv(seg_run / "blanks.csv", dtype=STR_COLUMNS)
-    with open(seg_run / "manifest.yaml") as f:
-        manifest = yaml.safe_load(f)
-    excluded = excluded_fovs(cfg)
-    for name, df in (("vesicles", ves), ("blanks", blanks)):
-        key = df["slide"] + "/" + df["fov"]
-        drop = key.isin(excluded)
-        if drop.any():
-            logging.info(f"Dropping {int(drop.sum())} {name} from excluded FOVs {sorted(set(key[drop]))}")
-        df.drop(index=df.index[drop], inplace=True)
-    return ves.reset_index(drop=True), blanks.reset_index(drop=True), manifest
-
-
-def calibrate(ves: pd.DataFrame, blanks: pd.DataFrame, channels: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Add zero-point-corrected flux F_<ch> and z_<ch> = F / blank robust SD, per slide, FOV and channel."""
-    rows = []
-    for (slide, fov), g in blanks.groupby(["slide", "fov"]):
-        for ch in channels:
-            b = g[f"flux_{ch}"].to_numpy()
-            rows.append({"slide": slide, "fov": fov, "channel": ch, "n_blanks": len(b),
-                         "zero_point": float(np.median(b)), "noise_sd": robust_sigma(b)})
-    cal = pd.DataFrame(rows)
-    have = set(zip(cal["slide"], cal["fov"])) if len(cal) else set()
-    missing = set(zip(ves["slide"], ves["fov"])) - have
-    if missing:
-        raise ValueError(f"No blanks for FOVs {sorted(fov_key(*m) for m in missing)}")
-
-    out = ves.copy()
-    for ch in channels:
-        c = cal[cal["channel"] == ch][["slide", "fov", "zero_point", "noise_sd"]]
-        merged = out[["slide", "fov"]].merge(c, on=["slide", "fov"], how="left", validate="many_to_one")
-        out[f"F_{ch}"] = out[f"flux_{ch}"].to_numpy() - merged["zero_point"].to_numpy()
-        out[f"z_{ch}"] = out[f"F_{ch}"].to_numpy() / merged["noise_sd"].to_numpy()
-    return out, cal
 
 
 def select(ves: pd.DataFrame, dye: str, home: str, bt: dict) -> pd.DataFrame:
@@ -393,7 +345,7 @@ def main() -> None:
     bt = cfg["bleedthrough"]
     rng = np.random.default_rng(42)
 
-    seg_run = segmentation_run(cfg, args.seg_run)
+    seg_run = resolve_run(cfg, "segmentation", bt["segmentation_run"], args.seg_run)
     bt["segmentation_run"] = rel_to_repo(seg_run)       # recorded in the effective config
     ves, blanks, seg_manifest = load_segmentation(seg_run, cfg)
     channels = list(cfg["channels"])

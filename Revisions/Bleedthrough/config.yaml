@@ -82,6 +82,14 @@ bleedthrough:
   n_brightness_bins: 6      # log-spaced bins for the binned-median trend check
   min_per_bin: 20           # bins with fewer vesicles are not drawn
 
+# Analysis step 2: model features (decided 2026-09-24: channels 405/488/515, asinh
+# of noise-scaled flux with cofactor 5 noise SDs, all detected objects kept with flags).
+features:
+  segmentation_run: run_005
+  coefficients_run: run_005 # only to draw the expected pure-dye curves in the figure
+  channels: ["405", "488", "515"]
+  asinh_cofactor: 5.0       # u = asinh(z / cofactor), z = flux / blank noise SD
+
 qc:
   match_radius_px: 3        # nearest-neighbor radius for cross-channel matching
   min_matches: 20           # minimum matched spot pairs to report a pooled channel offset
