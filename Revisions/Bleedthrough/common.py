@@ -58,15 +58,23 @@ def load_config(path: Path | None = None) -> dict:
 
 
 def discover_fovs(cfg: dict) -> list[dict]:
-    """List every ND2 file per slide as {slide, fov, path}."""
+    """List every ND2 file per slide as {slide, fov, path}, minus cfg['exclude_fovs']."""
     root = Path(cfg["input_root"])
+    excluded = cfg.get("exclude_fovs") or {}
     out = []
     for slide, s in cfg["slides"].items():
         files = sorted(p for p in (root / s["folder"]).glob("*.nd2") if not p.name.startswith("._"))
         if not files:
             raise FileNotFoundError(f"No ND2 files for slide {slide} in {root / s['folder']}")
         for p in files:
+            if p.stem in excluded:
+                logging.info(f"Excluding {p.stem}: {excluded[p.stem]}")
+                continue
             out.append({"slide": slide, "fov": p.stem, "path": p})
+    unknown = set(excluded) - {p.stem for s in cfg["slides"].values()
+                               for p in (root / s["folder"]).glob("*.nd2")}
+    if unknown:
+        raise ValueError(f"exclude_fovs lists FOVs that do not exist: {sorted(unknown)}")
     return out
 
 
@@ -81,15 +89,33 @@ def load_fov(path: Path, cfg: dict) -> tuple[dict[str, np.ndarray], dict]:
         arr = h.asarray()
         bits = h.metadata.channels[0].volume.bitsPerComponentSignificant
         meta = {"pixel_um": h.voxel_size().x, "channel_names": names, "bit_depth": bits}
+        planes = _plane_settings(h.text_info.get("description", ""))
 
-    images = {}
+    images, acq = {}, {}
     for key, prefix in cfg["channels"].items():
         idx = [i for i, n in enumerate(names) if n.startswith(prefix)]
         if len(idx) != 1:
             raise ValueError(f"{path.name}: channel prefix '{prefix}' matches {idx} in {names}")
         images[key] = arr[idx[0]].astype(np.float64)
+        acq[key] = next((p for p in planes if p["name"].startswith(prefix)), {})
     meta["saturation_value"] = 2**bits - 1
+    meta["acquisition"] = acq
     return images, meta
+
+
+def _plane_settings(description: str) -> list[dict]:
+    """Per-plane channel name, exposure (ms) and EM gain from the ND2 description text."""
+    import re
+
+    out = []
+    for block in re.split(r"Plane #\d+:", description)[1:]:
+        name = re.search(r"Name:\s*([^\r\n]+)", block)
+        exp = re.search(r"Exposure:\s*([\d.]+)\s*ms", block)
+        gain = re.search(r"Multiplier:\s*(\d+)", block)
+        out.append({"name": name.group(1).strip() if name else "",
+                    "exposure_ms": float(exp.group(1)) if exp else np.nan,
+                    "em_gain": int(gain.group(1)) if gain else -1})
+    return out
 
 
 # =============================================================================
@@ -134,6 +160,28 @@ def refine_centroid(flat: np.ndarray, peaks: np.ndarray, half: int = 2) -> np.nd
         s = w.sum()
         out[i] = (y + (w * yy).sum() / s, x + (w * xx).sum() / s) if s > 0 else (y, x)
     return out
+
+
+def sample_blank_positions(shape: tuple[int, int], occupied: np.ndarray, n: int, min_dist: float,
+                           border: int, rng: np.random.Generator) -> np.ndarray:
+    """Random subpixel (y, x) positions at least min_dist from every occupied position.
+
+    Disk-based counterpart of Extraction/utils.sample_background_positions (which
+    works on top-left box corners and seeds the global RNG).
+    """
+    free = np.ones(shape, dtype=bool)
+    for y, x in np.round(occupied).astype(int):
+        free[y, x] = False
+    dist = ndimage.distance_transform_edt(free)
+    valid = dist >= min_dist
+    valid[:border, :] = valid[-border:, :] = False
+    valid[:, :border] = valid[:, -border:] = False
+    cand = np.argwhere(valid)
+    if len(cand) < n:
+        logging.warning(f"Only {len(cand)} valid blank positions (requested {n})")
+        n = len(cand)
+    pick = cand[rng.choice(len(cand), size=n, replace=False)]
+    return pick + rng.uniform(-0.5, 0.5, size=pick.shape)
 
 
 def second_moment_sigma(flat: np.ndarray, peak: tuple[int, int], half: int = 4) -> float:

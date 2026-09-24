@@ -27,8 +27,18 @@ Each ND2 is one 512 x 512 frame, 4 channels, 0.13 um pixels, TIRF 2x:
 | 640 | 638LP TIRF 2x | 640 / 705 LP | 90.2 %, 9.1 mW |
 | 515 | 515 TIRF 2x | 515 / 525 nm | 5 %, 0.250 mW |
 
-Slides were not washed. Each slide is one sample: its 5 FOVs are repeated
+Camera (from the ND2 metadata): Andor DU-888 (iXon Ultra 888 EMCCD), EM gain 300,
+10 MHz readout, 1x1 binning, identical in every file. Exposure is 100 ms for 405 and
+30 ms for 488, 640 and 515. Every flux ratio below is specific to these laser powers
+and exposures; `segment.py` writes them to `acquisition.csv` and warns if FOVs differ.
+
+Slides were not washed. Each slide is one sample: its FOVs are repeated
 measurements of the same sample, not independent replicates.
+
+Excluded: HT7-ATTO390_017 (preliminary test, FOV not measured carefully: half the
+vesicle density, ATTO390 about 2.5x dimmer, many aggregates). Listed with its reason
+under `exclude_fovs` in `config.yaml`, which every stage honors. Decision 2026-09-24;
+similar FOVs in the main datasets will be handled when they arise.
 
 ## Approach
 
@@ -78,6 +88,11 @@ input ND2) and copies of the config and script.
 | bg_<ch> | annulus median (counts per pixel) |
 | saturated | any aperture pixel at the camera maximum in any channel |
 
+`blanks.csv` has the same flux, flux_err and bg columns for 300 random positions per
+FOV at least 8 px from any detected vesicle (per-FOV seeded RNG, so positions do
+not change when other FOVs are excluded). `acquisition.csv` has exposure and EM gain
+per FOV and channel.
+
 ## Results so far (2026-09-24)
 
 ### Channel QC (qc_channels run_002)
@@ -94,10 +109,14 @@ input ND2) and copies of the config and script.
   larger aperture.
 - 640 has too few spots to register (5-23 per FOV).
 
-### Segmentation (segmentation run_001)
+### Segmentation, first look (segmentation run_001, includes FOV 017)
 
 3242 vesicles: 2593 on the ATTO390 slide (about 570 per FOV, except 298 in FOV 017)
 and 649 on the ATTO525 slide (107-143 per FOV). None saturated.
+
+The fluxes and ratios in this subsection are NOT zero-point corrected and are
+superseded by the empty-aperture control below; they overstate the small bleed
+terms. Kept because they describe the populations that exist.
 
 Median values per population (fluxes in camera counts; the ratio column is the
 median of the per-vesicle ratio):
@@ -132,20 +151,70 @@ Observations:
 3. FOV HT7-ATTO390_017 is unlike the other four ATTO390 FOVs: half the vesicles,
    the ATTO390 population about 2.5x dimmer in 405, and many more 515-positive and
    mixed objects (plus bright broadband aggregates in the QC image).
-4. 640 (protein) shows no signal at vesicles in any population (median SNR 0.4 in
-   all groups, including the brightest). Consistent with HMSiR being a
-   spontaneously blinking dye mostly in its dark form in a single frame; the
-   protein cannot be assessed from these snapshots. The same numbers show no
-   detectable ATTO390 or ATTO525 bleed into 640.
+4. 640 (protein) shows almost no signal at vesicles (see the empty-aperture control
+   below). Consistent with HMSiR being a spontaneously blinking dye mostly in its
+   dark form in a single frame; the protein cannot be assessed from these
+   snapshots. There is no detectable ATTO390 or ATTO525 bleed into 640.
+
+### Empty-aperture control (segmentation run_003, FOV 017 excluded)
+
+2944 vesicles (2295 ATTO390 slide, 649 ATTO525 slide) and 2700 blanks. Vesicles and
+blanks are identical to run_002; run_003 only adds `acquisition.csv`.
+
+Median over FOVs of the per-FOV blank statistics (camera counts):
+
+| Slide | Channel | Blank median flux | Blank robust SD | Predicted flux_err | SD / flux_err |
+|---|---|---|---|---|---|
+| ATTO390 | 405 | -387 | 1931 | 1401 | 1.38 |
+| ATTO390 | 488 | 186 | 309 | 252 | 1.22 |
+| ATTO390 | 515 | 130 | 103 | 59 | 1.76 |
+| ATTO390 | 640 | 147 | 771 | 610 | 1.26 |
+| ATTO525 | 405 | 198 | 1567 | 1237 | 1.27 |
+| ATTO525 | 488 | 143 | 332 | 263 | 1.26 |
+| ATTO525 | 515 | 162 | 205 | 131 | 1.56 |
+| ATTO525 | 640 | 204 | 682 | 585 | 1.17 |
+
+1. Zero point. Empty apertures do not read zero. The positive offsets fit the
+   EMCCD: at EM gain 300 the pixel distribution is right-skewed, so the annulus
+   median sits below the mean background and every aperture gains a positive
+   offset. The negative 405 offset on the ATTO390 slide fits annulus contamination
+   in the dense field (blank annuli overlap nearby vesicles). The offset matters
+   only where the signal is small: the uncorrected ATTO390 bleed into 515 (median
+   229 counts) is more than half offset (130), and into 488 (535) about a third
+   (186). Rough corrected values: ATTO390 into 515 about 0.3 % and into 488 about
+   1.0 % of its 405 flux; ATTO525 into 405 still about 6 % of its 515 flux. To be
+   recomputed properly in analysis step 1.
+2. Noise. flux_err (annulus sigma x sqrt(n)) underestimates the real scatter of
+   blank fluxes by 1.2-1.8x (correlated EMCCD noise and background structure), so
+   the SNR values in vesicles.csv are inflated. The blanks give the honest
+   per-channel noise.
+3. 640. Vesicles sit barely above blanks: 3.2 % (ATTO390 slide) and 5.4 %
+   (ATTO525 slide) of vesicles exceed 3x flux_err in 640, against 1.1 % and 2.0 %
+   of blanks. A faint protein signal on a few percent of vesicles at most.
+
+Planned use: subtract the per-FOV, per-channel blank median from every vesicle
+flux, and use the per-FOV blank robust SD as the noise of each channel.
+
+## Decisions
+
+- 2026-09-24: FOV HT7-ATTO390_017 excluded (see Data).
+- 2026-09-24: the classification model must allow for objects that are neither
+  ATTO390 nor ATTO525 vesicles. The odd objects here are most likely impurities
+  from the unwashed slides, but similar objects may appear in cleaner datasets.
 
 ## Open decisions
 
-- What to do with FOV 017 (include, exclude, report both).
-- Classification model and evaluation (to be agreed before running; see the
-  statistics discussion in the session log).
+- Classification analysis, agreed one step at a time before any code runs:
+  1. bleed-through coefficients and their uncertainty
+  2. features and scaling fed to the model
+  3. model structure (mixture with odd-object components, unassigned option)
+  4. evaluation on the in-silico mix
 
 ## Not verified
 
 - Flux sensitivity to aperture size (5 % chromatic-shift bias estimate is analytic).
-- Photometry treats the background as the only noise (no shot noise in flux_err).
+- Photometry treats the background as the only noise (no shot noise in flux_err);
+  the blank SD is also background-only, so bright vesicles are noisier than it says.
+- Blank positions are at least 8 px from detected vesicles, so undetected dim
+  objects can sit in blank apertures; the median is used to limit their effect.
 - All numbers come from one slide per label; slide-to-slide variation is unmeasured.

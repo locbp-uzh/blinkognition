@@ -16,6 +16,10 @@ slides:
     folder: SNAP-ATTO525
     protein: SNAP-HMSiR-IA
 
+# FOVs skipped by every stage, with the reason (kept here so exclusions are traceable).
+exclude_fovs:
+  HT7-ATTO390_017: "preliminary test, FOV not measured carefully; half the vesicle density, 2.5x dimmer ATTO390, many aggregates (decision 2026-09-24)"
+
 # Channel key -> prefix of the ND2 channel name. Order in the file is checked at load.
 channels:
   "405": "405"
@@ -41,6 +45,13 @@ photometry:
   aperture_radius_px: 3     # integration disk
   annulus_px: [5, 8]        # inner, outer radius of the local-background annulus
   crowding_radius_px: 8     # flag vesicles with another vesicle closer than this
+
+# Empty-aperture control: identical photometry at random positions away from any
+# detected vesicle. Gives the zero point and the empirical noise of every channel.
+blanks:
+  n_per_fov: 300
+  min_dist_px: 8            # blank center to nearest vesicle center
+  seed: 42
 
 qc:
   match_radius_px: 3        # nearest-neighbor radius for cross-channel matching
