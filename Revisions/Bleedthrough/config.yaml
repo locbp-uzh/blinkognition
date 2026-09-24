@@ -90,6 +90,19 @@ features:
   channels: ["405", "488", "515"]
   asinh_cofactor: 5.0       # u = asinh(z / cofactor), z = flux / blank noise SD
 
+# Analysis step 3: classification model (decided 2026-09-24: option A, unsupervised
+# GMM whose components are labeled by the step 1 signatures; per-object unmixing
+# (option B) computed alongside as a cross-check).
+classification:
+  features_run: run_002
+  coefficients_run: run_005
+  n_components: [1, 10]     # range searched with BIC
+  covariance_type: full
+  n_init: 10
+  seed: 42
+  presence_snr: 5.0         # a label is present if its unmixed amount >= this many home-channel noise SDs
+  min_probability: 0.95     # objects below this label probability are 'unassigned'
+
 qc:
   match_radius_px: 3        # nearest-neighbor radius for cross-channel matching
   min_matches: 20           # minimum matched spot pairs to report a pooled channel offset

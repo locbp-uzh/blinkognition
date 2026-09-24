@@ -79,6 +79,7 @@ python Revisions/Bleedthrough/qc_channels.py
 python Revisions/Bleedthrough/segment.py
 python Revisions/Bleedthrough/coefficients.py
 python Revisions/Bleedthrough/features.py
+python Revisions/Bleedthrough/classify.py
 ```
 
 `segment.py` and `coefficients.py` accept `--set key.path=value` overrides (the
@@ -89,7 +90,7 @@ run writes `Results/Revisions/Bleedthrough/<stage>/run_NNN/` with a `manifest.ya
 effective config and a copy of all modules in `code/`.
 
 Reference runs: segmentation run_005, coefficients run_005, features run_002,
-qc_channels run_003.
+classification run_002, qc_channels run_003.
 Earlier runs are kept as records and are superseded (see "Run history").
 
 ### vesicles.csv columns
@@ -239,6 +240,50 @@ no missing values). Figure: `features/run_002/feature_space.pdf`.
   ATTO390 objects spraying toward higher 515 and 488; and dim ATTO390 vesicles
   whose 405 signal is within a few noise SDs.
 
+### Step 3: classification model (classification run_002, features run_002)
+
+Method (agreed 2026-09-24, option A with B as cross-check): Gaussian mixture, full
+covariance, 1-10 components by BIC, 10 initializations, seed 42, fitted to all 3123
+objects without their slide labels. Components labeled by noise-weighted NNLS
+unmixing of their centers with the step 1 signatures (label present at >= 5
+home-channel noise SDs); objects unassigned below 0.95 label probability. B: the
+same unmixing and threshold per object. Deterministic (two runs give identical
+labels). Figure: `classification/run_002/classification.pdf`.
+
+BIC chose 8 components (7 and 9 within 40 BIC units):
+
+| Component | n | Center z 405 / 488 / 515 | t ATTO390 / t ATTO525 | Label |
+|---|---|---|---|---|
+| 1 | 1250 | 13.3 / 0.5 / 0.3 | 13.3 / 0.0 | ATTO390 |
+| 3 | 776 | 28.2 / 1.5 / 1.2 | 28.2 / 0.2 | ATTO390 |
+| 0 | 259 | 30.9 / 4.3 / 6.0 | 31.0 / 5.2 | dual |
+| 5 | 48 | 113.9 / 11.4 / 12.6 | 114.1 / 9.2 | dual |
+| 2 | 395 | 2.0 / 54.3 / 238.0 | 0.2 / 237.8 | ATTO525 |
+| 7 | 116 | 4.6 / 145.0 / 608.9 | 0.2 / 609.8 | ATTO525 |
+| 6 | 49 | 0.0 / 3.0 / 7.9 | 0.0 / 8.2 | ATTO525 |
+| 4 | 230 | 0.1 / 0.4 / 4.3 | 0.0 / 4.2 | no label |
+
+True slide (rows) against assigned label, descriptive only (evaluation is step 4):
+
+| Model | Slide | ATTO390 | ATTO525 | dual | no label | unassigned |
+|---|---|---|---|---|---|---|
+| A | ATTO390 (2417) | 1731 (71.6 %) | 7 (0.3 %) | 199 (8.2 %) | 80 (3.3 %) | 400 (16.5 %) |
+| A | ATTO525 (706) | 23 (3.3 %) | 534 (75.6 %) | 3 (0.4 %) | 103 (14.6 %) | 43 (6.1 %) |
+| B | ATTO390 (2417) | 2139 (88.5 %) | 38 (1.6 %) | 143 (5.9 %) | 97 (4.0 %) | - |
+| B | ATTO525 (706) | 21 (3.0 %) | 552 (78.2 %) | 14 (2.0 %) | 119 (16.9 %) | - |
+
+- Wrong-dye calls are rare in both: 0.3 % (A) and 1.6 % (B) of ATTO390-slide objects
+  called ATTO525, and about 3 % of ATTO525-slide objects called ATTO390 (the 405-only
+  objects found in the first look).
+- A and B agree on 82 % of objects. Nearly all disagreement is A's 'unassigned':
+  component 0 is the 515-side tail of the ATTO390 population, and its center sits
+  just over the dual threshold (t ATTO525 = 5.2 against 5), so objects between it
+  and the ATTO390 components get split probabilities. This is a sensitivity of
+  option A to the presence threshold, to be quantified in step 4.
+- The dim 515-only cloud (component 4, 4.3 noise SDs) is 'no label' and component
+  6 (7.9 noise SDs, nothing in 405) is 'ATTO525': the presence threshold is what
+  separates them, which is the impurity vs dim-ATTO525 ambiguity.
+
 ### Verification of step 1 (workflow, 2026-09-24)
 
 Run on coefficients run_002 / segmentation run_003 (before the fixes below).
@@ -283,15 +328,15 @@ kept in the repo; their conclusions are recorded here.
   mean +- SD across FOVs (options A and A); 3 px aperture kept after the 4 px check.
 - 2026-09-24: step 2 features are asinh(z / 5) of 405, 488 and 515, all detected
   objects kept with flags (options A and A).
+- 2026-09-24: step 3 model is an unsupervised GMM labeled by the step 1 signatures
+  (option A), with per-object unmixing (B) as cross-check.
 
 ## Open decisions
 
 - Classification analysis, agreed one step at a time before any code runs:
   1. bleed-through coefficients and their uncertainty (done)
   2. features and scaling fed to the model (done)
-  3. model structure (mixture with odd-object components, unassigned option).
-     Must also handle the mixed ATTO390 objects (ATTO390 plus an ATTO525-like
-     emitter) found in step 1, which will look dual-labeled in a real mix.
+  3. model structure (done)
   4. evaluation on the in-silico mix
 - Which 405 laser power is correct (28.3 % in the metadata, 23.3 % in the readme).
 
@@ -304,6 +349,7 @@ kept in the repo; their conclusions are recorded here.
   by run_005 (run_004 is identical to run_005 except for the legend layout).
 - qc_channels run_001/run_002: superseded by run_003 (clipped detection noise).
 - features run_001: axes extended past the data; superseded by run_002.
+- classification run_001: identical labels to run_002, only the 'unassigned' color changed.
 
 ## Not verified
 
