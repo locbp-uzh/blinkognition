@@ -7,18 +7,31 @@ input_root: /Volumes/MediumBerth/SalomePaperData/Revisions
 # Outputs, relative to the repo root (Results/ is gitignored).
 output_root: Results/Revisions/Bleedthrough
 
-# One entry per slide. The slide is the ground-truth label of every vesicle on it.
+# Vesicle labels. home_channel: where the dye is brightest; color: Okabe-Ito name
+# (see Extraction/utils.py) used for this dye in every figure.
+dyes:
+  ATTO390:
+    home_channel: "405"
+    color: blue
+  ATTO525:
+    home_channel: "515"
+    color: orange
+
+# One entry per slide. Its dye is the ground-truth label of every vesicle on it.
+# Several slides may share a dye (replicates); FOVs are then pooled per dye.
 slides:
   ATTO390:
     folder: HT7-ATTO390
+    dye: ATTO390
     protein: HT7-HMSiR-HTL
   ATTO525:
     folder: SNAP-ATTO525
+    dye: ATTO525
     protein: SNAP-HMSiR-IA
 
-# FOVs skipped by every stage, with the reason (kept here so exclusions are traceable).
+# FOVs skipped by every stage, keyed '<slide>/<ND2 file stem>', with the reason.
 exclude_fovs:
-  HT7-ATTO390_017: "preliminary test, FOV not measured carefully; half the vesicle density, 2.5x dimmer ATTO390, many aggregates (decision 2026-09-24)"
+  ATTO390/HT7-ATTO390_017: "preliminary test, FOV not measured carefully; half the vesicle density, 2.5x dimmer ATTO390, many aggregates (decision 2026-09-24)"
 
 # Channel key -> prefix of the ND2 channel name. Order in the file is checked at load.
 channels:
@@ -31,20 +44,26 @@ channels:
 # defined by its lipid label only; its 640 intensity is still measured.
 detection_channels: ["405", "488", "515"]
 
+# Andor iXon Ultra 888 at EM gain 300: pixels read about 5 % low at 30,000-40,000
+# counts and about 14 % low above 40,000, and clip near 56,800 (not at 65,535).
+# Objects with any aperture pixel at or above this value are flagged 'nonlinear'.
+camera:
+  nonlinear_above_counts: 30000
+
 # Pixel size is read from the ND2 metadata (0.13 um for these files).
 background:
   median_size_px: 25        # median filter window for the slowly varying background (3.25 um)
 
 detection:
   psf_sigma_px: 1.6         # matched-filter sigma; measured 1.5-1.8 px (qc_channels run_001)
-  snr_threshold: 6.0        # peak height in units of the filtered-image noise
+  snr_threshold: 6.0        # peak height in units of the (clipped) filtered-image noise
   min_separation_px: 3      # local-maximum neighborhood radius
-  border_px: 10             # ignore peaks this close to the image edge
+  border_px: 10             # ignore peaks this close to the image edge (must exceed annulus + 1)
 
 photometry:
   aperture_radius_px: 3     # integration disk
   annulus_px: [5, 8]        # inner, outer radius of the local-background annulus
-  crowding_radius_px: 8     # flag vesicles with another vesicle closer than this
+  crowding_radius_px: 8     # flag vesicles with another vesicle closer than this (1.04 um)
 
 # Empty-aperture control: identical photometry at random positions away from any
 # detected vesicle. Gives the zero point and the empirical noise of every channel.
@@ -56,14 +75,12 @@ blanks:
 # Analysis step 1: bleed-through coefficients (decided 2026-09-24: per-FOV median of
 # per-vesicle ratios, summarized as mean +- SD across FOVs; LS slope as cross-check).
 bleedthrough:
-  segmentation_run: run_003 # reference segmentation (3 px aperture); run_004 is the 4 px sensitivity run
-  home_channel:
-    ATTO390: "405"
-    ATTO525: "515"
+  segmentation_run: run_005 # reference segmentation (3 px aperture)
   min_home_snr: 10          # home flux >= this many blank robust SDs
   exclude_crowded: true
-  exclude_saturated: true
+  exclude_nonlinear: true
   n_brightness_bins: 6      # log-spaced bins for the binned-median trend check
+  min_per_bin: 20           # bins with fewer vesicles are not drawn
 
 qc:
   match_radius_px: 3        # nearest-neighbor radius for cross-channel matching

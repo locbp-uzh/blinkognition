@@ -20,25 +20,33 @@ Raw data are read in place from `/Volumes/MediumBerth/SalomePaperData/Revisions`
 
 Each ND2 is one 512 x 512 frame, 4 channels, 0.13 um pixels, TIRF 2x:
 
-| Key | ND2 name | Excitation / emission | Laser |
-|---|---|---|---|
-| 405 | 405 TIRF 2x | 405 / 432 nm | 23.3 %, 0.7 mW |
-| 488 | 488 TIRF 2x | 488 / 525 nm | 6.1 %, 0.570 mW |
-| 640 | 638LP TIRF 2x | 640 / 705 LP | 90.2 %, 9.1 mW |
-| 515 | 515 TIRF 2x | 515 / 525 nm | 5 %, 0.250 mW |
+| Key | ND2 name | Excitation / emission | Laser (ND2 metadata) | Laser (data readme) | Exposure |
+|---|---|---|---|---|---|
+| 405 | 405 TIRF 2x | 405 / 432 nm | 28.3 % | 23.3 %, 0.7 mW | 100 ms |
+| 488 | 488 TIRF 2x | 488 / 525 nm | 6.1 % | 6.1 %, 0.570 mW | 30 ms |
+| 640 | 638LP TIRF 2x | 640 / 705 LP | 90.2 % | 90.2 %, 9.1 mW | 30 ms |
+| 515 | 515 TIRF 2x | 515 / 525 nm | 5.0 % | 5 %, 0.250 mW | 30 ms |
 
-Camera (from the ND2 metadata): Andor DU-888 (iXon Ultra 888 EMCCD), EM gain 300,
-10 MHz readout, 1x1 binning, identical in every file. Exposure is 100 ms for 405 and
-30 ms for 488, 640 and 515. Every flux ratio below is specific to these laser powers
-and exposures; `segment.py` writes them to `acquisition.csv` and warns if FOVs differ.
+The 405 power differs between the ND2 metadata (28.3 % in all ten files) and the
+data readme (23.3 %); which one the 0.7 mW belongs to is unknown (open question for
+the experimenter). Camera: Andor DU-888 (iXon Ultra 888 EMCCD), EM gain 300, 10 MHz
+readout, conversion gain 1, 1x1 binning, identical in every file. Every flux ratio
+below is specific to these laser powers and exposures; `segment.py` records
+exposure, EM gain and lasers per FOV in `acquisition.csv` and warns if they differ.
+
+The camera is not linear to 65,535 counts: pixels read about 5 % low at
+30,000-40,000 counts, about 14 % low above 40,000, and clip near 56,800 (two
+ATTO525 FOVs reach 56,857 and 56,119). Objects with any aperture pixel at or above
+30,000 counts are flagged `nonlinear` (`camera.nonlinear_above_counts`).
 
 Slides were not washed. Each slide is one sample: its FOVs are repeated
 measurements of the same sample, not independent replicates.
 
-Excluded: HT7-ATTO390_017 (preliminary test, FOV not measured carefully: half the
-vesicle density, ATTO390 about 2.5x dimmer, many aggregates). Listed with its reason
-under `exclude_fovs` in `config.yaml`, which every stage honors. Decision 2026-09-24;
-similar FOVs in the main datasets will be handled when they arise.
+Excluded: ATTO390/HT7-ATTO390_017 (preliminary test, FOV not measured carefully:
+half the vesicle density, ATTO390 about 2.5x dimmer, many aggregates). Listed with
+its reason under `exclude_fovs` in `config.yaml` (keys are `<slide>/<file stem>`),
+which every stage honors. Decision 2026-09-24; similar FOVs in the main datasets
+will be handled when they arise.
 
 ## Approach
 
@@ -48,8 +56,9 @@ similar FOVs in the main datasets will be handled when they arise.
    measure every vesicle in all four channels at the same position (aperture flux
    minus local annulus median). Segmenting each channel on its own would only find
    the ATTO525 vesicles bright enough to bleed into 405, and the bleed-through
-   estimate would then depend on the detection threshold.
-3. Bleed-through coefficients: flux ratios of each dye into the "wrong" channels.
+   estimate would then depend on the detection threshold. Empty apertures (blanks)
+   are measured the same way to calibrate the zero point and noise.
+3. Bleed-through coefficients (`coefficients.py`, analysis step 1).
 4. Classification: fit a mixture model to the pooled vesicles of both slides (an
    in-silico mix whose true labels are known from the slide), and score the
    assignments against the slide labels. Pending, see "Open decisions".
@@ -58,7 +67,7 @@ Vesicle brightness varies with vesicle size (membrane dye scales with membrane
 area), so a single-channel intensity cannot separate the labels: a large ATTO525
 vesicle leaking into 405 can match a small ATTO390 vesicle. Bleed-through is a
 fixed fraction of the emitting dye's signal, so the size-independent feature is the
-channel ratio. On log axes the two labels form parallel diagonal bands.
+channel ratio.
 
 ## Running
 
@@ -68,98 +77,77 @@ matplotlib, nd2, pyyaml). No extra packages. Run from the repo root:
 ```bash
 python Revisions/Bleedthrough/qc_channels.py
 python Revisions/Bleedthrough/segment.py
+python Revisions/Bleedthrough/coefficients.py
 ```
 
-Each run writes `Results/Revisions/Bleedthrough/<stage>/run_NNN/` with a
-`manifest.yaml` (git commit and dirty flag, package versions, SHA-256 of every
-input ND2) and copies of the config and script.
+`segment.py` and `coefficients.py` accept `--set key.path=value` overrides (the
+value keeps the type of the config entry it replaces); `coefficients.py` reads the
+segmentation run named by `bleedthrough.segmentation_run`, or `--seg-run DIR`. Each
+run writes `Results/Revisions/Bleedthrough/<stage>/run_NNN/` with a `manifest.yaml`
+(git commit and dirty flag, SHA-256 of every input and of every module), the
+effective config and a copy of all modules in `code/`.
+
+Reference runs: segmentation run_005, coefficients run_005, qc_channels run_003.
+Earlier runs are kept as records and are superseded (see "Run history").
 
 ### vesicles.csv columns
 
 | Column | Meaning |
 |---|---|
-| slide, fov, vesicle_id | ground-truth label (slide), FOV, index within FOV |
+| slide, dye, fov, vesicle_id | slide, its dye (ground-truth label), ND2 file stem, index within FOV |
 | y_px, x_px | subpixel position (centroid in the channel that detected it) |
 | detected_by | detection channel with the highest SNR at the peak |
 | snr_detect, snr_405/488/515 | matched-filter SNR at the peak (combined and per channel) |
-| nn_dist_px, crowded | distance to nearest vesicle; flag if < 8 px |
-| flux_<ch> | aperture sum (r = 3 px) minus 28 px x annulus median (r = 5-8 px), camera counts |
-| flux_err_<ch> | annulus robust sigma x sqrt(n aperture px), background noise only |
+| nn_dist_px, crowded | distance to nearest vesicle; flag if < 8 px (1.04 um) |
+| flux_<ch> | aperture sum (r = 3 px) minus n_aperture x annulus median (r = 5-8 px), camera counts |
+| flux_err_<ch> | annulus robust sigma x sqrt(n aperture px), background noise only (underestimates, see below) |
 | bg_<ch> | annulus median (counts per pixel) |
-| saturated | any aperture pixel at the camera maximum in any channel |
+| peak_raw_<ch> | highest raw pixel in the aperture |
+| nonlinear | any aperture pixel >= camera.nonlinear_above_counts in any channel |
 
-`blanks.csv` has the same flux, flux_err and bg columns for 300 random positions per
-FOV at least 8 px from any detected vesicle (per-FOV seeded RNG, so positions do
-not change when other FOVs are excluded). `acquisition.csv` has exposure and EM gain
-per FOV and channel.
+`blanks.csv` has the same photometry columns for 300 random positions per FOV at
+least 8 px from any detected vesicle (per-FOV seeded RNG keyed on slide and FOV, so
+positions do not change when other FOVs are excluded). `acquisition.csv` has
+exposure, EM gain and lasers per FOV and channel. FOVs are identified by
+(slide, fov) everywhere, since file stems can repeat between slide folders.
 
-## Results so far (2026-09-24)
+## Results
 
-### Channel QC (qc_channels run_002)
+### Channel QC (qc_channels run_003)
 
 - Spot sigma 1.5-1.8 px (195-235 nm); `psf_sigma_px` set to 1.6.
 - 488 vs 515: offset below 0.15 px on both slides. No correction needed.
-- 405 vs 488 / 515: dx = -0.75 to -1.05 px on the ATTO390 slide (every FOV), but only
-  -0.1 to -0.3 px on the ATTO525 slide. The offset follows the emitting dye, not
-  the slide position, which points to lateral chromatic shift between the 432 nm
-  and ~525 nm emission bands (the ATTO525 light reaching the 405 channel is then
-  presumably long-wavelength leakage). With a 3 px aperture and sigma 1.6 px, a
-  0.9 px shift loses roughly 5 % of the flux in the shifted channel: irrelevant for
-  classification, a small bias on the bleed coefficients. Not yet checked with a
-  larger aperture.
+- 405 vs 488 / 515: dx about -0.75 to -0.9 px on the ATTO390 slide (every FOV),
+  but only -0.1 to -0.2 px on the ATTO525 slide. The offset follows the emitting
+  dye, not the slide position: lateral chromatic shift between the 432 nm and
+  ~525 nm emission bands (the ATTO525 light reaching the 405 channel is presumably
+  long-wavelength leakage). The 5x5 centroid slightly pulls positions toward whole
+  pixels (about 0.05-0.1 px at these offsets), so the offsets are approximate.
 - 640 has too few spots to register (5-23 per FOV).
 
-### Segmentation, first look (segmentation run_001, includes FOV 017)
+### Populations (exploratory, segmentation run_001, includes FOV 017, no zero point)
 
-3242 vesicles: 2593 on the ATTO390 slide (about 570 per FOV, except 298 in FOV 017)
-and 649 on the ATTO525 slide (107-143 per FOV). None saturated.
+Kept because it describes what is on the slides; the numbers are superseded.
 
-The fluxes and ratios in this subsection are NOT zero-point corrected and are
-superseded by the empty-aperture control below; they overstate the small bleed
-terms. Kept because they describe the populations that exist.
+| Slide | Population | n | F405 | F488 | F515 |
+|---|---|---|---|---|---|
+| ATTO390 | main ATTO390 vesicles | 2361 | 33 800 | 535 | 229 |
+| ATTO525 | main ATTO525 vesicles | 520 | 3 780 | 24 700 | 58 000 |
+| ATTO390 | dim, 515-only | 161 | ~0 | 478 | 667 |
+| ATTO525 | dim, 515-only | 75 | ~0 | 343 | 1 040 |
+| ATTO525 | 405-only | 34 | 8 900 | 644 | 207 |
 
-Median values per population (fluxes in camera counts; the ratio column is the
-median of the per-vesicle ratio):
-
-| Slide | Population | n | F405 | F488 | F515 | F515/F405 or F405/F515 |
-|---|---|---|---|---|---|---|
-| ATTO390 | main ATTO390 vesicles | 2361 | 33 800 | 535 | 229 | F515/F405 = 0.006 |
-| ATTO525 | main ATTO525 vesicles | 520 | 3 780 | 24 700 | 58 000 | F405/F515 = 0.062 |
-| ATTO390 | dim, 515-only | 161 | ~0 (z 0.3) | 478 | 667 | not ATTO390 |
-| ATTO525 | dim, 515-only | 75 | ~0 | 343 | 1 040 | dim tail of ATTO525? |
-| ATTO525 | 405-only | 34 | 8 900 | 644 | 207 | F515/F405 = 0.02 |
-
-Population cuts here are exploratory (asinh-scaled flux boxes), only to describe
-what is there; they are not the classifier.
-
-Observations:
-
-1. Bleed-through between the two main populations is small compared with their
-   separation. ATTO525 puts about 6 % of its 515 flux into 405; ATTO390 puts about
-   0.6 % of its 405 flux into 515 and 1.6 % into 488 (at the laser settings above).
-   The per-vesicle 405/515 ratio of the two main populations differs by a factor
+1. The per-vesicle 405/515 ratio of the two main populations differs by a factor
    of about 2500 (3.4 decades).
 2. The limiting problem for the mixing experiment is not bleed-through but
-   off-population objects on each slide:
-   - ATTO390 slide: about 25 dim 515-positive, 405-negative objects per FOV (6 % of
-     objects). They cannot be ATTO390 bleed-through (no 405 signal) and would be
-     called ATTO525 in a mix. Their 515 flux overlaps the dim ATTO525 objects.
-   - ATTO525 slide: 4-9 405-positive, 515-negative objects per FOV (5 %), about 4x
-     dimmer in 405 than typical ATTO390 vesicles. They would be called ATTO390.
-   Whether these are cross-contamination, dye aggregates or fluorescent debris is
-   unknown from these data.
-3. FOV HT7-ATTO390_017 is unlike the other four ATTO390 FOVs: half the vesicles,
-   the ATTO390 population about 2.5x dimmer in 405, and many more 515-positive and
-   mixed objects (plus bright broadband aggregates in the QC image).
-4. 640 (protein) shows almost no signal at vesicles (see the empty-aperture control
-   below). Consistent with HMSiR being a spontaneously blinking dye mostly in its
-   dark form in a single frame; the protein cannot be assessed from these
-   snapshots. There is no detectable ATTO390 or ATTO525 bleed into 640.
+   off-population objects on each slide: about 25 dim 515-positive, 405-negative
+   objects per ATTO390 FOV (6 %), which would be called ATTO525 in a mix, and 4-9
+   405-positive, 515-negative objects per ATTO525 FOV (5 %), which would be called
+   ATTO390. Most likely impurities from the unwashed slides (user, 2026-09-24).
+3. 640 (protein) shows almost no signal at vesicles: HMSiR is a spontaneously
+   blinking dye, mostly dark in any single frame.
 
-### Empty-aperture control (segmentation run_003, FOV 017 excluded)
-
-2944 vesicles (2295 ATTO390 slide, 649 ATTO525 slide) and 2700 blanks. Vesicles and
-blanks are identical to run_002; run_003 only adds `acquisition.csv`.
+### Empty-aperture control (segmentation run_003)
 
 Median over FOVs of the per-FOV blank statistics (camera counts):
 
@@ -174,26 +162,96 @@ Median over FOVs of the per-FOV blank statistics (camera counts):
 | ATTO525 | 515 | 162 | 205 | 131 | 1.56 |
 | ATTO525 | 640 | 204 | 682 | 585 | 1.17 |
 
-1. Zero point. Empty apertures do not read zero. The positive offsets fit the
-   EMCCD: at EM gain 300 the pixel distribution is right-skewed, so the annulus
-   median sits below the mean background and every aperture gains a positive
-   offset. The negative 405 offset on the ATTO390 slide fits annulus contamination
-   in the dense field (blank annuli overlap nearby vesicles). The offset matters
-   only where the signal is small: the uncorrected ATTO390 bleed into 515 (median
-   229 counts) is more than half offset (130), and into 488 (535) about a third
-   (186). Rough corrected values: ATTO390 into 515 about 0.3 % and into 488 about
-   1.0 % of its 405 flux; ATTO525 into 405 still about 6 % of its 515 flux. To be
-   recomputed properly in analysis step 1.
-2. Noise. flux_err (annulus sigma x sqrt(n)) underestimates the real scatter of
-   blank fluxes by 1.2-1.8x (correlated EMCCD noise and background structure), so
-   the SNR values in vesicles.csv are inflated. The blanks give the honest
-   per-channel noise.
-3. 640. Vesicles sit barely above blanks: 3.2 % (ATTO390 slide) and 5.4 %
-   (ATTO525 slide) of vesicles exceed 3x flux_err in 640, against 1.1 % and 2.0 %
-   of blanks. A faint protein signal on a few percent of vesicles at most.
+1. Zero point. Empty apertures do not read zero. The positive offsets are the
+   EMCCD skew: n_aperture x (annulus mean - annulus median) at the blank positions
+   reproduces them (for example 137 vs 130 counts in 515 on the ATTO390 slide).
+   The negative 405 offset on the ATTO390 slide is neighbor light in the annuli of
+   the dense field. Every analysis subtracts the per-FOV, per-channel blank median.
+2. Noise. flux_err underestimates the real scatter of blank fluxes by 1.2-1.8x, so
+   the SNR values in vesicles.csv are inflated. Analyses use the per-FOV blank
+   robust SD instead.
 
-Planned use: subtract the per-FOV, per-channel blank median from every vesicle
-flux, and use the per-FOV blank robust SD as the noise of each channel.
+### Step 1: bleed-through coefficients (coefficients run_005, segmentation run_005)
+
+Method (agreed 2026-09-24, options A and A): fluxes zero-point corrected with the
+per-FOV, per-channel blank median; vesicles with home-channel signal >= 10 blank
+SDs, not crowded, not nonlinear (1587 of 2417 ATTO390, 502 of 706 ATTO525). Per
+FOV, k = median of per-vesicle ratios; reported as mean +- SD across FOVs (n = 4
+ATTO390, 5 ATTO525). Least-squares slope through the origin (LS) as a cross-check.
+
+| Dye | Into | k (mean +- SD of FOVs) | LS cross-check |
+|---|---|---|---|
+| ATTO390 | 488 | 0.86 +- 0.10 % | 1.049 +- 0.070 % |
+| ATTO390 | 515 | 0.225 +- 0.023 % | 0.394 +- 0.052 % |
+| ATTO390 | 640 | 0.01 +- 0.12 % | 0.10 +- 0.12 % |
+| ATTO525 | 405 | 6.13 +- 0.78 % | 6.21 +- 0.83 % |
+| ATTO525 | 488 | 42.7 +- 1.8 % | 43.9 +- 1.7 % |
+| ATTO525 | 640 | 0.143 +- 0.096 % | 0.214 +- 0.068 % |
+
+Figure: `coefficients/run_005/bleedthrough.pdf` (caption draft in caption.txt;
+vesicle composition, dye mol%, buffer and temperature still to be added).
+
+- Proportionality holds: binned medians of the ratio are flat across the home
+  brightness range for every pair.
+- Into 640, k cannot be separated from genuine protein signal, which also scales
+  with vesicle size; both are at most about 0.1-0.2 % of the label signal.
+- ATTO525 into 405: FOV 008 is at 7.4 %, the other four at 5.4-6.2 %.
+- Aperture: a 4 px aperture raised the ATTO390 terms by about 5 % and moved the
+  ATTO525 terms by under 1 % (on segmentation run_003/run_004), within the
+  FOV-to-FOV SD, so the 3 px aperture stays (rule agreed in advance).
+
+Why LS disagrees with the median for ATTO390 (verification, 2026-09-24): about
+7 % of selected ATTO390 vesicles (115 of 1564 in run_003, 26-32 per FOV) carry an
+extra co-localized emitter with an ATTO525-like spectrum (excess 488/515 about 0.57,
+like the free 515-only objects, against 3.9 for ATTO390 bleed). It adds a roughly
+constant 900-1500 counts in 515 regardless of vesicle brightness and is enriched on
+bright vesicles, which LS weights by F405^2. Not camera nonlinearity (clean bright
+objects show no rise), not aggregates (normal spot width), not photometry (annulus
+and aperture variants give the same), not crowding. The ATTO525 into 488
+disagreement in run_002 came from two clipped, very bright objects and disappears
+once `nonlinear` objects are excluded. LS is therefore a diagnostic here, not a
+coefficient.
+
+Systematic uncertainty (report, do not correct): the 3 px aperture ratio
+underestimates the total-flux ATTO390 coefficients by about 5 % (chromatic shift)
+plus 0-9 % (the bleed channels have a wider PSF); the mixed ATTO390 objects push
+the ATTO390 k up by at least 3 % (488) and 9 % (515). Net about +-10 % on the
+ATTO390 terms and a few percent on the ATTO525 terms. Negligible for
+classification, where the populations are 3.4 decades apart.
+
+### Verification of step 1 (workflow, 2026-09-24)
+
+Run on coefficients run_002 / segmentation run_003 (before the fixes below).
+
+1. Independent recomputation from the method description, without reading
+   coefficients.py: all 19,014 numbers reproduced to the bit.
+2. Known-answer injection: synthetic vesicles with known k injected into the real
+   images (real background, EMCCD noise on the injected photons, g = 14 counts per
+   photoelectron from the mean-variance slope), measured with the project's own
+   code including full detection. The median-ratio estimator recovers k within
+   about 2 % for all four terms; the chain itself creates neither the A/B gap nor a
+   brightness trend. Without the zero-point correction ATTO390 into 515 is +110 %
+   and into 488 +42 %, so the correction is essential. The chromatic shift costs
+   5.3 % of the shifted channel's flux at 3 px (2.2 % at 4 px).
+3. A vs B investigation: see above.
+4. Code review with adversarial check of each finding: 16 findings, 15 confirmed.
+   Fixed: coefficients ignored `exclude_fovs`; FOV identity was the bare file stem
+   (clashes across slides, shared blank RNG); slide and dye were one key (replicate
+   slides silently dropped); the caption was hard-coded; the manifest copied only
+   the entry script; `--set` could turn '405' into an int; zero-vesicle or
+   zero-blank FOVs crashed; single-FOV summaries reported NaN SD as "agree"; the
+   saturation flag never fired (camera clips near 56,800); laser power was not
+   recorded; blanks could sit 7.3 px from a vesicle; border 0 cleared the whole
+   mask; the annulus could exceed the border; figure issues (clipped marks, wrong
+   off-axis counts, legend styles, sub-5 pt text, width over 180 mm). Not fixed,
+   judged minor: the 5x5 centroid's pull toward whole pixels.
+5. Side finding, fixed: the detection noise estimate (MAD of the filtered image)
+   grew with object density, so dense FOVs had a higher effective threshold (450
+   injected spots doubled it). Detection now uses an iteratively clipped MAD (+7 %
+   for the same test); run_005 finds 3123 vesicles instead of 2944.
+
+Scripts and outputs of the verification are in the session scratchpad and not
+kept in the repo; their conclusions are recorded here.
 
 ## Decisions
 
@@ -201,20 +259,36 @@ flux, and use the per-FOV blank robust SD as the noise of each channel.
 - 2026-09-24: the classification model must allow for objects that are neither
   ATTO390 nor ATTO525 vesicles. The odd objects here are most likely impurities
   from the unwashed slides, but similar objects may appear in cleaner datasets.
+- 2026-09-24: step 1 uses the per-FOV median of per-vesicle ratios, summarized as
+  mean +- SD across FOVs (options A and A); 3 px aperture kept after the 4 px check.
 
 ## Open decisions
 
 - Classification analysis, agreed one step at a time before any code runs:
-  1. bleed-through coefficients and their uncertainty
+  1. bleed-through coefficients and their uncertainty (done)
   2. features and scaling fed to the model
-  3. model structure (mixture with odd-object components, unassigned option)
+  3. model structure (mixture with odd-object components, unassigned option).
+     Must also handle the mixed ATTO390 objects (ATTO390 plus an ATTO525-like
+     emitter) found in step 1, which will look dual-labeled in a real mix.
   4. evaluation on the in-silico mix
+- Which 405 laser power is correct (28.3 % in the metadata, 23.3 % in the readme).
+
+## Run history
+
+- segmentation run_001 (includes FOV 017), run_002/run_003 (FOV 017 excluded, blanks;
+  run_003 adds acquisition.csv), run_004 (4 px aperture): superseded by run_005
+  (clipped detection noise, nonlinear flag, (slide, fov) keys, laser record).
+- coefficients run_001 (panel order bug), run_002 (verified), run_003 (4 px): superseded
+  by run_005 (run_004 is identical to run_005 except for the legend layout).
+- qc_channels run_001/run_002: superseded by run_003 (clipped detection noise).
 
 ## Not verified
 
-- Flux sensitivity to aperture size (5 % chromatic-shift bias estimate is analytic).
-- Photometry treats the background as the only noise (no shot noise in flux_err);
-  the blank SD is also background-only, so bright vesicles are noisier than it says.
-- Blank positions are at least 8 px from detected vesicles, so undetected dim
-  objects can sit in blank apertures; the median is used to limit their effect.
+- The fixes after the verification were checked with targeted tests (each failure
+  case now passes) and a full rerun, not by a second independent review.
+- Photometry treats the background as the only noise; bright vesicles are noisier
+  than the blank SD says.
+- No camera linearity calibration (photon transfer or exposure series); the
+  30,000-count limit and the clipping level are inferred from the data.
+- The identity of the 515 emitter on ATTO390 vesicles and of the odd objects.
 - All numbers come from one slide per label; slide-to-slide variation is unmeasured.

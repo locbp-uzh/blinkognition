@@ -17,13 +17,15 @@ estimate toward the brightest vesicles.
 Photometry per vesicle and channel, on the raw image:
     flux     = sum(aperture) - n_aperture * median(annulus)
     flux_err = robust_sigma(annulus) * sqrt(n_aperture)     (background noise only)
+The median background leaves a positive offset on this EMCCD (skewed noise); the
+blanks measure it, and analysis stages subtract it (see coefficients.calibrate).
 
 Outputs (Results/Revisions/Bleedthrough/segmentation/run_NNN/):
     vesicles.csv      one row per vesicle (all FOVs), columns documented in README.md
     blanks.csv        the same photometry at random empty positions (zero point and noise)
-    acquisition.csv   exposure and EM gain per FOV and channel (warns if they differ)
-    qc/<fov>.pdf      the four channels of each FOV with the detections circled
-    manifest.yaml, config.yaml, segment.py
+    acquisition.csv   exposure, EM gain and lasers per FOV and channel (warns if they differ)
+    qc/<slide>__<fov>.pdf  the four channels of each FOV with the detections circled
+    manifest.yaml, config.yaml, code/
 
 Usage:
     python Revisions/Bleedthrough/segment.py [--config path] [--no-qc] [--set key.path=value ...]
@@ -43,19 +45,25 @@ from matplotlib.collections import PatchCollection
 from matplotlib.patches import Circle
 from scipy.spatial import cKDTree
 
-from common import (COLORS, discover_fovs, find_peaks, flatten, load_config, load_fov, load_scm,
-                    make_run_dir, refine_centroid, robust_sigma, sample_blank_positions, save_pdf,
-                    setup_logging, snr_map, write_manifest)
+from common import (COLORS, discover_fovs, find_peaks, flatten, fov_key, load_config, load_fov,
+                    load_scm, make_run_dir, refine_centroid, robust_sigma, sample_blank_positions,
+                    save_pdf, setup_logging, snr_map, write_manifest)
 
 # --- Constants ---
 QC_CONTRAST_PERCENTILES = (1.0, 99.8)
 QC_PANEL_IN = 3.5           # inches per QC panel
+PHOT_COLUMNS = ["flux", "flux_err", "bg", "peak_raw"]
+ACQ_SETTINGS = ["exposure_ms", "em_gain", "lasers_on"]
 
 
-def photometry(img: np.ndarray, pos: np.ndarray, r_ap: float, r_in: float, r_out: float,
-               sat_value: float) -> pd.DataFrame:
+def window_half(r_out: float) -> int:
+    """Half-size of the photometry window; positions must be at least this far from the edge."""
+    return int(np.ceil(r_out)) + 1
+
+
+def photometry(img: np.ndarray, pos: np.ndarray, r_ap: float, r_in: float, r_out: float) -> pd.DataFrame:
     """Aperture flux with local annulus background for each (y, x) in pos."""
-    h = int(np.ceil(r_out)) + 1
+    h = window_half(r_out)
     yy, xx = np.mgrid[-h:h + 1, -h:h + 1]
     rows = []
     for y, x in pos:
@@ -65,9 +73,8 @@ def photometry(img: np.ndarray, pos: np.ndarray, r_ap: float, r_in: float, r_out
         ap, ann = win[d <= r_ap], win[(d >= r_in) & (d <= r_out)]
         bg, sig = np.median(ann), robust_sigma(ann)
         n = ap.size
-        rows.append({"flux": ap.sum() - n * bg, "flux_err": sig * np.sqrt(n), "bg": bg,
-                     "peak_raw": ap.max(), "saturated": bool(ap.max() >= sat_value)})
-    return pd.DataFrame(rows)
+        rows.append({"flux": ap.sum() - n * bg, "flux_err": sig * np.sqrt(n), "bg": bg, "peak_raw": ap.max()})
+    return pd.DataFrame(rows, columns=PHOT_COLUMNS)
 
 
 def process_fov(f: dict, cfg: dict) -> tuple[pd.DataFrame, dict]:
@@ -91,7 +98,7 @@ def process_fov(f: dict, cfg: dict) -> tuple[pd.DataFrame, dict]:
         if m.any():
             pos[m] = refine_centroid(flats[ch], pk[m])
 
-    df = pd.DataFrame({"slide": f["slide"], "fov": f["fov"], "vesicle_id": np.arange(len(pk)),
+    df = pd.DataFrame({"slide": f["slide"], "dye": f["dye"], "fov": f["fov"], "vesicle_id": np.arange(len(pk)),
                        "y_px": pos[:, 0], "x_px": pos[:, 1], "detected_by": det_by,
                        "snr_detect": combined[pk[:, 0], pk[:, 1]]})
     for ch in det_ch:
@@ -102,21 +109,21 @@ def process_fov(f: dict, cfg: dict) -> tuple[pd.DataFrame, dict]:
     df["crowded"] = nn < p["crowding_radius_px"]
 
     b = cfg["blanks"]
-    rng = np.random.default_rng([b["seed"], zlib.crc32(f["fov"].encode())])
+    rng = np.random.default_rng([b["seed"], zlib.crc32(fov_key(f["slide"], f["fov"]).encode())])
     bpos = sample_blank_positions(combined.shape, pos, b["n_per_fov"], b["min_dist_px"], d["border_px"], rng)
-    blanks = pd.DataFrame({"slide": f["slide"], "fov": f["fov"], "blank_id": np.arange(len(bpos)),
+    blanks = pd.DataFrame({"slide": f["slide"], "dye": f["dye"], "fov": f["fov"], "blank_id": np.arange(len(bpos)),
                            "y_px": bpos[:, 0], "x_px": bpos[:, 1]})
 
-    sat_any = np.zeros(len(df), dtype=bool)
+    nonlinear = np.zeros(len(df), dtype=bool)
     for ch, img in images.items():
-        ph = photometry(img, pos, p["aperture_radius_px"], *p["annulus_px"], meta["saturation_value"])
-        for col in ("flux", "flux_err", "bg"):
+        ph = photometry(img, pos, p["aperture_radius_px"], *p["annulus_px"])
+        for col in PHOT_COLUMNS:
             df[f"{col}_{ch}"] = ph[col].to_numpy()
-        sat_any |= ph["saturated"].to_numpy()
-        pb = photometry(img, bpos, p["aperture_radius_px"], *p["annulus_px"], meta["saturation_value"])
-        for col in ("flux", "flux_err", "bg"):
+        nonlinear |= ph["peak_raw"].to_numpy() >= cfg["camera"]["nonlinear_above_counts"]
+        pb = photometry(img, bpos, p["aperture_radius_px"], *p["annulus_px"])
+        for col in PHOT_COLUMNS:
             blanks[f"{col}_{ch}"] = pb[col].to_numpy()
-    df["saturated"] = sat_any
+    df["nonlinear"] = nonlinear
     return df, {"images": images, "pos": pos, "meta": meta, "blanks": blanks}
 
 
@@ -136,7 +143,7 @@ def qc_figure(f: dict, images: dict, pos: np.ndarray, cfg: dict, out: Path) -> N
         ax.set_axis_off()
     fig.suptitle(f"{f['fov']} ({f['slide']} slide), n = {len(pos)} vesicles", fontsize=7)
     fig.tight_layout()
-    save_pdf(fig, out / f"{f['fov']}.pdf")
+    save_pdf(fig, out / f"{f['slide']}__{f['fov']}.pdf")
     plt.close(fig)
 
 
@@ -149,6 +156,10 @@ def main() -> None:
     args = ap.parse_args()
     setup_logging()
     cfg = load_config(args.config, args.set)
+    h, border = window_half(cfg["photometry"]["annulus_px"][1]), cfg["detection"]["border_px"]
+    if border < h + 1:
+        raise ValueError(f"detection.border_px = {border} must be >= {h + 1} for annulus_px "
+                         f"{cfg['photometry']['annulus_px']} (photometry window half-size {h})")
     fovs = discover_fovs(cfg)
     run = make_run_dir(cfg, "segmentation")
     (run / "qc").mkdir()
@@ -159,10 +170,10 @@ def main() -> None:
         pixel_um = extra["meta"]["pixel_um"]
         for ch, a in extra["meta"]["acquisition"].items():
             acq_rows.append({"slide": f["slide"], "fov": f["fov"], "channel": ch,
-                             "exposure_ms": a.get("exposure_ms"), "em_gain": a.get("em_gain")})
-        logging.info(f"{f['fov']}: {len(df)} vesicles "
+                             **{k: a.get(k) for k in ACQ_SETTINGS}})
+        logging.info(f"{fov_key(f['slide'], f['fov'])}: {len(df)} vesicles "
                      f"(detected by {df['detected_by'].value_counts().to_dict()}, "
-                     f"{int(df['crowded'].sum())} crowded, {int(df['saturated'].sum())} saturated), "
+                     f"{int(df['crowded'].sum())} crowded, {int(df['nonlinear'].sum())} nonlinear), "
                      f"{len(extra['blanks'])} blanks")
         tables.append(df)
         blank_tables.append(extra["blanks"])
@@ -178,16 +189,17 @@ def main() -> None:
     # Fluxes (and therefore bleed-through coefficients) are only comparable at equal settings.
     acq = pd.DataFrame(acq_rows)
     acq.to_csv(run / "acquisition.csv", index=False)
-    varying = acq.groupby("channel")[["exposure_ms", "em_gain"]].nunique(dropna=False)
+    varying = acq.groupby("channel")[ACQ_SETTINGS].nunique(dropna=False)
     if (varying > 1).any().any():
         logging.warning("Acquisition settings differ between FOVs:\n" + varying.to_string())
-    settings = acq.groupby("channel")[["exposure_ms", "em_gain"]].first().to_dict("index")
+    settings = acq.groupby("channel")[ACQ_SETTINGS].first().to_dict("index")
     write_manifest(run, cfg, Path(__file__), [f["path"] for f in fovs],
                    extra={"pixel_um": pixel_um, "n_vesicles": int(len(ves)),
-                          "n_per_slide": ves["slide"].value_counts().to_dict(),
+                          "n_per_slide": {str(k): int(v) for k, v in ves["slide"].value_counts().items()},
                           "excluded_fovs": cfg.get("exclude_fovs") or {},
-                          "acquisition": {k: {kk: (float(vv) if kk == "exposure_ms" else int(vv))
-                                              for kk, vv in s.items()} for k, s in settings.items()}})
+                          "acquisition": {str(k): {"exposure_ms": float(s["exposure_ms"]), "em_gain": int(s["em_gain"]),
+                                                   "lasers_on": str(s["lasers_on"])} for k, s in settings.items()},
+                          "acquisition_settings_vary": bool((varying > 1).any().any())})
 
 
 if __name__ == "__main__":

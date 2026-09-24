@@ -39,8 +39,18 @@ __all__ = ["COLORS", "setup_logging"]
 # PDF font subsetting logs every glyph at INFO level.
 logging.getLogger("fontTools").setLevel(logging.WARNING)
 
-# Okabe-Ito assignment per slide, used in every figure.
-SLIDE_COLORS = {"ATTO390": COLORS["blue"], "ATTO525": COLORS["orange"]}
+# Columns that must be read back as strings (a FOV stem like '001' would otherwise become int 1).
+STR_COLUMNS = {"slide": str, "dye": str, "fov": str, "detected_by": str}
+
+
+def dye_colors(cfg: dict) -> dict[str, str]:
+    """Okabe-Ito color per dye, from cfg['dyes'][dye]['color'] (a name in COLORS)."""
+    return {d: COLORS[v["color"]] for d, v in cfg["dyes"].items()}
+
+
+def fov_key(slide: str, fov: str) -> str:
+    """Unique FOV identifier: file stems can repeat between slide folders."""
+    return f"{slide}/{fov}"
 
 
 # =============================================================================
@@ -48,11 +58,29 @@ SLIDE_COLORS = {"ATTO390": COLORS["blue"], "ATTO525": COLORS["orange"]}
 # =============================================================================
 
 
+def _cast_like(old, value: str, item: str):
+    """Parse an override value with the type of the value it replaces."""
+    if isinstance(old, bool):
+        new = yaml.safe_load(value)
+        if not isinstance(new, bool):
+            raise TypeError(f"Override '{item}': expected true/false")
+        return new
+    if isinstance(old, str):
+        return value
+    if isinstance(old, int):
+        f = float(value)
+        return int(f) if f.is_integer() else f
+    if isinstance(old, float):
+        return float(value)
+    return yaml.safe_load(value)
+
+
 def load_config(path: Path | None = None, overrides: list[str] | None = None) -> dict:
     """Load config.yaml (default: the one next to this file) and apply 'a.b=value' overrides.
 
-    Values are parsed as YAML, so '--set photometry.aperture_radius_px=4' gives an int.
-    The applied overrides are kept in cfg['_overrides'] and end up in the manifest.
+    An override keeps the type of the value it replaces ('405' stays a string,
+    '1e1' becomes a float); new or list values are parsed as YAML. The applied
+    overrides are kept in cfg['_overrides'] and end up in the manifest.
     """
     path = Path(path) if path else HERE / "config.yaml"
     with open(path) as f:
@@ -61,37 +89,48 @@ def load_config(path: Path | None = None, overrides: list[str] | None = None) ->
         key, sep, value = item.partition("=")
         if not sep:
             raise ValueError(f"Override '{item}' is not of the form key.path=value")
-        node, *parts = key.split(".")
+        parts = key.split(".")
         target = cfg
-        for part in [node, *parts][:-1]:
-            if part not in target:
+        for part in parts[:-1]:
+            if not isinstance(target, dict) or part not in target:
                 raise KeyError(f"Override '{item}': '{part}' not in config")
             target = target[part]
-        leaf = [node, *parts][-1]
-        if leaf not in target:
-            raise KeyError(f"Override '{item}': '{leaf}' not in config")
-        target[leaf] = yaml.safe_load(value)
+        if parts[-1] not in target:
+            raise KeyError(f"Override '{item}': '{parts[-1]}' not in config")
+        target[parts[-1]] = _cast_like(target[parts[-1]], value, item)
     cfg["_path"] = str(path.resolve())
     cfg["_overrides"] = list(overrides or [])
     return cfg
 
 
+def excluded_fovs(cfg: dict) -> dict[str, str]:
+    """cfg['exclude_fovs'] as {'<slide>/<fov stem>': reason}."""
+    ex = cfg.get("exclude_fovs") or {}
+    bad = [k for k in ex if "/" not in k]
+    if bad:
+        raise ValueError(f"exclude_fovs keys must be '<slide>/<fov stem>', got {bad}")
+    return ex
+
+
 def discover_fovs(cfg: dict) -> list[dict]:
-    """List every ND2 file per slide as {slide, fov, path}, minus cfg['exclude_fovs']."""
+    """List every ND2 file per slide as {slide, dye, fov, path}, minus cfg['exclude_fovs']."""
     root = Path(cfg["input_root"])
-    excluded = cfg.get("exclude_fovs") or {}
-    out = []
+    excluded = excluded_fovs(cfg)
+    out, seen = [], set()
     for slide, s in cfg["slides"].items():
+        if s["dye"] not in cfg["dyes"]:
+            raise ValueError(f"Slide {slide}: dye '{s['dye']}' is not listed under 'dyes'")
         files = sorted(p for p in (root / s["folder"]).glob("*.nd2") if not p.name.startswith("._"))
         if not files:
             raise FileNotFoundError(f"No ND2 files for slide {slide} in {root / s['folder']}")
         for p in files:
-            if p.stem in excluded:
-                logging.info(f"Excluding {p.stem}: {excluded[p.stem]}")
+            key = fov_key(slide, p.stem)
+            seen.add(key)
+            if key in excluded:
+                logging.info(f"Excluding {key}: {excluded[key]}")
                 continue
-            out.append({"slide": slide, "fov": p.stem, "path": p})
-    unknown = set(excluded) - {p.stem for s in cfg["slides"].values()
-                               for p in (root / s["folder"]).glob("*.nd2")}
+            out.append({"slide": slide, "dye": s["dye"], "fov": p.stem, "path": p})
+    unknown = set(excluded) - seen
     if unknown:
         raise ValueError(f"exclude_fovs lists FOVs that do not exist: {sorted(unknown)}")
     return out
@@ -117,13 +156,12 @@ def load_fov(path: Path, cfg: dict) -> tuple[dict[str, np.ndarray], dict]:
             raise ValueError(f"{path.name}: channel prefix '{prefix}' matches {idx} in {names}")
         images[key] = arr[idx[0]].astype(np.float64)
         acq[key] = next((p for p in planes if p["name"].startswith(prefix)), {})
-    meta["saturation_value"] = 2**bits - 1
     meta["acquisition"] = acq
     return images, meta
 
 
 def _plane_settings(description: str) -> list[dict]:
-    """Per-plane channel name, exposure (ms) and EM gain from the ND2 description text."""
+    """Per-plane channel name, exposure (ms), EM gain and lasers on (nm:%) from the ND2 description."""
     import re
 
     out = []
@@ -131,9 +169,11 @@ def _plane_settings(description: str) -> list[dict]:
         name = re.search(r"Name:\s*([^\r\n]+)", block)
         exp = re.search(r"Exposure:\s*([\d.]+)\s*ms", block)
         gain = re.search(r"Multiplier:\s*(\d+)", block)
+        lasers = re.findall(r"ExW:(\d+);\s*Power:\s*([\d.]+);\s*On", block)
         out.append({"name": name.group(1).strip() if name else "",
                     "exposure_ms": float(exp.group(1)) if exp else np.nan,
-                    "em_gain": int(gain.group(1)) if gain else -1})
+                    "em_gain": int(gain.group(1)) if gain else -1,
+                    "lasers_on": ",".join(f"{w}:{p}" for w, p in lasers)})
     return out
 
 
@@ -154,10 +194,33 @@ def robust_sigma(x: np.ndarray) -> float:
     return float(1.4826 * np.median(np.abs(x - np.median(x))))
 
 
+def clipped_sigma(x: np.ndarray, nsig: float = 3.0, iters: int = 10) -> float:
+    """robust_sigma after iterative nsig clipping, so that bright objects do not inflate it.
+
+    Without clipping the estimate grows with object density: in a dense FOV the
+    objects themselves raise the MAD, which raises the detection threshold.
+    """
+    x = np.asarray(x).ravel()
+    keep = np.ones(x.size, dtype=bool)
+    for _ in range(iters):
+        m, s = np.median(x[keep]), robust_sigma(x[keep])
+        new = np.abs(x - m) < nsig * s
+        if np.array_equal(new, keep):
+            break
+        keep = new
+    return robust_sigma(x[keep])
+
+
 def snr_map(flat: np.ndarray, psf_sigma: float) -> np.ndarray:
-    """Matched-filter (Gaussian) response divided by its own robust noise."""
+    """Matched-filter (Gaussian) response divided by its own clipped robust noise."""
     filt = ndimage.gaussian_filter(flat, psf_sigma)
-    return filt / robust_sigma(filt)
+    return filt / clipped_sigma(filt)
+
+
+def _clear_border(mask: np.ndarray, border: int) -> None:
+    if border > 0:
+        mask[:border, :] = mask[-border:, :] = False
+        mask[:, :border] = mask[:, -border:] = False
 
 
 def find_peaks(snr: np.ndarray, threshold: float, min_sep: int, border: int) -> np.ndarray:
@@ -165,8 +228,7 @@ def find_peaks(snr: np.ndarray, threshold: float, min_sep: int, border: int) -> 
     size = 2 * min_sep + 1
     is_max = ndimage.maximum_filter(snr, size=size, mode="nearest") == snr
     mask = is_max & (snr > threshold)
-    mask[:border, :] = mask[-border:, :] = False
-    mask[:, :border] = mask[:, -border:] = False
+    _clear_border(mask, border)
     return np.argwhere(mask)
 
 
@@ -192,9 +254,9 @@ def sample_blank_positions(shape: tuple[int, int], occupied: np.ndarray, n: int,
     for y, x in np.round(occupied).astype(int):
         free[y, x] = False
     dist = ndimage.distance_transform_edt(free)
-    valid = dist >= min_dist
-    valid[:border, :] = valid[-border:, :] = False
-    valid[:, :border] = valid[:, -border:] = False
+    # Margin: occupied positions are rounded (<= 0.71 px) and blanks jittered (<= 0.71 px).
+    valid = dist >= min_dist + np.sqrt(2)
+    _clear_border(valid, border)
     cand = np.argwhere(valid)
     if len(cand) < n:
         logging.warning(f"Only {len(cand)} valid blank positions (requested {n})")
@@ -247,17 +309,37 @@ def make_run_dir(cfg: dict, stage: str) -> Path:
     return run
 
 
+def rel_to_repo(path: Path) -> str:
+    """Path relative to the repo root when inside it, absolute otherwise."""
+    path = Path(path).resolve()
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def write_manifest(run: Path, cfg: dict, script: Path, inputs: list[Path], extra: dict | None = None) -> None:
-    """Record what produced this run: config, script, git state, input checksums, environment."""
+    """Record what produced this run: config, code, git state, input checksums, environment.
+
+    Every module of this folder is copied to code/, since the entry script alone
+    does not determine the result (most of the logic lives in common.py).
+    """
     import nd2, scipy, sklearn  # noqa: E401  (versions only)
 
     # The effective config (after --set overrides), not the file on disk.
     with open(run / "config.yaml", "w") as f:
         yaml.safe_dump({k: v for k, v in cfg.items() if not k.startswith("_")}, f, sort_keys=False)
-    shutil.copy(script, run / Path(script).name)
+    (run / "code").mkdir(exist_ok=True)
+    code = {}
+    for py in sorted(HERE.glob("*.py")):
+        if py.name.startswith("._"):
+            continue
+        shutil.copy(py, run / "code" / py.name)
+        code[py.name] = sha256(py)
     manifest = {
         "created": datetime.now().isoformat(timespec="seconds"),
-        "script": str(Path(script).relative_to(REPO_ROOT)),
+        "script": rel_to_repo(script),
+        "code_sha256": code,
         "config_source": cfg["_path"],
         "config_overrides": cfg.get("_overrides", []),
         "git_commit": _git("rev-parse", "HEAD"),
@@ -301,6 +383,7 @@ def load_scm(name: str):
     return "gray"
 
 
-def save_pdf(fig, path: Path) -> None:
-    fig.savefig(path)
+def save_pdf(fig, path: Path, pad_inches: float = 0.02) -> None:
+    """Save as PDF; the small pad keeps a 180 mm figure within 180 mm with bbox 'tight'."""
+    fig.savefig(path, pad_inches=pad_inches)
     logging.info(f"Saved {path}")
