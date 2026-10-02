@@ -54,9 +54,13 @@ and 640 files alike), so settings come from the file names and the data readme.
 ## FOV pairing
 
 FOVs are matched by acquisition time (ND2 metadata), not by file number: on slide 3
-the numbering is shifted between channels (the first FOV is 405/488/640 file _0031
-with the unnumbered 515 file, and for most FOVs 515 file N goes with 405/488/640
-file N-1). Within every FOV the channels are recorded within 5-11 s; FOVs are about
+the numbering is shifted between channels (the unnumbered file counts as 0: FOV01 is
+405/488/640 file _0031 with 515 file 0, FOV02 is 640 _0032 with 405/488 0 and 515 _0001,
+and from FOV03 on 515 file N goes with 405/488 file N-1 and 640 file N-2). Colocalization
+of the 640 ROIs with the vesicles confirms this pairing (0.53 of single ROIs within 4 px
+of a vesicle against 0.29 with the neighboring FOVs' vesicles) for every slide 3 FOV
+except FOV01 (640 _0031), whose ROIs are at chance level for a reason not found; it
+contributes no filtered IN_ATTO390 or IN_ATTO520 trace (check of 2026-10-02 below). Within every FOV the channels are recorded within 5-11 s; FOVs are about
 3.6 min apart.
 
 ## Drying QC (fov_qc run_002, 2026-10-02)
@@ -248,7 +252,7 @@ are lower bounds on occupancy. Protein identity comes only from the vesicle labe
   a clear error if a trace window would cross the image edge (the current margin
   is exactly zero). Not fixed, documented: the +-3 px registration window
   underestimates the offsets by about 0.2 px (positives change by at most 1 per
-  FOV); the pairing relies on the ND2 'date' stamps clustering per FOV.
+  FOV; 0.33 px in x for 405, measured later from the trace-assignment residuals); the pairing relies on the ND2 'date' stamps clustering per FOV.
 - Not verified: score B was recomputed for 20 traces only; detection and snapshot
   photometry were not redone from raw data in the check; slides 1 and 3 raw traces.
 
@@ -277,8 +281,20 @@ looked for localizations where localize.py had not written them.
 | Slide1SNAP_Slide2HT_Slide3Mix_Slide4Mix_optparam_001 | 1-4 | 640 only | 20000 |
 
 Paper ground-truth mode, filtered IN traces: slide 1 SNAP 629 of 953 (66 %), slide 2
-HT 440 of 576 (76 %). The single-ROI sets of the 640-only run are identical to these
-runs (1134 and 690 single ROIs on slides 1 and 2); slides 3 and 4 add 575 and 476.
+HT 440 of 576 (76 %). The single-ROI sets of the 640-only run match these runs in size
+(1134 and 690 single ROIs on slides 1 and 2) and box for box on slide 2; on slide 1 two
+boxes differ each way (movies 0017, 0028, 0030) and uniqueIDs are not aligned between
+the runs (681 of 1126 shared IDs point to the same box), so cross-match by movie and
+top-left corner, never by uniqueID. Slides 3 and 4 add 575 and 476.
+
+Artifacts of the extraction (both runs): 54 single ROIs at (0, 0) or with a negative
+corner (16 / 16 / 8 / 14 on slides 1-4), all with empty traces and none filtered, and
+identical boxes in the same movie that are labeled single instead of overlapping (slide 2:
+uniqueIDs 280/301 and 703/731, both pairs filtered, and 574/594 at (0, 0); slide 4: 192/199
+at (0, 0)). Root cause not determined (get_overlapping_rois and the index-0 dummy of
+get_and_link_locs in Extraction/utils.py are the suspects). The paper's own filtered IN
+sets carry exact duplicate traces too: HaloD106 2 of 2580, HaloK117 1 of 2384, SNAPC148 0
+of 9647, scGrx1AcK20 2 of 1260, scGrx1 87 of 3400 (not investigated further).
 
 ## Brightness vs the paper (brightness run_001)
 
@@ -293,57 +309,147 @@ snap = SNAPC148); DFK785: all 31 movies of slides 1 and 2.
 | paper SNAPC148 | 1539 | 3552 | 107 | 1 | 1 |
 | DFK785 slide 1 SNAP | 1222 | 2052 | 72 | 0.79 | 0.67 |
 
-The per-movie ranges do not overlap (HT: paper 2067-3318, DFK785 895-1458). Background at
-0.6-0.7x fits the readme's weaker 640 laser (12 mW); the ND2 files record 90 % and no power.
-HT lost more than SNAP, so the laser alone does not explain it: in the paper HT is twice
-as bright as SNAP, here they are equal. A fixed gradient drops the dimmest events, so the
-true ratios are lower still. Minmax normalization removes absolute brightness but not the
+The reference above is thin (one movie per experiment). The independent check of
+2026-10-02 (checks/20261002_trace_assignment_verification/verify_brightness) added _0010 and
+_0020 of each experiment, 12 paper movies per protein with the same settings:
+- All frames: ratios 0.39 (HT) and 0.80 (SNAP). Paper HT per-movie medians span 1480-3318,
+  22 photons above DFK785's maximum; the SNAP ranges overlap (paper 1399-1952, DFK785
+  1060-1424). Background 0.59 / 0.67, stable over frames: consistent with the readme's
+  weaker 640 laser (12 mW), but localizations cannot show it, and the ND2 files record 90 %
+  and no power.
+- The paper movies front-load bright, short-lived sites: 51 % of paper HT localizations fall
+  in frames 0-500 (DFK785 27 %); paper HT sites first seen before frame 1000 have a median of
+  2765 photons, later ones 1509. No site dims within itself (late / early 0.97 in all sets),
+  and DFK785 has no early bright population. At frames 3000-6000 the ratios are 0.59 (HT)
+  and 0.81 (SNAP), the paper's HT / SNAP is 1.29x (1.85x over all frames), and the per-movie
+  ranges overlap. The cause of the missing early sites (640 pre-exposure while focusing, more
+  proteins per vesicle in the paper samples, or else) cannot be told from the localizations.
+- Overlapping spots explain none of it (under 2 % of localizations have a same-frame
+  neighbor within 12 px).
+- A fixed gradient drops the dimmest events: DFK785 sits closer to the cut (13.6 % of HT
+  localizations within 10 % of it, paper 3.3 %), so its surviving median is pushed up; a
+  scaling model puts the true ratios nearer 0.30 (HT) and 0.50 (SNAP). Direction solid,
+  size model-dependent.
+HT lost more than SNAP at every frame window, so the laser alone does not explain it. Minmax normalization removes absolute brightness but not the
 noise relative to the blink amplitude: the paper-trained model sees noisier HT traces
 than it was trained on. Not checked: the trace level (the paper's FinalTraces keep only
 minmax and zscored traces).
 
-## Trace assignment (trace_assignment run_001)
+## Trace assignment (trace_assignment run_002)
 
-assign_traces.py places each single ROI of the 640-only run (box center = top-left + 2)
-on the vesicle table (unmixing run_001 labels, positions shifted by the occupancy run_004
-registration). IN_<label>: nearest vesicle within 4 px (the paper's radius) and no second
-one; ambiguous: two within 4 px. The residual protein - vesicle offset of IN pairs is
--0.4 / -0.5 px (y / x) for 488 and 515 vesicles, the half pixel of the ROI rounding, and
--0.4 / -0.8 px for 405 (the occupancy registration underestimate noted above).
+assign_traces.py places each single ROI of the 640-only run on the vesicle table (unmixing
+run_001 labels, positions shifted into the 640 frame by the occupancy run_004
+registration). Protein position = ROI top-left + 2.5: the extraction sets top-left =
+round(x - 2.5) on Picasso coordinates, which, like the vesicle centroids, put pixel centers
+on integers. IN_<label>: nearest vesicle within 4 px (the paper's radius) and no second
+one; ambiguous: two within 4 px. The artifact ROIs and the repeated slide 2 boxes above are
+dropped first (dropped.csv: 54 artifacts, 2 duplicates, the 2 duplicates filtered).
+Residual protein - vesicle offset of IN pairs: under 0.1 px for 488 and 515 vesicles,
++0.09 / -0.33 px (y / x) for 405 vesicles, the 405 registration underestimate.
+
+run_001 used top-left + 2, which put every protein 0.5 px up-left of its localization
+(residuals -0.4 / -0.5 px) and kept the artifacts; 3 % of the ROIs change class with the
+fix, most on slide 3. Superseded.
 
 | Slide | Set | IN_ATTO390 (HT) | IN_ATTO520 (SNAP) | IN_dual | IN_no label | ambiguous | OUT |
 |---|---|---|---|---|---|---|---|
-| 1 SNAP | single ROIs | 5 | 544 | 8 | 0 | 3 | 574 |
-| 2 HT | single ROIs | 301 | 21 | 82 | 4 | 12 | 270 |
-| 3 mix | single ROIs | 91 | 96 | 97 | 0 | 20 | 271 |
-| 4 mix | single ROIs | 83 | 64 | 29 | 4 | 11 | 285 |
-| 1 SNAP | filtered | 4 | 376 | 6 | 0 | 1 | 355 |
-| 2 HT | filtered | 223 | 19 | 68 | 4 | 10 | 188 |
-| 3 mix | filtered | 60 | 70 | 71 | 0 | 13 | 180 |
-| 4 mix | filtered | 58 | 39 | 19 | 4 | 8 | 182 |
+| 1 SNAP | single ROIs | 5 | 542 | 8 | 0 | 5 | 558 |
+| 2 HT | single ROIs | 300 | 21 | 81 | 4 | 14 | 252 |
+| 3 mix | single ROIs | 93 | 91 | 90 | 0 | 24 | 269 |
+| 4 mix | single ROIs | 81 | 67 | 32 | 4 | 11 | 267 |
+| 1 SNAP | filtered | 4 | 377 | 6 | 0 | 3 | 352 |
+| 2 HT | filtered | 223 | 19 | 66 | 4 | 12 | 186 |
+| 3 mix | filtered | 63 | 67 | 64 | 0 | 15 | 185 |
+| 4 mix | filtered | 56 | 42 | 22 | 4 | 8 | 178 |
 
-Label errors seen on the single-label slides, per trace: on slide 2 (all ATTO390) 5 %
-of IN traces sit in vesicles labeled ATTO520 and 20 % in dual ones (9 % of all slide 2
-vesicles are dual); on slide 1 (all ATTO520) 0.9 % ATTO390 and 1.4 % dual. The unmixing
-threshold is still to be tuned.
+Label errors on the single-label slides, filtered IN traces: on slide 2 (all ATTO390)
+6.1 % sit in vesicles labeled ATTO520 and 21 % in dual ones (9 % of all slide 2 vesicles
+are dual); on slide 1 (all ATTO520) 1.0 % ATTO390 and 1.6 % dual. The unmixing threshold
+is still to be tuned.
 
-The table gives fewer IN traces than the paper's ground-truth mode (slide 1: 557 against
-953; slide 2: 408 against 576), for three reasons found by cross-matching the two runs
-(same ROIs):
-- The vesicle table excludes a 10 px border (detection border_px); 115 of the 408 slide 1
-  traces that are GT-IN but table-OUT are in that band.
-- The paper's ground-truth clusters are 2.5-3x more numerous than the table vesicles
-  (slide 1: 15538 against 5989; slide 2: 19046 against 5765). 92-99 % of table vesicles
-  have a cluster within 2 px, so the table is a subset. On slide 2 (405, gradient 1000)
-  the unmatched clusters carry no 405 signal (median z 0.2, random positions 0): they
-  are noise, and paper-mode IN on this slide is inflated. On slide 1 (488, gradient 7000)
-  they are real but dimmer 488 objects (median z 22 against 70 for matched ones) that
-  the table's SNR threshold of 6 does not detect.
-- data_rois.csv stores the clusters as box top-left corners (center - 2.5 px, rounded);
-  add 2 before comparing them with anything else.
+The OUT class includes traces in the 10 px border band where the table has no vesicles
+(filtered: 94 of 352 OUT on slide 1, 56 / 186 on slide 2, 50 / 185 on slide 3, 43 / 178 on
+slide 4; center within 10 px of the edge), so OUT is not "outside a vesicle".
 
-Not checked: whether the paper's own ground-truth calls (gradients 1000-5000 at 488 in
-SP_Exp1-4) include noise clusters in the same way.
+### Chance coincidences (null.csv)
+
+The same filtered ROIs are assigned to the vesicles of the previous and next FOV of the
+slide. Model: a fraction f of ROIs is in a vesicle and always near one; the rest lie
+independently of the vesicle pattern and are near one with the null probability q. Then
+observed near fraction = f + (1 - f) q, and the expected chance hits of a class are
+(1 - f) x its null count. On a mixed slide a chance hit carries the label of a random
+vesicle, whatever the protein is.
+
+| Slide | Radius | HT obs | HT chance | SNAP obs | SNAP chance |
+|---|---|---|---|---|---|
+| 3 | 2.0 px | 44 | 4.8 (11 %) | 48 | 8.6 (18 %) |
+| 3 | 2.5 px | 50 | 8.6 (17 %) | 58 | 13.5 (23 %) |
+| 3 | 4.0 px | 63 | 21.1 (34 %) | 67 | 35.4 (53 %) |
+| 4 | 2.0 px | 45 | 3.6 (8 %) | 29 | 4.7 (16 %) |
+| 4 | 2.5 px | 47 | 7.8 (17 %) | 29 | 6.3 (22 %) |
+| 4 | 4.0 px | 56 | 16.8 (30 %) | 42 | 15.0 (36 %) |
+
+f reaches its plateau at 2.5 px on every slide (0.42, 0.55, 0.34, 0.26-0.29 on slides 1-4)
+and is 92-97 % of its 4 px value at 2 px, so nearly all real pairs lie within 2.5 px and
+the paper's 4 px adds mostly coincidences. Obs - chance, the real vesicle-assigned traces,
+is about the same at every radius: about 80 HT and 59-67 SNAP on slides 3 and 4 together.
+On the single-label slides the chance share at 4 px is 20 % (slide 1) and 13 % (slide 2);
+there it does not change the label. Assumptions not tested: proteins outside table
+vesicles are placed independently of the vesicle pattern; dim vesicles suppressed next
+to a bright one (crowded: 61 % on slide 3) break that, so the chance estimate is a lower
+bound. Chance hits and unmixing errors add up.
+
+### Paper ground-truth mode against the table
+
+Cross-matched by movie and top-left corner (run_002, artifacts and duplicates dropped),
+the table calls fewer ROIs IN than the paper's ground-truth mode: slide 1 553 against 943,
+slide 2 406 against 570. Of the 402 slide 1 ROIs that are paper-IN but not table-IN, 113
+lie in the 10 px border band where the table has no vesicles (slide 2: 54 of 183). The
+rest, from the independent check of 2026-10-02 (all 31 FOVs, aperture photometry with an
+annulus background, Picasso re-clustering):
+- The paper's ground-truth clusters are 2.6x (slide 1: 15538 against 5989 table vesicles)
+  and 3.3x (slide 2: 19046 against 5765) more numerous. 95-99 % of table vesicles have a
+  cluster within 2 px (99.9 % of those detected in the ground-truth channel itself).
+  Clusters within 4 px cover 39 % (slide 1) and 47 % (slide 2) of the FOV, the table's
+  IN zones 18 % and 17 %.
+- Slide 2 (405, gradient 1000, the lower bound of the paramfinder search range): about two
+  thirds of the 13558 unmatched clusters are noise (the 9107 interior ones below table SNR
+  6 have a localization in 4 of 10 frames and held-out-frame SNR -0.9, median). About 1800
+  are real objects suppressed by a brighter neighbor within 3 px, and the 2365 in the border
+  band are mixed. Paper-mode IN is only slightly inflated: 74 % of the 121 interior ROIs that
+  are paper-IN but table-OUT sit on real 405 signal (SNR above 3, against 15 % for random
+  positions of the same class), so about 40-60 of the 576 paper-mode IN calls (7-10 %) are
+  chance; most of the gap is dim ATTO390 objects the table drops (border, SNR 6, neighbor
+  suppression).
+- Slide 1 (488, gradient 7000): the unmatched clusters are real, dimmer 488 objects (10 of
+  10 frames, 3.7x fewer photons, aperture SNR about 14-36). 72 % of the interior ones fall
+  below the table's SNR threshold of 6 (measured against the clipped spread of the filtered
+  map, not pixel noise), 28 % are suppressed by a brighter neighbor (min_separation_px 3).
+- data_rois.csv stores the clusters as box top-left corners, round(center - 2.5): add 2.5,
+  not 2, to compare them with anything else.
+
+The border and the SNR threshold of the vesicle table are kept as they are (user decision,
+2026-10-02). Not checked: whether the dim 405 objects at slide 2 protein positions are
+ATTO390 vesicles or protein signal leaking into the 405 snapshot (their 405/488 ratio fits
+ATTO390); the paper's own SP_Exp1-4 ground-truth calls (gradients 1000-5000); slides 3-4.
+
+### Check (2026-10-02, five agents)
+
+Workflow of four independent verifiers and a critic; scripts, outputs and the full
+result in `Results/Revisions/DFK785/checks/20261002_trace_assignment_verification/`.
+- counts.csv and residual_offset.csv of run_001 recomputed from scratch without reading
+  assign_traces.py: all 48 cells identical. uniqueIDs are unique per extraction key and
+  every filtered trace correlates r = 1.000 with its stored raw trace. The code review
+  predicted the run_002 counts with the center fix; run_002 matches them.
+- Code review: the center bias (fixed in run_002); registration sign and frame correct;
+  FOVs with 0, 1 or several vesicles handled; the rel_under change gives identical
+  results for absolute, relative, trailing-slash and symlinked-root inputs and fixes the
+  symlinked-file case; brightness.py reproduces from the locs files and its parameter
+  check rejects a wrong gradient, box size or fit method.
+- Refutation attempts on the ground-truth-cluster claims and the brightness comparison:
+  results folded into the sections above.
+- Not verified: the vesicle table itself (detection, labels) on slides 3-4; the protein
+  identity of OUT traces; the final model.
 
 ## Final model (S3IT, 2026-10-02)
 
