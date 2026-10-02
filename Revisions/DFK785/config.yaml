@@ -1,0 +1,64 @@
+# Dataset DFK785 (acquired 2026-09-28/29): single-label and mixed ATTO390 / ATTO520
+# vesicle slides. See README.md in this folder and 20260926_readme.txt in the data.
+
+# Raw data, read in place. Absolute path by design.
+input_root: /Volumes/MediumBerth/Agent/20260928_DFK785
+
+# Outputs, relative to the repo root (Results/ is gitignored).
+output_root: Results/Revisions/DFK785
+
+# One entry per slide (numbering as in the data readme). One ND2 per channel and FOV,
+# named <prefix>_<channel tag>[_NNNN].nd2; the unnumbered file is a FOV of its own.
+slides:
+  slide1:
+    folder: SNAP520
+    prefix: SNAP520
+    sample: SNAP-HMSiR-IA in ATTO520 vesicles
+    channels: ["405", "488", "640"]
+  slide2:
+    folder: HT390
+    prefix: HT390
+    sample: HT7-HMSiR-HTL in ATTO390 vesicles
+    channels: ["405", "488", "640"]
+  slide3:
+    folder: HT390_SNAP520
+    prefix: HT390_SNAP520
+    sample: mix 350 uL HT390 + 50 uL SNAP520, overnight, dried out overnight
+    channels: ["405", "488", "515", "640"]
+  slide4:
+    folder: HT390_SNAP520/new
+    prefix: HT390_SNAP520
+    sample: mix 350 uL HT390 + 50 uL SNAP520, next morning, dried out after about 25 FOVs
+    channels: ["405", "488", "515", "640"]
+
+# Channel files recorded within this many seconds of the previous one belong to the
+# same FOV (a FOV takes about 6 s for its channels; FOVs are about 3.6 min apart).
+fov_max_gap_s: 60
+
+# Channel key -> file-name tag
+channel_tags:
+  "405": 405nm_TIRF2x_23pr_100ms_230x230
+  "488": 488nm_TIRF2x_6pr_30ms_230x230
+  "515": 515nm_TIRF2x_6pr_30ms_230x230
+  "640": 640nm_TIRF2xLP_90pr_30ms_230x230
+
+# Vesicle counting for the drying QC: the short movies (10 frames) are averaged and
+# spots detected as in Revisions/Bleedthrough/segment.py. 640 (HMSiR, blinking) is
+# not counted; only its acquisition time is read.
+count_channels: ["405", "488", "515"]
+background:
+  median_size_px: 25
+detection:
+  psf_sigma_px: 1.6
+  snr_threshold: 6.0
+  min_separation_px: 3
+  border_px: 10
+
+# Dried-out slides (move_dried.py): first FOV whose 405 + 488 count is below
+# fraction x the median of the earlier FOVs, and every later FOV, go to bad_data/.
+dried:
+  fov_qc_run: run_002
+  slides: [slide3, slide4]
+  count_channels: ["405", "488"]
+  fraction: 0.1
+  min_before: 5

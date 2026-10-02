@@ -391,11 +391,12 @@ def write_manifest(run: Path, cfg: dict, script: Path, inputs: list[Path], extra
         yaml.safe_dump({k: v for k, v in cfg.items() if not k.startswith("_")}, f, sort_keys=False)
     (run / "code").mkdir(exist_ok=True)
     code = {}
-    for py in sorted(HERE.glob("*.py")):
-        if py.name.startswith("._"):
-            continue
+    modules = [p for p in sorted(HERE.glob("*.py")) if not p.name.startswith("._")]
+    if Path(script).resolve().parent != HERE:      # entry script from another folder (e.g. Revisions/DFK785)
+        modules.append(Path(script).resolve())
+    for py in modules:
         shutil.copy(py, run / "code" / py.name)
-        code[py.name] = sha256(py)
+        code[rel_to_repo(py)] = sha256(py)
     manifest = {
         "created": datetime.now().isoformat(timespec="seconds"),
         "script": rel_to_repo(script),
