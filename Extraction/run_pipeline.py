@@ -312,7 +312,7 @@ Examples:
         sys.exit(1)
 
     # Define pipeline steps
-    script_dir = config_path.parent
+    script_dir = Path(__file__).resolve().parent   # the step scripts live next to this file, wherever the config is
     steps = [
         ("paramfinder", script_dir / "paramfinder.py", False),  # (name, script, needs_run_folder)
         ("localize", script_dir / "localize.py", False),

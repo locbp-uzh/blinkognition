@@ -1,0 +1,89 @@
+# Final model for the DFK785 two-vesicle / two-protein mixture experiment (revisions).
+# Same task and settings as Figure 4C of the manuscript: Halo-D106 vs SNAP-C148, CNN-GRU,
+# minmax-normalized traces, time reversal and no other augmentation. Final-training settings
+# of the SI: full 6000-frame traces (trim_end 0), 70/15/15 split, MC Dropout with the WD
+# threshold auto-selected (max 50 % of traces removed). The paper itself only reported
+# cross-validation, which saves no model.
+# Run from ML/:  python train.py -c ../Revisions/DFK785/ml/config_train_HaloD106_SNAPC148.yaml
+io:
+  output_root: "../Results/Train"
+  run_name: "HaloD106_SNAPC148_cnngru_minmax_mirror_final"
+
+
+data:
+  # Path is relative to the ML/ directory where train.py is run.
+  traces_path: "../Inputs/FinalTraces/ProteinTracesIN/Filtered"
+
+  dataset:
+    # List the two proteins to classify. Keys must match PKL filename prefixes in traces_path.
+    # Available proteins: HaloD106, HaloK117, SNAPC148, scGrx1, scGrx1AcK20
+    HaloD106:
+      channels: ["minmax"]
+    SNAPC148:
+      channels: ["minmax"]
+
+  trim_end: 0                  # full 6000-frame traces (SI, final training)
+  max_traces_per_class: 10000  # Cap per protein (paper: 10000; set lower for quick tests)
+  balance_train: true
+  balance_val: true
+  balance_test: true
+
+  # Data augmentation (applied ONLY to training set to prevent data leakage)
+  # Helps improve model generalization and performance, especially with limited data
+  augmentation:
+    enabled: true
+    aug_factor: 0                # no warp / noise / jitter copies
+    include_mirror: true         # time reversal of the active window only
+
+model:
+  name: "orig_conv_gru"     # CNN-GRU, the model of Figure 4C
+  # Default parameters are hardcoded in the model zoo (models.py)
+  # Override specific parameters here if needed
+
+optimization:
+  batch_size: 64
+  max_epochs: 500
+  patience_limit: 15
+  lr: 0.0004
+  weight_decay: 0.0004
+  label_smoothing: 0.001
+
+  # Early stopping configuration
+  # Primary condition: Checkpoint when BOTH are met:
+  # 1. AUC improves by at least auc_min_delta
+  # 2. Loss is within loss_tolerance of the best loss seen
+  # Alternative condition (optional): Checkpoint when BOTH are met:
+  # 1. AUC is within auc_tolerance of best (even if not improving)
+  # 2. Loss improves by at least loss_min_delta
+  # This allows saving checkpoints with slightly lower AUC but better loss (often better accuracy)
+  early_stopping:
+    auc_min_delta: 0.005    # Minimum AUC improvement required (0.5%)
+    loss_mode: "relative"   # "relative", "absolute", or "none"
+    loss_tolerance: 1.10    # For relative: loss <= best_loss * 1.10 (max 10% higher)
+                            # For absolute: loss <= best_loss + tolerance
+    # Alternative checkpoint (uncomment to enable):
+    auc_tolerance: 0.003  # Max AUC drop from best to allow alternative checkpoint
+    loss_min_delta: 0.005  # Min loss improvement required for alternative checkpoint
+
+  # Threshold selection method for binary classification
+  # - "argmax": Use standard argmax (no threshold optimization) - RECOMMENDED for balanced datasets
+  # - "mcc": Optimize Matthews Correlation Coefficient
+  # - "balanced_accuracy": Optimize balanced accuracy across classes
+  # - "f1": Optimize F1 score
+  # - "youden": Optimize Youden's J statistic (sensitivity + specificity - 1)
+  # - "min_recall": Maximize minimum recall across both classes
+  threshold_metric: "argmax"
+
+
+uncertainty:
+  mc_dropout:
+    enabled: true
+    n_mc: 100
+    trace_loss: 50.0              # Maximum trace loss % for auto threshold selection
+    # wasserstein_threshold: 0.1  # Optional: fixed Wasserstein threshold (overrides trace_loss)
+
+system:
+  compile: false
+  num_workers: 4
+  seed: 840410
+  verbose: false    # set true to show sanity checks (confusion matrices, detailed metrics) during training
