@@ -296,27 +296,32 @@ get_and_link_locs in Extraction/utils.py are the suspects). The paper's own filt
 sets carry exact duplicate traces too: HaloD106 2 of 2580, HaloK117 1 of 2384, SNAPC148 0
 of 9647, scGrx1AcK20 2 of 1260, scGrx1 87 of 3400 (not investigated further).
 
-## Brightness vs the paper (brightness run_001)
+## Brightness vs the paper (brightness run_002)
 
-Same Picasso settings and one gradient (20000) for all movies, frames < 6000. Paper:
-one 640 movie (_0005) per protein in each of SP_Exp1-4 (AllMovies; HTHTL = HaloD106,
-snap = SNAPC148); DFK785: all 31 movies of slides 1 and 2.
+Same Picasso settings and one gradient (20000) for all movies. Paper: three 640 movies
+(_0005, _0010, _0020) per protein in each of SP_Exp1-4, 12 per protein (AllMovies; HTHTL =
+HaloD106, snap = SNAPC148); DFK785: all 31 movies of slides 1 and 2. Photons per
+localization, pooled median; ratio to the paper set of the same protein in the same frame
+window.
 
-| Set | Photons / loc (median) | p90 | Background / px | Ratio photons | Ratio bg |
-|---|---|---|---|---|---|
-| paper HaloD106 | 3125 | 4696 | 116 | 1 | 1 |
-| DFK785 slide 2 HT | 1095 | 1802 | 67 | 0.35 | 0.58 |
-| paper SNAPC148 | 1539 | 3552 | 107 | 1 | 1 |
-| DFK785 slide 1 SNAP | 1222 | 2052 | 72 | 0.79 | 0.67 |
+| Set | Frames | Photons / loc | Ratio | Movie medians | Background / px | Ratio bg |
+|---|---|---|---|---|---|---|
+| paper HaloD106 | 0-6000 | 2826 | 1 | 1480-3318 | 114 | 1 |
+| DFK785 slide 2 HT | 0-6000 | 1095 | 0.39 | 895-1458 | 67 | 0.59 |
+| paper HaloD106 | 0-1000 | 3113 | 1 | 1660-3453 | 116 | 1 |
+| DFK785 slide 2 HT | 0-1000 | 1133 | 0.36 | 869-2044 | 67 | 0.58 |
+| paper HaloD106 | 3000-6000 | 1811 | 1 | 1275-2524 | 109 | 1 |
+| DFK785 slide 2 HT | 3000-6000 | 1069 | 0.59 | 910-1614 | 68 | 0.62 |
+| paper SNAPC148 | 0-6000 | 1526 | 1 | 1399-1952 | 108 | 1 |
+| DFK785 slide 1 SNAP | 0-6000 | 1222 | 0.80 | 1060-1424 | 72 | 0.67 |
+| paper SNAPC148 | 3000-6000 | 1409 | 1 | 572-4757 | 108 | 1 |
+| DFK785 slide 1 SNAP | 3000-6000 | 1139 | 0.81 | 952-1596 | 71 | 0.66 |
 
-The reference above is thin (one movie per experiment). The independent check of
-2026-10-02 (checks/20261002_trace_assignment_verification/verify_brightness) added _0010 and
-_0020 of each experiment, 12 paper movies per protein with the same settings:
-- All frames: ratios 0.39 (HT) and 0.80 (SNAP). Paper HT per-movie medians span 1480-3318,
-  22 photons above DFK785's maximum; the SNAP ranges overlap (paper 1399-1952, DFK785
-  1060-1424). Background 0.59 / 0.67, stable over frames: consistent with the readme's
-  weaker 640 laser (12 mW), but localizations cannot show it, and the ND2 files record 90 %
-  and no power.
+run_001 used one paper movie (_0005) per experiment and frames 0-6000 only (HT 0.35, SNAP
+0.79); superseded. Findings, from run_002 and the independent check of 2026-10-02
+(checks/20261002_trace_assignment_verification/verify_brightness):
+- Background at 0.6-0.7x in every window is consistent with the readme's weaker 640 laser
+  (12 mW), but localizations cannot show it, and the ND2 files record 90 % and no power.
 - The paper movies front-load bright, short-lived sites: 51 % of paper HT localizations fall
   in frames 0-500 (DFK785 27 %); paper HT sites first seen before frame 1000 have a median of
   2765 photons, later ones 1509. No site dims within itself (late / early 0.97 in all sets),
@@ -330,45 +335,54 @@ _0020 of each experiment, 12 paper movies per protein with the same settings:
   localizations within 10 % of it, paper 3.3 %), so its surviving median is pushed up; a
   scaling model puts the true ratios nearer 0.30 (HT) and 0.50 (SNAP). Direction solid,
   size model-dependent.
-HT lost more than SNAP at every frame window, so the laser alone does not explain it. Minmax normalization removes absolute brightness but not the
-noise relative to the blink amplitude: the paper-trained model sees noisier HT traces
-than it was trained on. Not checked: the trace level (the paper's FinalTraces keep only
+HT lost more than SNAP in every frame window, so the laser alone does not explain it.
+Minmax normalization removes absolute brightness but not the noise relative to the blink
+amplitude: the paper-trained model sees noisier HT traces than it was trained on. Not checked: the trace level (the paper's FinalTraces keep only
 minmax and zscored traces).
 
-## Trace assignment (trace_assignment run_002)
+## Trace assignment (trace_assignment run_003, 2 px)
 
 assign_traces.py places each single ROI of the 640-only run on the vesicle table (unmixing
 run_001 labels, positions shifted into the 640 frame by the occupancy run_004
 registration). Protein position = ROI top-left + 2.5: the extraction sets top-left =
 round(x - 2.5) on Picasso coordinates, which, like the vesicle centroids, put pixel centers
-on integers. IN_<label>: nearest vesicle within 4 px (the paper's radius) and no second
-one; ambiguous: two within 4 px. The artifact ROIs and the repeated slide 2 boxes above are
+on integers. IN_<label>: nearest vesicle within 2 px and no second one; ambiguous: two
+within 2 px. The radius is 2 px, not the paper's 4 px (user decision, 2026-10-02): in the
+mixture a protein must not be assigned to the wrong vesicle, and at 4 px 30-53 % of the
+mixed-slide IN calls are chance (below), while nearly all real pairs lie within 2.5 px. The
+paper's own training and test data keep Extraction's 4 px and are not changed: there no
+vesicle of the wrong kind exists, and the training needs the data. The artifact ROIs and the repeated slide 2 boxes above are
 dropped first (dropped.csv: 54 artifacts, 2 duplicates, the 2 duplicates filtered).
 Residual protein - vesicle offset of IN pairs: under 0.1 px for 488 and 515 vesicles,
 +0.09 / -0.33 px (y / x) for 405 vesicles, the 405 registration underestimate.
 
-run_001 used top-left + 2, which put every protein 0.5 px up-left of its localization
-(residuals -0.4 / -0.5 px) and kept the artifacts; 3 % of the ROIs change class with the
-fix, most on slide 3. Superseded.
+Superseded runs: run_001 (top-left + 2, which put every protein 0.5 px up-left of its
+localization, residuals -0.4 / -0.5 px, and kept the artifacts; 3 % of the ROIs change
+class with the fix) and run_002 (fixed, 4 px; filtered IN_ATTO390 / IN_ATTO520 on slides 1-4:
+4 / 377, 223 / 19, 63 / 67, 56 / 42).
 
 | Slide | Set | IN_ATTO390 (HT) | IN_ATTO520 (SNAP) | IN_dual | IN_no label | ambiguous | OUT |
 |---|---|---|---|---|---|---|---|
-| 1 SNAP | single ROIs | 5 | 542 | 8 | 0 | 5 | 558 |
-| 2 HT | single ROIs | 300 | 21 | 81 | 4 | 14 | 252 |
-| 3 mix | single ROIs | 93 | 91 | 90 | 0 | 24 | 269 |
-| 4 mix | single ROIs | 81 | 67 | 32 | 4 | 11 | 267 |
-| 1 SNAP | filtered | 4 | 377 | 6 | 0 | 3 | 352 |
-| 2 HT | filtered | 223 | 19 | 66 | 4 | 12 | 186 |
-| 3 mix | filtered | 63 | 67 | 64 | 0 | 15 | 185 |
-| 4 mix | filtered | 56 | 42 | 22 | 4 | 8 | 178 |
+| 1 SNAP | single ROIs | 5 | 444 | 8 | 0 | 0 | 661 |
+| 2 HT | single ROIs | 269 | 20 | 75 | 3 | 2 | 303 |
+| 3 mix | single ROIs | 71 | 66 | 74 | 0 | 2 | 354 |
+| 4 mix | single ROIs | 63 | 47 | 25 | 5 | 0 | 322 |
+| 1 SNAP | filtered | 4 | 310 | 6 | 0 | 0 | 422 |
+| 2 HT | filtered | 201 | 18 | 66 | 3 | 1 | 221 |
+| 3 mix | filtered | 44 | 48 | 50 | 0 | 0 | 252 |
+| 4 mix | filtered | 45 | 29 | 17 | 4 | 0 | 215 |
+
+Mixed slides, filtered, per FOV: slide 3 (21 FOVs) 2.1 HT and 2.3 SNAP, slide 4 (35 FOVs)
+1.3 HT and 0.8 SNAP. Slide 3 FOV01 (chance-level colocalization, see FOV pairing)
+contributes one filtered IN_dual trace and nothing else; it is kept.
 
 Label errors on the single-label slides, filtered IN traces: on slide 2 (all ATTO390)
-6.1 % sit in vesicles labeled ATTO520 and 21 % in dual ones (9 % of all slide 2 vesicles
-are dual); on slide 1 (all ATTO520) 1.0 % ATTO390 and 1.6 % dual. The unmixing threshold
+6.3 % sit in vesicles labeled ATTO520 and 23 % in dual ones (9 % of all slide 2 vesicles
+are dual); on slide 1 (all ATTO520) 1.3 % ATTO390 and 1.9 % dual. The unmixing threshold
 is still to be tuned.
 
 The OUT class includes traces in the 10 px border band where the table has no vesicles
-(filtered: 94 of 352 OUT on slide 1, 56 / 186 on slide 2, 50 / 185 on slide 3, 43 / 178 on
+(filtered: 95 of 422 OUT on slide 1, 57 / 221 on slide 2, 52 / 252 on slide 3, 44 / 215 on
 slide 4; center within 10 px of the edge), so OUT is not "outside a vesicle".
 
 ### Chance coincidences (null.csv)
@@ -392,7 +406,8 @@ vesicle, whatever the protein is.
 f reaches its plateau at 2.5 px on every slide (0.42, 0.55, 0.34, 0.26-0.29 on slides 1-4)
 and is 92-97 % of its 4 px value at 2 px, so nearly all real pairs lie within 2.5 px and
 the paper's 4 px adds mostly coincidences. Obs - chance, the real vesicle-assigned traces,
-is about the same at every radius: about 80 HT and 59-67 SNAP on slides 3 and 4 together.
+is about the same at every radius: about 80 HT and 59-67 SNAP on slides 3 and 4 together
+(2 px: 81 HT and 64 SNAP of 89 and 77 called).
 On the single-label slides the chance share at 4 px is 20 % (slide 1) and 13 % (slide 2);
 there it does not change the label. Assumptions not tested: proteins outside table
 vesicles are placed independently of the vesicle pattern; dim vesicles suppressed next

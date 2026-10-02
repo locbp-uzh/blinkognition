@@ -138,7 +138,10 @@ trace_assignment:
   unmixing_run: run_001
   registration_from_occupancy_run: run_004 # per-detection-channel 640 offsets
   boxsize: 5                               # Extraction ROI box; center = top-left + boxsize / 2
-  match_radius_px: 4.0                     # Extraction max_dist_closest_ground_truth (paper value)
+  match_radius_px: 2.0                     # user decision 2026-10-02: in the mixture a protein must not be
+                                           # assigned to the wrong vesicle (4 px: 30-53 % chance hits on slides
+                                           # 3-4; real pairs lie within 2.5 px). The paper's training data keep
+                                           # Extraction's 4 px (max_dist_closest_ground_truth), unchanged.
   null_radii_px: [1.5, 2.0, 2.5, 3.0, 4.0]  # chance coincidences vs neighbor-FOV vesicles at these radii
 
 # brightness.py: HMSiR photons per localization, paper acquisitions vs DFK785, with
@@ -146,17 +149,33 @@ trace_assignment:
 # fixed gradient (the value optimized for both DFK785 protein channels).
 brightness:
   paper_root: /Volumes/MediumBerth/AllMovies
-  paper_movies:                            # one 640 movie per protein and experiment (SP_Exp1-4)
+  paper_movies:                            # three 640 movies per protein and experiment (SP_Exp1-4)
     HaloD106:                              # AllMovies folder HTHTL
       - 20231130_SP_Exp1/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0005.nd2
+      - 20231130_SP_Exp1/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0010.nd2
+      - 20231130_SP_Exp1/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0020.nd2
       - 20231201_SP_Exp2/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0005.nd2
+      - 20231201_SP_Exp2/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0010.nd2
+      - 20231201_SP_Exp2/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0020.nd2
       - 20240108_SP_Exp3/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0005.nd2
+      - 20240108_SP_Exp3/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0010.nd2
+      - 20240108_SP_Exp3/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0020.nd2
       - 20240109_SP_Exp4/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0005.nd2
+      - 20240109_SP_Exp4/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0010.nd2
+      - 20240109_SP_Exp4/HTHTL/HTHTL_640nm_TIRF2xLP_90pr_30ms_230x230_0020.nd2
     SNAPC148:                              # AllMovies folder snap
       - 20231130_SP_Exp1/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0005.nd2
+      - 20231130_SP_Exp1/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0010.nd2
+      - 20231130_SP_Exp1/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0020.nd2
       - 20231201_SP_Exp2/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0005.nd2
+      - 20231201_SP_Exp2/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0010.nd2
+      - 20231201_SP_Exp2/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0020.nd2
       - 20240108_SP_Exp3/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0005.nd2
+      - 20240108_SP_Exp3/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0010.nd2
+      - 20240108_SP_Exp3/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0020.nd2
       - 20240109_SP_Exp4/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0005.nd2
+      - 20240109_SP_Exp4/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0010.nd2
+      - 20240109_SP_Exp4/snap/snap_640nm_TIRF2xLP_90pr_30ms_230x230_0020.nd2
   dfk785_sets:
     DFK785 slide2 HT:
       protein: HaloD106
@@ -166,4 +185,4 @@ brightness:
       run: Results/Revisions/DFK785/Extraction/SNAP520_optparam_001
   gradient: 20000
   camera: {boxsize: 5, baseline: 79, sensitivity: 16.0, gain: 300, quantum_efficiency: 0.93, method: mle}
-  max_frame: 6000                          # DFK785 movies and the traces are 6000 frames
+  frame_windows: [[0, 6000], [0, 1000], [3000, 6000]]   # [start, end); DFK785 movies and traces are 6000 frames

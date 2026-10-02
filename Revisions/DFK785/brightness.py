@@ -15,16 +15,20 @@ parameters, box 5, MLE, one fixed gradient for every movie):
     DFK785  the 640 locs of the paper-pipeline extraction runs of slides 1 and 2
 
 Per movie and pooled per set: localizations, photons (median, 90th percentile),
-background per pixel, PSF width sx and localization precision lpx, frames <
-max_frame only (the paper movies have 8000 frames, DFK785 and the traces 6000).
+background per pixel, PSF width sx and localization precision lpx, in each frame
+window of frame_windows (the paper movies have 8000 frames, DFK785 and the traces
+6000). The paper movies front-load bright, short-lived sites, so the all-frames
+ratio mixes a per-emitter brightness change with a missing early population; the
+late window compares like with like.
 
 A fixed gradient drops the dimmest events, so in dimmer data the surviving median
 is biased upward: the ratios are upper bounds on the relative brightness.
 
 Outputs (Results/Revisions/DFK785/brightness/run_NNN/):
     paper/                 links to the paper movies and their Picasso locs
-    per_movie.csv          one row per movie
-    summary.csv            one row per set, with ratios to the paper set of the same protein
+    per_movie.csv          one row per movie and frame window
+    summary.csv            one row per set and frame window, with ratios to the paper set of
+                           the same protein (pooled medians and median of movie medians)
     manifest.yaml, config.yaml, code/
 
 Usage:
@@ -57,10 +61,9 @@ PICASSO_KEYS = {"Box Size": "boxsize", "Min. Net Gradient": "gradient", "Baselin
                 "Sensitivity": "sensitivity", "Gain": "gain", "Fit method": "method"}
 
 
-def read_locs(path: Path, max_frame: int) -> pd.DataFrame:
+def read_locs(path: Path) -> pd.DataFrame:
     with h5py.File(path, "r") as f:
-        locs = pd.DataFrame(f["locs"][...])
-    return locs[locs["frame"] < max_frame]
+        return pd.DataFrame(f["locs"][...])
 
 
 def check_picasso_params(locs_yaml: Path, bc: dict) -> None:
@@ -123,34 +126,41 @@ def main() -> None:
     setup_logging()
     cfg = load_config(args.config)
     bc = cfg["brightness"]
-    mf = int(bc["max_frame"])
+    windows = [tuple(int(v) for v in w) for w in bc["frame_windows"]]
 
     run = make_run_dir(cfg, "brightness")
     movies = localize_paper(run, bc, args.reuse_locs) + dfk785_movies(bc)
 
     per, pooled = [], {}
     for m in movies:
-        locs = read_locs(m["locs"], mf)
-        per.append({"set": m["set"], "protein": m["protein"], "movie": m["movie"], "n_locs": len(locs),
-                    "photons_median": locs["photons"].median(), "bg_median": locs["bg"].median(),
-                    "sx_median": locs["sx"].median(), "lpx_median": locs["lpx"].median()})
-        pooled.setdefault(m["set"], []).append(locs[["photons", "bg"]])
+        all_locs = read_locs(m["locs"])
+        for w in windows:
+            locs = all_locs[(all_locs["frame"] >= w[0]) & (all_locs["frame"] < w[1])]
+            per.append({"set": m["set"], "protein": m["protein"], "movie": m["movie"], "frames": f"{w[0]}-{w[1]}",
+                        "n_locs": len(locs), "photons_median": locs["photons"].median(),
+                        "bg_median": locs["bg"].median(), "sx_median": locs["sx"].median(),
+                        "lpx_median": locs["lpx"].median()})
+            pooled.setdefault((m["set"], f"{w[0]}-{w[1]}"), []).append(locs[["photons", "bg"]])
     per = pd.DataFrame(per)
     per.to_csv(run / "per_movie.csv", index=False)
 
     rows = []
-    for name, parts in pooled.items():
-        p, a = per[per["set"] == name], pd.concat(parts)
-        rows.append({"set": name, "protein": p["protein"].iloc[0], "movies": len(p),
-                     "locs_per_movie_median": p["n_locs"].median(),
+    for (name, frames), parts in pooled.items():
+        p, a = per[(per["set"] == name) & (per["frames"] == frames) & (per["n_locs"] > 0)], pd.concat(parts)
+        rows.append({"set": name, "protein": p["protein"].iloc[0], "frames": frames, "movies": len(p),
+                     "locs": len(a), "locs_per_movie_median": p["n_locs"].median(),
                      "photons_median": a["photons"].median(), "photons_p90": a["photons"].quantile(0.9),
+                     "photons_movie_median": p["photons_median"].median(),
                      "bg_median": a["bg"].median(), "sx_median": p["sx_median"].median(),
                      "lpx_median": p["lpx_median"].median(),
                      "movie_photons_min": p["photons_median"].min(), "movie_photons_max": p["photons_median"].max()})
     summ = pd.DataFrame(rows)
-    ref = summ[summ["set"].str.startswith("paper")].set_index("protein")
-    summ["photons_ratio_to_paper"] = summ["photons_median"] / summ["protein"].map(ref["photons_median"])
-    summ["bg_ratio_to_paper"] = summ["bg_median"] / summ["protein"].map(ref["bg_median"])
+    ref = summ[summ["set"].str.startswith("paper")].set_index(["protein", "frames"])
+    key = pd.MultiIndex.from_frame(summ[["protein", "frames"]])
+    summ["photons_ratio_to_paper"] = summ["photons_median"].to_numpy() / ref["photons_median"].reindex(key).to_numpy()
+    summ["movie_median_ratio_to_paper"] = (summ["photons_movie_median"].to_numpy()
+                                           / ref["photons_movie_median"].reindex(key).to_numpy())
+    summ["bg_ratio_to_paper"] = summ["bg_median"].to_numpy() / ref["bg_median"].reindex(key).to_numpy()
     summ.to_csv(run / "summary.csv", index=False)
     with pd.option_context("display.width", 220, "display.float_format", "{:.3g}".format):
         logging.info("Summary:\n" + summ.to_string(index=False))
