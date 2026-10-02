@@ -295,8 +295,11 @@ def rel_under(root: Path, path: Path) -> Path:
     Returns:
         Relative path from root to path.
     """
-    root = root.resolve()
-    path = path.resolve()
+    # abspath, not resolve(): keep symlinked inputs under root. localize.py stores outputs by the
+    # unresolved path (nd2_file.parent.relative_to(input_root)); resolving a symlinked movie here
+    # pointed outside root and made extract.py look for its localizations in the wrong folder.
+    root = Path(os.path.abspath(root))
+    path = Path(os.path.abspath(path))
     if path.is_file():
         path = path.parent
     return Path(os.path.relpath(path, root))

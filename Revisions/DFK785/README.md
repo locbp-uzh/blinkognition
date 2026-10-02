@@ -36,6 +36,13 @@ python Revisions/DFK785/move_dried.py       # dry run of moving dried acquisitio
 python Revisions/DFK785/vesicles.py         # detection and photometry per FOV (+ blanks)
 python Revisions/DFK785/unmix.py            # signatures from slides 1-2, labels for all vesicles
 python Revisions/DFK785/occupancy.py        # 640 traces, scores A and B, occupancy per label
+
+# Paper pipeline on the 640 movies (from Extraction/, picasso-env)
+python run_pipeline.py -c ../Revisions/DFK785/extraction/config_slide1_SNAP520.yaml   # paper ground-truth mode
+python run_pipeline.py -c ../Revisions/DFK785/extraction/config_slide2_HT390.yaml
+python run_pipeline.py -c ../Revisions/DFK785/extraction/config_640only.yaml          # all slides, no ground truth
+python Revisions/DFK785/assign_traces.py    # traces of config_640only -> vesicle labels
+python Revisions/DFK785/brightness.py       # photons per localization, paper vs DFK785
 ```
 
 Outputs in `Results/Revisions/DFK785/<stage>/run_NNN/` with manifest, effective
@@ -250,3 +257,99 @@ run_002 (rescore, fixed figure), run_003 (rescore with the review fixes,
 identical tables to run_002), run_004 (rescore with the 5 px occupancy crowding
 radius, reference). vesicles run_001 (max-map detection,
 missed 405 vesicles in the mixes) superseded by run_002.
+
+## Paper-pipeline extraction (2026-10-02)
+
+The 640 movies go through Extraction/run_pipeline.py unchanged (Picasso MLE, linking,
+5 x 5 ROI, GMM background, minmax, the paper's filters), so the traces are the kind
+the classifier was trained on. Configs in `extraction/` are copies of
+Extraction/config.yaml with only the input/output folders, protein names and ground-truth
+channel changed. Inputs are staged as per-file links in `Inputs/` (gitignored):
+`Inputs/DFK785_640only/link_map.tsv` maps each renamed link to its raw file. Two fixes
+to shared code were needed: run_pipeline.py found its step scripts only next to the
+config (6823f86), and Extraction/utils.py `rel_under` resolved symlinks, so extract.py
+looked for localizations where localize.py had not written them.
+
+| Run (Results/Revisions/DFK785/Extraction/) | Slides | Mode | Optimized gradient 640 / GT |
+|---|---|---|---|
+| SNAP520_optparam_001 | 1 | ground truth 488 | 20000 / 7000 |
+| HT390_optparam_001 | 2 | ground truth 405 | 20000 / 1000 |
+| Slide1SNAP_Slide2HT_Slide3Mix_Slide4Mix_optparam_001 | 1-4 | 640 only | 20000 |
+
+Paper ground-truth mode, filtered IN traces: slide 1 SNAP 629 of 953 (66 %), slide 2
+HT 440 of 576 (76 %). The single-ROI sets of the 640-only run are identical to these
+runs (1134 and 690 single ROIs on slides 1 and 2); slides 3 and 4 add 575 and 476.
+
+## Brightness vs the paper (brightness run_001)
+
+Same Picasso settings and one gradient (20000) for all movies, frames < 6000. Paper:
+one 640 movie (_0005) per protein in each of SP_Exp1-4 (AllMovies; HTHTL = HaloD106,
+snap = SNAPC148); DFK785: all 31 movies of slides 1 and 2.
+
+| Set | Photons / loc (median) | p90 | Background / px | Ratio photons | Ratio bg |
+|---|---|---|---|---|---|
+| paper HaloD106 | 3125 | 4696 | 116 | 1 | 1 |
+| DFK785 slide 2 HT | 1095 | 1802 | 67 | 0.35 | 0.58 |
+| paper SNAPC148 | 1539 | 3552 | 107 | 1 | 1 |
+| DFK785 slide 1 SNAP | 1222 | 2052 | 72 | 0.79 | 0.67 |
+
+The per-movie ranges do not overlap (HT: paper 2067-3318, DFK785 895-1458). Background at
+0.6-0.7x fits the readme's weaker 640 laser (12 mW); the ND2 files record 90 % and no power.
+HT lost more than SNAP, so the laser alone does not explain it: in the paper HT is twice
+as bright as SNAP, here they are equal. A fixed gradient drops the dimmest events, so the
+true ratios are lower still. Minmax normalization removes absolute brightness but not the
+noise relative to the blink amplitude: the paper-trained model sees noisier HT traces
+than it was trained on. Not checked: the trace level (the paper's FinalTraces keep only
+minmax and zscored traces).
+
+## Trace assignment (trace_assignment run_001)
+
+assign_traces.py places each single ROI of the 640-only run (box center = top-left + 2)
+on the vesicle table (unmixing run_001 labels, positions shifted by the occupancy run_004
+registration). IN_<label>: nearest vesicle within 4 px (the paper's radius) and no second
+one; ambiguous: two within 4 px. The residual protein - vesicle offset of IN pairs is
+-0.4 / -0.5 px (y / x) for 488 and 515 vesicles, the half pixel of the ROI rounding, and
+-0.4 / -0.8 px for 405 (the occupancy registration underestimate noted above).
+
+| Slide | Set | IN_ATTO390 (HT) | IN_ATTO520 (SNAP) | IN_dual | IN_no label | ambiguous | OUT |
+|---|---|---|---|---|---|---|---|
+| 1 SNAP | single ROIs | 5 | 544 | 8 | 0 | 3 | 574 |
+| 2 HT | single ROIs | 301 | 21 | 82 | 4 | 12 | 270 |
+| 3 mix | single ROIs | 91 | 96 | 97 | 0 | 20 | 271 |
+| 4 mix | single ROIs | 83 | 64 | 29 | 4 | 11 | 285 |
+| 1 SNAP | filtered | 4 | 376 | 6 | 0 | 1 | 355 |
+| 2 HT | filtered | 223 | 19 | 68 | 4 | 10 | 188 |
+| 3 mix | filtered | 60 | 70 | 71 | 0 | 13 | 180 |
+| 4 mix | filtered | 58 | 39 | 19 | 4 | 8 | 182 |
+
+Label errors seen on the single-label slides, per trace: on slide 2 (all ATTO390) 5 %
+of IN traces sit in vesicles labeled ATTO520 and 20 % in dual ones (9 % of all slide 2
+vesicles are dual); on slide 1 (all ATTO520) 0.9 % ATTO390 and 1.4 % dual. The unmixing
+threshold is still to be tuned.
+
+The table gives fewer IN traces than the paper's ground-truth mode (slide 1: 557 against
+953; slide 2: 408 against 576), for three reasons found by cross-matching the two runs
+(same ROIs):
+- The vesicle table excludes a 10 px border (detection border_px); 115 of the 408 slide 1
+  traces that are GT-IN but table-OUT are in that band.
+- The paper's ground-truth clusters are 2.5-3x more numerous than the table vesicles
+  (slide 1: 15538 against 5989; slide 2: 19046 against 5765). 92-99 % of table vesicles
+  have a cluster within 2 px, so the table is a subset. On slide 2 (405, gradient 1000)
+  the unmatched clusters carry no 405 signal (median z 0.2, random positions 0): they
+  are noise, and paper-mode IN on this slide is inflated. On slide 1 (488, gradient 7000)
+  they are real but dimmer 488 objects (median z 22 against 70 for matched ones) that
+  the table's SNR threshold of 6 does not detect.
+- data_rois.csv stores the clusters as box top-left corners (center - 2.5 px, rounded);
+  add 2 before comparing them with anything else.
+
+Not checked: whether the paper's own ground-truth calls (gradients 1000-5000 at 488 in
+SP_Exp1-4) include noise clusters in the same way.
+
+## Final model (S3IT, 2026-10-02)
+
+The paper reports only cross-validation, which saves no model. The Fig. 4C setting
+(CNN-GRU, minmax, mirror augmentation, 70/15/15, 6000 frames, MC dropout 100) is
+retrained on the paper's FinalTraces with `ml/config_train_HaloD106_SNAPC148.yaml`,
+submitted from a clone of the revisions branch at `~/blinkognition_revisions` (commit
+6823f86; FinalTraces rsynced to `Inputs/FinalTraces`) as job 6823630, outputs in
+`~/blinkognition_revisions/Results/Train/`.
