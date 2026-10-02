@@ -457,3 +457,9 @@ kept in the repo; their conclusions are recorded here.
   30,000-count limit and the clipping level are inferred from the data.
 - The identity of the 515 emitter on ATTO390 vesicles and of the odd objects.
 - All numbers come from one slide per label; slide-to-slide variation is unmeasured.
+- Detection uses the per-pixel maximum of the channels' SNR maps. In a mix this
+  loses dim vesicles of one dye on the wings of bright vesicles of the other
+  (found on DFK785, where 35-47 % of 405 vesicles were missed; see
+  Revisions/DFK785/vesicles.py for the per-channel detection that fixes it). On
+  these single-label slides the effect is small, but the in-silico mix of step 4
+  never had to detect both dyes in one image.
