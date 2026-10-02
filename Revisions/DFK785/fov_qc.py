@@ -57,7 +57,11 @@ def fov_groups(cfg: dict, slide: str) -> list[dict[str, tuple[Path, datetime]]]:
 
     A FOV is the set of channel files recorded together: files are sorted by their
     ND2 acquisition time and split wherever consecutive files are more than
-    fov_max_gap_s apart. File numbers are NOT used to pair channels, because on
+    fov_max_gap_s apart. The ND2 'date' stamp is not the frame time (by frame
+    times the 405/488 snapshots fall 2 s after their own 640 movie and 2 s before
+    the next FOV's), but the stamps of one acquisition iteration cluster within
+    seconds; the pairing was confirmed by colocalization (vesicles blink in their
+    own 640 movie at 11 %, in the neighboring FOVs' movies at 3.5-4 %). File numbers are NOT used to pair channels, because on
     slide 3 the numbering is shifted between channels (file _0031 of one channel
     was recorded two hours apart from _0031 of another).
     """

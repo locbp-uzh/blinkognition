@@ -147,7 +147,7 @@ puts 1.20 +- 0.19 % of its 405 flux into 488; ATTO520 puts 1.64 +- 0.07 % of its
   most likely residue, not dim ATTO520 vesicles; 515 is therefore left out of the
   labels.
 
-## Protein occupancy (occupancy run_002, scores and traces from run_001)
+## Protein occupancy (occupancy run_003; scores and traces from run_001)
 
 Method (agreed 2026-10-02): for every vesicle and blank, the 640 trace over all
 6000 frames is the aperture sum (r = 3 px) minus n_aperture x the annulus median
@@ -189,4 +189,28 @@ applied per vesicle.
 Not verified / limits: one slide per condition; FOVs are repeated measurements of
 it. A protein that never blinks or bleaches early in the 3 min is missed, so these
 are lower bounds on occupancy. Protein identity comes only from the vesicle label.
-Independent check: pending.
+### Check (2026-10-02, two agents)
+
+- Independent recomputation from the saved scores (without reading occupancy.py):
+  thresholds, every positive call and every cell of the per-FOV and summary
+  tables reproduced exactly; score A recomputed from the traces of 3 FOVs agrees
+  to float32 precision; traces recomputed from the raw 640 movies of 2 FOVs
+  (about 45 vesicles, 40 blanks) are identical to the saved ones, and differ by up
+  to 91 % without the registration offset.
+- Code review of vesicles.py, unmix.py, occupancy.py and the FOV pairing: no bug
+  that changes the current numbers. It confirmed the pairing by colocalization
+  (slide 1 FOV10: 11.4 % of vesicles positive in their own 640 movie against 4.0 %
+  and 3.5 % in the previous and next FOV's movies; slide 3 FOV05: 5.1 % against
+  1.7 %). Fixed afterwards: FOVs without vesicles now still contribute their blanks;
+  --rescore refuses to run if the scoring parameters differ from the source run;
+  a clear error if a trace window would cross the image edge (the current margin
+  is exactly zero). Not fixed, documented: the +-3 px registration window
+  underestimates the offsets by about 0.2 px (positives change by at most 1 per
+  FOV); the pairing relies on the ND2 'date' stamps clustering per FOV.
+- Not verified: score B was recomputed for 20 traces only; detection and snapshot
+  photometry were not redone from raw data in the check; slides 1 and 3 raw traces.
+
+Run history: occupancy run_001 (scores, traces; figure with impurity groups),
+run_002 (rescore, fixed figure), run_003 (rescore with the review fixes,
+identical tables to run_002, reference). vesicles run_001 (max-map detection,
+missed 405 vesicles in the mixes) superseded by run_002.

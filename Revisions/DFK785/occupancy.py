@@ -372,10 +372,13 @@ def compute_scores(cfg: dict, run: Path, lab: pd.DataFrame, blanks: pd.DataFrame
     """Registration, traces, score A for every trace and score B where needed."""
     oc, rc = cfg["occupancy"], cfg["occupancy"]["registration"]
     rng = np.random.default_rng(oc["seed"])
-    fovs = lab[["slide", "fov", "acq_order", "file_640"]].drop_duplicates(["slide", "fov"]).reset_index(drop=True)
+    # FOVs from vesicles AND blanks: a FOV without vesicles still contributes blanks to the thresholds and p_b.
+    fovs = pd.concat([lab[["slide", "fov", "file_640"]], blanks[["slide", "fov", "file_640"]]]).drop_duplicates(
+        ["slide", "fov"]).reset_index(drop=True)
     (run / "traces").mkdir()
     # --- 1. registration on a subset of FOVs per slide ---
-    sub = fovs.groupby("slide", group_keys=False).apply(
+    sub = fovs[fovs.set_index(["slide", "fov"]).index.isin(lab.set_index(["slide", "fov"]).index)]
+    sub = sub.groupby("slide", group_keys=False).apply(
         lambda g: g.sample(min(rc["fovs_per_slide"], len(g)), random_state=oc["seed"]))
     jobs = []
     for r in sub.itertuples():
@@ -412,6 +415,12 @@ def compute_scores(cfg: dict, run: Path, lab: pd.DataFrame, blanks: pd.DataFrame
         voff = np.stack([offsets[c] for c in gv["detected_by"]]) if len(gv) else np.zeros((0, 2))
         jobs.append((r.slide, r.fov, r.file_640, gv[["y_px", "x_px"]].to_numpy(), gb[["y_px", "x_px"]].to_numpy(),
                      voff, run / "traces"))
+    h = int(np.ceil(oc["annulus_px"][1])) + 1
+    for slide, fov, rel, vpos, bpos, voff, _ in jobs:
+        allpos = np.vstack([vpos + voff, bpos]) if len(vpos) else bpos
+        if len(allpos) and (np.round(allpos).min() < h or np.round(allpos).max() > 229 - h):
+            raise ValueError(f"{slide} {fov}: a trace window (half-size {h} px) would cross the image edge after "
+                             "the registration offset; raise detection.border_px")
     logging.info(f"Extracting 640 traces in {len(jobs)} FOVs")
     res = Parallel(n_jobs=cfg["n_jobs"])(delayed(traces_fov)(cfg, *j) for j in jobs)
     sv_parts, sb_parts = [], []
@@ -455,7 +464,22 @@ def load_scores(run: Path) -> tuple:
     rs = pd.read_csv(run / "registration_summary.csv", dtype=STR_COLUMNS)
     rs = rs[rs["slide"] == "all"]
     offsets = {r.detected_by: np.array([r.applied_dy, r.applied_dx]) for r in rs.itertuples()}
+    for ch in sv["detected_by"].unique():
+        offsets.setdefault(ch, np.zeros(2))          # channels without registration vesicles got no offset
     return sv, sb, reg, offsets
+
+
+SCORING_KEYS = ["unmixing_run", "aperture_radius_px", "annulus_px", "registration", "gmm_proba_threshold",
+                "gmm_min_separation", "b_prescreen_score", "b_audit_fraction", "seed"]
+
+
+def check_rescore_config(cfg: dict, src: Path) -> None:
+    """--rescore reuses the source run's scores, so its scoring parameters must equal the current ones."""
+    with open(src / "config.yaml") as f:
+        old = yaml.safe_load(f)["occupancy"]
+    diff = [k for k in SCORING_KEYS if old.get(k) != cfg["occupancy"].get(k)]
+    if diff:
+        raise ValueError(f"--rescore: scoring parameters differ from {src.name}: {diff}; rerun without --rescore")
 
 
 def summarize(cfg: dict, run: Path, sv: pd.DataFrame, sb: pd.DataFrame, reg: pd.DataFrame, offsets: dict) -> dict:
@@ -533,9 +557,11 @@ def main() -> None:
     um_run = resolve_run(cfg, "unmixing", oc["unmixing_run"])
     with open(um_run / "manifest.yaml") as f:
         ves_run = resolve_run(cfg, "vesicles", yaml.safe_load(f)["vesicles_run"])
+    src = resolve_run(cfg, "occupancy", str(args.rescore)) if args.rescore else None
+    if src is not None:
+        check_rescore_config(cfg, src)               # before creating the run folder
     run = make_run_dir(cfg, "occupancy")
-    if args.rescore:
-        src = resolve_run(cfg, "occupancy", str(args.rescore))
+    if src is not None:
         sv, sb, reg, offsets = load_scores(src)
         for f in ("registration.csv", "registration_summary.csv", "b_audit.csv"):
             (run / f).write_bytes((src / f).read_bytes())
