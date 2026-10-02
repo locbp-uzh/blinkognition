@@ -57,13 +57,23 @@ Rule used by `move_dried.py` (config `dried`): a slide is dried from the first F
 whose 405 + 488 count is below 0.1 x the median of the earlier FOVs (at least 5),
 and every later FOV is dried too.
 
-## Status of the move to bad_data/ (2026-10-02)
+## Move to bad_data/ (done 2026-10-02)
 
-Planned: 260 files (65 FOVs x 4 channels; slide 3 FOVs 22-61, slide 4 FOVs 36-60),
-keeping their relative paths under `bad_data/`. Not done: every raw file is locked.
-The first attempt (before the lock check existed) copied one file,
-`bad_data/HT390_SNAP520/HT390_SNAP520_405nm_TIRF2x_23pr_100ms_230x230_0020.nd2`, before
-failing to remove the locked original; that copy is identical to the original
-(checked with cmp) and also locked. `move_dried.py` now checks for locks first and
-renames instead of copying, so it cannot leave a partial move again. Waiting for the
-user's decision on the locks.
+At the user's request all raw files were unlocked (`chflags nouchg` on all 671
+locked files, the dataset's own files plus one stray copy) and the 260 files of
+the dried FOVs (slide 3 FOVs 22-61, slide 4 FOVs 36-60, 65 FOVs x 4 channels) were
+moved with `move_dried.py --apply`. They keep their relative paths under
+`bad_data/`; `bad_data/moved_files.csv` lists every file with its FOV's acquisition
+order, time and counts, and `bad_data/README.md` explains the move.
+
+Checked from the ND2 timestamps after the move: the kept files end at 22:08:55
+(slide 3) and 13:00:21 (slide 4), the moved ones start at 22:12:24 and 13:03:50.
+Remaining usable data: slide 3, 21 FOVs (84 files); slide 4, 35 FOVs (140 files);
+slides 1 and 2 untouched.
+
+The first attempt (before the lock check) had left one identical copy of
+`HT390_SNAP520_405nm_TIRF2x_23pr_100ms_230x230_0020.nd2` in `bad_data/HT390_SNAP520/`;
+it was renamed to `<name>.duplicate` (not deleted) and can be removed by the user.
+
+The files are no longer locked. `fov_qc.py` now only sees the kept FOVs; the
+reference counts for all FOVs stay in fov_qc run_002.
