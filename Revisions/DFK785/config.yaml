@@ -186,3 +186,8 @@ brightness:
   gradient: 20000
   camera: {boxsize: 5, baseline: 79, sensitivity: 16.0, gain: 300, quantum_efficiency: 0.93, method: mle}
   frame_windows: [[0, 6000], [0, 1000], [3000, 6000]]   # [start, end); DFK785 movies and traces are 6000 frames
+
+# overview.py: usable FOVs, crowding and provenance of the filtered traces.
+overview:
+  trace_assignment_run: run_003            # 2 px radius
+  image_width_px: 230

@@ -43,6 +43,7 @@ python run_pipeline.py -c ../Revisions/DFK785/extraction/config_slide2_HT390.yam
 python run_pipeline.py -c ../Revisions/DFK785/extraction/config_640only.yaml          # all slides, no ground truth
 python Revisions/DFK785/assign_traces.py    # traces of config_640only -> vesicle labels
 python Revisions/DFK785/brightness.py       # photons per localization, paper vs DFK785
+python Revisions/DFK785/overview.py         # usable FOVs, crowding, provenance of the filtered traces
 ```
 
 Outputs in `Results/Revisions/DFK785/<stage>/run_NNN/` with manifest, effective
@@ -465,6 +466,73 @@ result in `Results/Revisions/DFK785/checks/20261002_trace_assignment_verificatio
   results folded into the sections above.
 - Not verified: the vesicle table itself (detection, labels) on slides 3-4; the protein
   identity of OUT traces; the final model.
+
+## Data overview (overview run_001, 2 px)
+
+| Slide | Experiment | FOVs acquired | Dried (bad_data/) | Usable |
+|---|---|---|---|---|
+| 1 | pure: SNAP in ATTO520 | 31 | 0 | 31 |
+| 2 | pure: HT in ATTO390 | 31 | 0 | 31 |
+| 3 | mixed | 61 | 40 | 21 |
+| 4 | mixed | 60 | 25 | 35 |
+
+118 usable FOVs: 62 pure, 56 mixed.
+
+Crowding (vesicle table; nn = nearest other vesicle):
+
+| Slide | Vesicles | Per FOV (median, range) | nn median | nn < 5 px | nn < 8 px | ATTO390 / ATTO520 / dual / none |
+|---|---|---|---|---|---|---|
+| 1 | 5989 | 193 (164-218) | 9.3 px | 1.6 % | 30 % | 1 / 98 / 1 / 0 % |
+| 2 | 5765 | 186 (173-210) | 9.4 px | 4.5 % | 30 % | 86 / 5 / 9 / 1 % |
+| 3 | 6223 | 297 (275-313) | 7.3 px | 20 % | 61 % | 28 / 43 / 29 / 0 % |
+| 4 | 7305 | 210 (184-223) | 8.4 px | 15 % | 45 % | 45 / 34 / 15 / 6 % |
+
+Filtered traces by provenance (trace_assignment run_003). clean: in a single-dye vesicle
+with no other vesicle within 5 px; crowded: the same with a neighbor within 5 px; wrong
+label: pure slides only, a vesicle labeled with the other dye; dual: a vesicle labeled with
+both dyes; ambiguous: two vesicles within 2 px; OUT border: no vesicle, within the 10 px band
+the table does not cover.
+
+| Slide | Protein | clean | crowded | wrong label | dual | no label | ambiguous | OUT border | OUT interior | total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 pure | SNAP | 302 | 8 | 4 | 6 | 0 | 0 | 95 | 327 | 742 |
+| 2 pure | HT | 192 | 9 | 18 | 66 | 3 | 1 | 57 | 164 | 510 |
+| 3 mixed | HT (ATTO390) | 42 | 2 | - | - | - | - | - | - | 44 |
+| 3 mixed | SNAP (ATTO520) | 42 | 6 | - | - | - | - | - | - | 48 |
+| 3 mixed | unknown | - | - | - | 50 | 0 | 0 | 52 | 200 | 302 |
+| 4 mixed | HT (ATTO390) | 42 | 3 | - | - | - | - | - | - | 45 |
+| 4 mixed | SNAP (ATTO520) | 25 | 4 | - | - | - | - | - | - | 29 |
+| 4 mixed | unknown | - | - | - | 17 | 4 | 0 | 44 | 171 | 236 |
+
+On the pure slides the protein is known for every trace; the vesicle only says whether it is
+encapsulated. On the mixed slides only the single-dye classes identify the protein.
+
+Crowding goes into the dual label: on the mixed slides 45-47 % of dual vesicles have a
+neighbor within 5 px, against 6-12 % of single-dye ones, so two different vesicles closer
+than 5 px read as one dual vesicle. Within each single-dye label the crowded share of the
+traces is what chance predicts (binomial CDF 0.46-0.89). On slide 2 most dual vesicles are
+not crowded (86 % have nn >= 5 px): they are ATTO390 vesicles with real 488 signal (cf. the
+~7 % with an ATTO525-like extra emitter in Revisions/Bleedthrough). Vesicles holding more
+than one protein ROI never appear here: the extraction drops overlapping ROIs.
+
+Expected wrong labels on the mixed slides (mixed_expected_errors.csv): chance coincidences
+(null.csv, an upper bound on wrong: a chance hit is right if the protein happens to match)
+plus the other protein's traces in mislabeled vesicles, at the single-label slides' rates
+(HT traces in ATTO520-labeled vesicles: 18 / 201 = 9.0 % of correct ones; SNAP in ATTO390:
+4 / 310 = 1.3 %).
+
+| Slide | Label | Traces | Chance | Unmixing | Purity (min) |
+|---|---|---|---|---|---|
+| 3 | HT | 44 | 4.8 | 0.5 | 88 % |
+| 3 | SNAP | 48 | 8.6 | 3.5 | 75 % |
+| 4 | HT | 45 | 3.6 | 0.3 | 91 % |
+| 4 | SNAP | 29 | 4.7 | 3.7 | 71 % |
+
+The unmixing rates come from slides with 30 % crowding (8 px), the mixed slides have 45-61 %,
+and the chance estimate is itself a lower bound under crowding: the purities are estimates,
+not bounds. Check: an independent recompute without reading overview.py matched every cell
+of the four tables (checks/20261002_trace_assignment_verification/verify_overview). The
+labels.csv column 'crowded' uses 8 px, the overview's category 5 px.
 
 ## Final model (S3IT, 2026-10-02)
 
