@@ -7,25 +7,42 @@ input_root: /Volumes/MediumBerth/Agent/20260928_DFK785
 # Outputs, relative to the repo root (Results/ is gitignored).
 output_root: Results/Revisions/DFK785
 
-# One entry per slide (numbering as in the data readme). One ND2 per channel and FOV,
+# Vesicle labels. home_channel: the dye's brightest channel among the unmixing
+# channels; color: Okabe-Ito name for figures. Protein: HT7 in ATTO390, SNAP in ATTO520.
+dyes:
+  ATTO390:
+    home_channel: "405"
+    color: blue
+    protein: HT7-HMSiR-HTL
+  ATTO520:
+    home_channel: "488"
+    color: orange
+    protein: SNAP-HMSiR-IA
+
+# One entry per slide (numbering as in the data readme). dye: the label of every
+# vesicle on a single-label slide, 'mix' for the mixed slides. One ND2 per channel and FOV,
 # named <prefix>_<channel tag>[_NNNN].nd2; the unnumbered file is a FOV of its own.
 slides:
   slide1:
+    dye: ATTO520
     folder: SNAP520
     prefix: SNAP520
     sample: SNAP-HMSiR-IA in ATTO520 vesicles
     channels: ["405", "488", "640"]
   slide2:
+    dye: ATTO390
     folder: HT390
     prefix: HT390
     sample: HT7-HMSiR-HTL in ATTO390 vesicles
     channels: ["405", "488", "640"]
   slide3:
+    dye: mix
     folder: HT390_SNAP520
     prefix: HT390_SNAP520
     sample: mix 350 uL HT390 + 50 uL SNAP520, overnight, dried out overnight
     channels: ["405", "488", "515", "640"]
   slide4:
+    dye: mix
     folder: HT390_SNAP520/new
     prefix: HT390_SNAP520
     sample: mix 350 uL HT390 + 50 uL SNAP520, next morning, dried out after about 25 FOVs
@@ -53,6 +70,7 @@ detection:
   snr_threshold: 6.0
   min_separation_px: 3
   border_px: 10
+  merge_radius_px: 2.5     # peaks of different channels this close are one vesicle (vesicles.py)
 
 # Dried-out slides (move_dried.py): first FOV whose 405 + 488 count is below
 # fraction x the median of the earlier FOVs, and every later FOV, go to bad_data/.
@@ -62,3 +80,49 @@ dried:
   count_channels: ["405", "488"]
   fraction: 0.1
   min_before: 5
+
+# ---------------------------------------------------------------------------
+# Analysis (vesicles.py, unmix.py, occupancy.py). Decided 2026-10-02: labels by
+# per-object unmixing with 405 + 488 (slides 1-2 have no 515; 515 is a check on
+# the mixed slides); protein occupancy by the robust peak score of the 640 trace
+# (A) with the GMM ON-frame count (B) as cross-check.
+
+snapshot_channels: ["405", "488", "515"]     # 10-frame movies, averaged for photometry
+detection_channels: ["405", "488", "515"]    # those present on a slide are used
+camera:
+  nonlinear_above_counts: 30000              # same iXon 888 as the revision test (any single frame)
+photometry:
+  aperture_radius_px: 3
+  annulus_px: [5, 8]
+  crowding_radius_px: 8                      # 1.04 um; crowded vesicles are left out of occupancy
+blanks:
+  n_per_fov: 150
+  min_dist_px: 8
+  seed: 42
+n_jobs: 8
+
+unmixing:
+  vesicles_run: run_002
+  channels: ["405", "488"]
+  min_home_snr: 10                           # signature estimation, as in Revisions/Bleedthrough step 1
+  exclude_crowded: true
+  exclude_nonlinear: true
+  presence_snr: 5.0                          # label present at >= this many home-channel noise SDs (open)
+
+occupancy:
+  unmixing_run: run_001
+  aperture_radius_px: 3
+  annulus_px: [5, 8]
+  registration:
+    fovs_per_slide: 6                        # FOVs used to measure the 640 vs vesicle offset
+    min_score: 20                            # clearly positive traces used for the offset
+    on_sigma: 5.0                            # frames above this many MADs count as ON for the centroid
+    window_half_px: 3
+    apply_above_px: 0.3                      # apply the offset only if larger than this
+  blank_pass_fraction: 0.01                  # thresholds A and B let at most this fraction of blanks pass
+  gmm_proba_threshold: 0.9                   # Extraction/config.yaml
+  gmm_min_separation: 3.0                    # Extraction/filter.py default; without it GMM splits pure noise
+  b_prescreen_score: 7.0                     # B runs where A >= this (pure noise scores ~5.8 over 6000 frames), plus an audit sample
+  b_audit_fraction: 0.05
+  seed: 42
+  sensitivity_scores: [8, 10, 15, 20, 30]
