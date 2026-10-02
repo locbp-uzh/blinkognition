@@ -111,6 +111,9 @@ unmixing:
 
 occupancy:
   unmixing_run: run_001
+  crowding_radius_px: 5                      # vesicles with a neighbor closer than this are left out (0.65 um;
+                                             # decided 2026-10-02, was 8 px = photometry.crowding_radius_px).
+                                             # At 5 px <= 7 % of a neighbor's light reaches the 3 px aperture.
   aperture_radius_px: 3
   annulus_px: [5, 8]
   registration:

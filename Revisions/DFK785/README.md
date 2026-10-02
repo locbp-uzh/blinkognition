@@ -147,7 +147,7 @@ puts 1.20 +- 0.19 % of its 405 flux into 488; ATTO520 puts 1.64 +- 0.07 % of its
   most likely residue, not dim ATTO520 vesicles; 515 is therefore left out of the
   labels.
 
-## Protein occupancy (occupancy run_003; scores and traces from run_001)
+## Protein occupancy (occupancy run_004; scores and traces from run_001)
 
 Method (agreed 2026-10-02): for every vesicle and blank, the 640 trace over all
 6000 frames is the aperture sum (r = 3 px) minus n_aperture x the annulus median
@@ -158,7 +158,8 @@ SDs; without the separation guard the GMM splits pure noise). Each threshold let
 at most 1 % of all blanks pass: A >= 15.5, B >= 1 ON frame. Occupancy per FOV =
 (p_v - p_b) / (1 - p_b), with p_b the slide's blank positive rate (blinks that
 do not belong to a vesicle: protein on the glass, noise), mean +- SD across FOVs;
-crowded vesicles (neighbor within 1.04 um) excluded.
+vesicles with a neighbor closer than 5 px (0.65 um) excluded (decision 2026-10-02;
+first 8 px = 1.04 um, see "Crowding" below).
 
 Registration: the 640 signal is offset from the vesicle position by a chromatic
 shift that depends on the channel the position came from, measured from the ON
@@ -166,14 +167,17 @@ frames of clearly positive vesicles (pooled over slides, consistent between
 slides): 405 (0.23, -1.14) px, 488 (0.21, -0.34) px, 515 (0.26, -0.55) px (dy, dx);
 applied per vesicle.
 
-| Vesicles (protein) | Slide | n (FOVs) | Occupancy A | Occupancy B | Raw positive / blanks | Incl. crowded (A) |
-|---|---|---|---|---|---|---|
-| ATTO520 (SNAP) | 1, alone | 4119 (31) | 8.4 +- 3.3 % | 6.1 +- 2.8 % | 10.0 % / 1.8 % | 8.7 +- 3.5 % |
-| ATTO390 (HT7) | 2, alone | 3590 (31) | 6.3 +- 2.8 % | 5.1 +- 2.6 % | 7.0 % / 0.8 % | 6.7 +- 2.6 % |
-| ATTO390 (HT7) | 3, mix | 840 (21) | 7.0 +- 5.9 % | 5.6 +- 5.2 % | 7.9 % / 1.0 % | 6.9 +- 4.5 % |
-| ATTO520 (SNAP) | 3, mix | 1206 (21) | 3.3 +- 2.9 % | 2.4 +- 2.1 % | 4.3 % / 1.0 % | 3.7 +- 2.0 % |
-| ATTO390 (HT7) | 4, mix | 1955 (35) | 2.5 +- 2.7 % | 1.7 +- 2.0 % | 3.0 % / 0.5 % | 3.0 +- 2.2 % |
-| ATTO520 (SNAP) | 4, mix | 1450 (35) | 3.0 +- 3.2 % | 1.9 +- 2.4 % | 3.4 % / 0.5 % | 2.9 +- 2.3 % |
+| Vesicles (protein) | Slide | n (FOVs) | Occupancy A | Occupancy B | at 8 px (n) |
+|---|---|---|---|---|---|
+| ATTO520 (SNAP) | 1, alone | 5781 (31) | 8.5 +- 3.6 % | 6.2 +- 2.8 % | 8.4 +- 3.3 % (4119) |
+| ATTO390 (HT7) | 2, alone | 4800 (31) | 6.5 +- 2.6 % | 5.3 +- 2.6 % | 6.3 +- 2.8 % (3590) |
+| ATTO390 (HT7) | 3, mix | 1640 (21) | 6.7 +- 4.7 % | 5.0 +- 3.5 % | 7.0 +- 5.9 % (840) |
+| ATTO520 (SNAP) | 3, mix | 2363 (21) | 3.4 +- 2.1 % | 2.4 +- 1.6 % | 3.3 +- 2.9 % (1206) |
+| ATTO390 (HT7) | 4, mix | 2989 (35) | 3.1 +- 2.4 % | 2.1 +- 1.6 % | 2.5 +- 2.7 % (1955) |
+| ATTO520 (SNAP) | 4, mix | 2230 (35) | 2.9 +- 2.5 % | 1.8 +- 2.0 % | 3.0 +- 3.2 % (1450) |
+
+Blank positive rates (chance hits) for A: slide 1 1.8 %, slide 2 0.8 %, slide 3 1.0 %,
+slide 4 0.5 %.
 
 - Occupancy rises with vesicle brightness (a proxy for size): dim / middle /
   bright tertiles 4.5 / 8.0 / 12.5 % (slide 1) and 2.4 / 5.4 / 11.2 % (slide 2).
@@ -184,7 +188,38 @@ applied per vesicle.
   B's pre-screen (A < 7), none had an ON frame.
 - Dual vesicles are occupied more often (8-26 %), consistent with their being
   larger objects or overlaps.
-- Excluding crowded vesicles (30-61 % of them) changes nothing beyond 0.5 points.
+- Excluding crowded vesicles changes little: with all vesicles included, or with
+  the 8 px cutoff (30-61 % excluded), occupancy moves by at most 0.6 points.
+
+### Crowding
+
+A vesicle is measured in a 3 px aperture with its background from a 5-8 px
+annulus. For a neighbor at distance d (PSF sigma 1.6 px), the share of its light in
+this vesicle's aperture / annulus is 50 % / 9 % at 2.5 px, 19 % / 32 % at 4 px,
+7 % / 53 % at 5 px, 2 % / 65 % at 6 px and 0 % / 43 % at 8 px. Below 2.5 px two
+vesicles are merged into one object (unresolvable); at 2.5-5 px they are resolved
+but a neighbor's blink or label leaks into the aperture (false protein hits,
+'dual' labels); at 5-8 px the aperture is clean and the neighbor only enters the
+annulus, whose median is robust to it. Hence the 5 px cutoff for occupancy
+(2 / 5 / 20 / 15 % of vesicles excluded on slides 1-4, against 30 / 30 / 61 / 45 % at
+8 px). The signatures (unmix.py) still use the 8 px flag. With the radius set back
+to 8 px the code reproduces run_003 exactly.
+
+### Confident detections (absolute numbers, 5 px, occupancy run_004)
+
+`confident_detections.csv` in the run. Standard: score A >= 15.5 in a vesicle with
+its own label (not dual), not crowded. Strict: A >= 31 and B >= 1 ON frame, own label
+>= 10 noise SDs with < 1 SD of the other dye, not crowded, not nonlinear. 'Chance' is
+the number of hits the slide's blank rate predicts at the same criterion. On the
+single-label slides the label is verified by the slide; on the mixed slides it is
+the unmixing assignment.
+
+| Tier | Protein | Detections | Chance | Net | single-label slide (chance) |
+|---|---|---|---|---|---|
+| standard | SNAP (ATTO520) | 770 | 139 | 631 | 591 (104) |
+| standard | HT7 (ATTO390) | 582 | 68 | 514 | 348 (37) |
+| strict | SNAP (ATTO520) | 145 | 20 | 125 | 115 (15) |
+| strict | HT7 (ATTO390) | 187 | 15 | 172 | 146 (11) |
 
 Not verified / limits: one slide per condition; FOVs are repeated measurements of
 it. A protein that never blinks or bleaches early in the 3 min is missed, so these
@@ -212,5 +247,6 @@ are lower bounds on occupancy. Protein identity comes only from the vesicle labe
 
 Run history: occupancy run_001 (scores, traces; figure with impurity groups),
 run_002 (rescore, fixed figure), run_003 (rescore with the review fixes,
-identical tables to run_002, reference). vesicles run_001 (max-map detection,
+identical tables to run_002), run_004 (rescore with the 5 px occupancy crowding
+radius, reference). vesicles run_001 (max-map detection,
 missed 405 vesicles in the mixes) superseded by run_002.

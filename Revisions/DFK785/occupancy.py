@@ -31,7 +31,8 @@ Protein occupancy of the vesicles of DFK785 from the 640 (HMSiR) movies (goal 2)
    vesicle positive rate p_v, the occupancy is (p_v - p_b) / (1 - p_b), assuming
    such blinks land independently of the vesicles.
 6. Occupancy per FOV and label (ATTO390 = HT7, ATTO520 = SNAP; dual and no label
-   reported too), crowded vesicles excluded, summarized as mean +- SD across FOVs.
+   reported too), vesicles with a neighbor closer than occupancy.crowding_radius_px
+   excluded, summarized as mean +- SD across FOVs.
 
 Outputs (Results/Revisions/DFK785/occupancy/run_NNN/):
     registration.csv          per-vesicle offsets used for registration; registration_summary.csv
@@ -485,6 +486,11 @@ def check_rescore_config(cfg: dict, src: Path) -> None:
 def summarize(cfg: dict, run: Path, sv: pd.DataFrame, sb: pd.DataFrame, reg: pd.DataFrame, offsets: dict) -> dict:
     """Thresholds, occupancy tables, sensitivity analyses and figures."""
     oc = cfg["occupancy"]
+    # 'crowded' for occupancy: neighbor closer than occupancy.crowding_radius_px (independent of the 8 px
+    # flag from vesicles.py, which the signature estimation keeps using)
+    sv["crowded"] = sv["nn_dist_px"] < oc["crowding_radius_px"]
+    logging.info(f"Crowded (neighbor < {oc['crowding_radius_px']} px), left out of occupancy: "
+                 + ", ".join(f"{s} {100 * g['crowded'].mean():.0f} %" for s, g in sv.groupby("slide")))
     # --- 4. thresholds from the blanks ---
     thr = {"A": threshold_for(sb["score_a"].to_numpy(), oc["blank_pass_fraction"]),
            "B": threshold_for(sb["n_on"].fillna(0).to_numpy(), oc["blank_pass_fraction"], integer=True)}
@@ -533,7 +539,7 @@ def summarize(cfg: dict, run: Path, sv: pd.DataFrame, sb: pd.DataFrame, reg: pd.
     _, with_crowded = occupancy_tables(sv, sb, labels, {"A": "positive_A", "B": "positive_B"}, exclude_crowded=False)
     with_crowded.to_csv(run / "occupancy_summary_including_crowded.csv", index=False)
 
-    keep_v = ["slide", "dye", "fov", "acq_order", "vesicle_id", "label", "detected_by", "crowded", "nonlinear", "y_px", "x_px",
+    keep_v = ["slide", "dye", "fov", "acq_order", "vesicle_id", "label", "detected_by", "nn_dist_px", "crowded", "nonlinear", "y_px", "x_px",
               "z_405", "z_488", "z_515", "score_a", "b_run", "b_audit", "n_on", "positive_A", "positive_B", "file_640"]
     sv[keep_v].to_csv(run / "scores_vesicles.csv", index=False)
     sb.to_csv(run / "scores_blanks.csv", index=False)
@@ -563,6 +569,11 @@ def main() -> None:
     run = make_run_dir(cfg, "occupancy")
     if src is not None:
         sv, sb, reg, offsets = load_scores(src)
+        if "nn_dist_px" not in sv:                     # runs before nn_dist_px was saved with the scores
+            nn = pd.read_csv(um_run / "labels.csv", dtype=STR_COLUMNS)[["slide", "fov", "vesicle_id", "nn_dist_px"]]
+            sv = sv.merge(nn, on=["slide", "fov", "vesicle_id"], how="left", validate="one_to_one")
+            if sv["nn_dist_px"].isna().any():
+                raise ValueError("labels.csv of the unmixing run does not cover all scored vesicles")
         for f in ("registration.csv", "registration_summary.csv", "b_audit.csv"):
             (run / f).write_bytes((src / f).read_bytes())
         traces_run = rel_to_repo(src)
