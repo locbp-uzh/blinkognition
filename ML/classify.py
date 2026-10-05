@@ -68,6 +68,7 @@ from utils import (  # noqa: E402
     setup_precision_and_flags,
 )
 from train import build_model_from_config, set_seed  # noqa: E402
+from models import LockedDropout, MCDropout  # noqa: E402
 
 
 class Tee:
@@ -101,6 +102,30 @@ def wasserstein_uncertainty(probs_mc, pred):
         other = [wasserstein_distance(probs_mc[:, i, pred[i]], probs_mc[:, i, c]) for c in range(C) if c != pred[i]]
         out[i] = min(other) if other else 0.0
     return out
+
+
+def deterministic_probs(model, X_t, device, autocast_ctx, batch=256):
+    """Softmax with every dropout off. The zoo's MCDropout ignores eval() and LockedDropout follows
+    mc_eval, so both are switched off here for the pass and restored afterwards."""
+    saved = [(m, m.p) for m in model.modules() if isinstance(m, MCDropout)]
+    locked = [(m, m.mc_eval) for m in model.modules() if isinstance(m, LockedDropout)]
+    for m, _ in saved:
+        m.p = 0.0
+    for m, _ in locked:
+        m.mc_eval = False
+    model.eval()
+    try:
+        out = []
+        with torch.no_grad():
+            for i in range(0, len(X_t), batch):
+                with autocast_ctx():
+                    out.append(torch.softmax(model(X_t[i:i + batch].to(device)), dim=1).float().cpu().numpy())
+        return np.concatenate(out)
+    finally:
+        for m, p in saved:
+            m.p = p
+        for m, v in locked:
+            m.mc_eval = v
 
 
 def training_length(model_dir, cfg):
@@ -205,12 +230,8 @@ def main():
         X, uids, files = load_set(spec, channels, T_model)
         print(f"\n{spec['name']}: {X.shape[0]} traces from {[os.path.basename(f) for f in files]}")
         X_t = torch.from_numpy(X)
+        p_det = deterministic_probs(model, X_t, device, autocast_ctx)
         with torch.no_grad():
-            det = []
-            for i in range(0, len(X_t), 256):
-                with autocast_ctx():
-                    det.append(torch.softmax(model(X_t[i:i + 256].to(device)), dim=1).float().cpu().numpy())
-            p_det = np.concatenate(det)
             probs_mc = mc_dropout_predict(model, X_t, n_mc=n_mc, batch_size=mc_bs, device=device,
                                           autocast_ctx=autocast_ctx)
         p_mean, p_sd = probs_mc.mean(axis=0), probs_mc.std(axis=0)

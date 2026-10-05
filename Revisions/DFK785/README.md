@@ -488,7 +488,56 @@ By provenance (transfer run_001, 2 px): clean single-dye vesicles, slide 2 HT 95
 bootstrap 92.6-98.5 %), slide 1 SNAP 24.2 % (18.7-30.5 %); on the mixed slides HT-labeled
 traces 86-89 % HaloD106 and SNAP-labeled 21-29 % SNAPC148, the same pattern as the pure
 slides. The model transfers to the DFK785 HT traces and fails on the DFK785 SNAP traces,
-whatever their vesicle; the cause is under investigation (below).
+whatever their vesicle.
+
+The p_det columns of this run are single stochastic passes: the model zoo's MCDropout ignores
+eval(). classify.py now switches all dropout off for that pass (identical to an mc_eval=False
+build, checked); predictions and kept use the MC mean and are unaffected.
+
+### Why the transfer fails (investigation 2026-10-05)
+
+Four agents (feature shift, the paper's own experiments, pipeline and perturbation tests,
+critic); scripts, outputs and the full result in
+`Results/Revisions/DFK785/checks/20261005_transfer_failure/`.
+
+- Not the pipeline: DFK785 traces are built exactly like the training traces (6000 frames,
+  minmax(raw) = minmax(bg_rm) = stored minmax).
+- Not lower SNR: adding white noise at the DFK785 level leaves paper SNAP test traces at 83.5 %
+  called SNAP (83.7 % unperturbed); noise pushes Halo toward SNAP, the opposite direction.
+- The kinetics moved. With the paper's own GMM features, DFK785 SNAP against paper SNAP: mean ON
+  1.63 against 1.18 frames, OFF gaps 2.6x longer, duty cycle 0.57x, activity spread over 2.2x more
+  frames; DFK785 HT moved too (mean ON 2.0 against 3.2 frames, activity to the end of the movie).
+  Both move toward what the model reads as Halo. Stretching paper SNAP test traces to the DFK785
+  medians brings them to 48-54 % called SNAP, about 65-75 % of the drop.
+- A field-wide slow background drift: the common mode is 31-47 % of the variance of a 5 x 5 box in
+  the raw DFK785 movies against 1-8 % in the paper's; removing it raises slide 1 from 26 to 39 %
+  called SNAP. Source not identified (laser intensity noise at 12 mW is one candidate).
+- The model reads activity near the end of the 6000 frames as Halo (unidirectional GRU, last
+  hidden state): moving intact paper SNAP traces so that they end at the movie's end gives 34 %
+  called SNAP. The training's mirror augmentation reverses only the active window in place.
+- The SNAP class is narrow because of the training data: 87.6 % of the paper's SNAP traces
+  (8453 / 9647) are from SP_Exp4 (experiments recovered by matching to the 2026-07-20
+  re-extraction; 17 % of SNAP traces assigned from ID-order neighbours). Experiment and protein
+  are confounded (Cramer's V 0.56; the experiment alone predicts the protein at balanced accuracy
+  0.75). With the final model, paper SNAP recall is 88 % in Exp4 and 48-58 % in Exp1 and Exp3
+  (in-sample); on the held-out test split Exp3 SNAP is 53 % (n = 32). DFK785 SNAP sits in that
+  Exp3 regime. ML/crossval.py and the train split stratify by label only, so experiments are
+  mixed across every split and the reported accuracy cannot show this.
+- So the 91-98 % on slide 2 HT is not evidence of transfer: front-loading the activity of both
+  DFK785 sets gives 59 % (SNAP) and 50 % (HT) called SNAP.
+- Protein information is still there within a slide: on the mixed slides the frozen model's score
+  separates the vesicle-labeled proteins with AUC 0.70 (0.62-0.78; paper test 0.92), and mean ON
+  time alone with AUC 0.65 in the paper's direction. A threshold fitted on the pure slides gives a
+  mixed-slide balanced accuracy of 0.65 (0.57-0.72; slide 3 0.73, slide 4 0.54). These intervals
+  resample traces and ignore FOV clustering, so they are too narrow.
+
+Also found: every 640 movie, paper and DFK785, has a frame interval of 34.49 ms (ND2
+timestamps; 30 ms exposure plus readout), while Features/config.yaml converts with 30 ms, so
+durations in ms are 13 % short. Ratios and comparisons are unaffected; not changed (published).
+
+Not verified: no leave-one-experiment-out retraining has been run; MC dropout and the
+Wasserstein filter were not rerun on perturbed traces; one model and one DFK785 session; the
+physical cause of the kinetic change (laser power, sample, slide) is not separated.
 
 ## Data overview (overview run_001, 2 px)
 
