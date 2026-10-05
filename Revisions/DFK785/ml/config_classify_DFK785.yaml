@@ -1,0 +1,39 @@
+# DFK785 transfer test and mixture classification with the final Halo-D106 vs SNAP-C148
+# model (job 7019156). Run from ML/:
+#   python classify.py -c ../Revisions/DFK785/ml/config_classify_DFK785.yaml
+model_dir: "../Results/Train/2026-10-05_12-57-46_HaloD106_SNAPC148_cnngru_minmax_mirror_final_training_HaloD106_SNAPC148"
+run_name: "DFK785_HaloD106_SNAPC148"
+output_root: "../Results/Revisions/DFK785/classify"
+
+trace_sets:
+  # All filtered traces of the 640-only run (provenance per trace in trace_assignment run_003)
+  - name: "Slide1SNAP"
+    path: "../Results/Revisions/DFK785/Extraction/Slide1SNAP_Slide2HT_Slide3Mix_Slide4Mix_optparam_001/ProteinTraces/Filtered"
+    key: "Slide1SNAP"
+    label: "SNAPC148"
+  - name: "Slide2HT"
+    path: "../Results/Revisions/DFK785/Extraction/Slide1SNAP_Slide2HT_Slide3Mix_Slide4Mix_optparam_001/ProteinTraces/Filtered"
+    key: "Slide2HT"
+    label: "HaloD106"
+  - name: "Slide3Mix"
+    path: "../Results/Revisions/DFK785/Extraction/Slide1SNAP_Slide2HT_Slide3Mix_Slide4Mix_optparam_001/ProteinTraces/Filtered"
+    key: "Slide3Mix"
+  - name: "Slide4Mix"
+    path: "../Results/Revisions/DFK785/Extraction/Slide1SNAP_Slide2HT_Slide3Mix_Slide4Mix_optparam_001/ProteinTraces/Filtered"
+    key: "Slide4Mix"
+  # The paper's own IN definition (ground-truth mode, 4 px) on the single-label slides
+  - name: "Slide1SNAP_paperIN"
+    path: "../Results/Revisions/DFK785/Extraction/SNAP520_optparam_001/ProteinTracesIN/Filtered"
+    key: "SNAP520"
+    label: "SNAPC148"
+  - name: "Slide2HT_paperIN"
+    path: "../Results/Revisions/DFK785/Extraction/HT390_optparam_001/ProteinTracesIN/Filtered"
+    key: "HT390"
+    label: "HaloD106"
+
+mc_dropout:
+  n_mc: 100
+  wasserstein_threshold: "model"   # 0.853, selected on the training run's own test set
+
+system:
+  seed: 840410

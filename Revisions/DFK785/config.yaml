@@ -191,3 +191,11 @@ brightness:
 overview:
   trace_assignment_run: run_003            # 2 px radius
   image_width_px: 230
+
+# transfer.py: ML/classify.py predictions joined with the trace provenance (overview categories).
+transfer:
+  classify_run: null                       # Results/Revisions/DFK785/classify/<timestamp>_DFK785_HaloD106_SNAPC148
+  trace_assignment_run: run_003            # 2 px radius
+  paper_in_sets: [Slide1SNAP_paperIN, Slide2HT_paperIN]
+  n_boot: 2000                             # FOV cluster bootstrap
+  seed: 840410

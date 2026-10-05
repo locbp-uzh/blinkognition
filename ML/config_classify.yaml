@@ -1,0 +1,27 @@
+# Inference with a trained model (ML/classify.py). Run from ML/: python classify.py -c config_classify.yaml
+# Paths are relative to ML/.
+
+# A completed training run (Results/Train/<run>/) with best_model.pth, config_full.json,
+# its log and MCD_results/mc_dropout_metrics.json.
+model_dir: "../Results/Train/<run_name>"
+run_name: "classify"
+output_root: "../Results/Classify"
+
+# Trace sets: a folder of filtered trace pickles (extraction output) and the file-name
+# prefix of the set; the channels are those the model was trained on. label: the true
+# class (one of the model's classes), or omit it for unlabeled data.
+trace_sets:
+  - name: "HaloD106_example"
+    path: "../Inputs/FinalTraces/ProteinTracesIN/Filtered"
+    key: "HaloD106"
+    label: "HaloD106"
+
+mc_dropout:
+  n_mc: 100
+  # "model": the threshold the training run auto-selected on its own test set (default).
+  # A number fixes it. It is never re-tuned on the traces being classified.
+  wasserstein_threshold: "model"
+
+# n_frames: 6000      # optional; default: read from the training log ("Dataset loaded ... timesteps")
+system:
+  seed: 840410
