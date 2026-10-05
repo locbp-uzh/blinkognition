@@ -548,3 +548,21 @@ miniforge3` + `conda activate`, which needs a shell that ran conda init (an inte
 shell, had `module` but stopped at "Run 'conda init' before 'conda activate'". The script now
 sources /etc/profile and evaluates the conda shell hook itself, as the dft and md job scripts
 do; tested in a clean non-login shell on the login node (activation only, no Python run).
+Job 7019156 (2026-10-05, H100) ran with the fixed script: 45 min, early stop at epoch 25,
+best checkpoint at epoch 10 (validation AUC 0.922). Outputs fetched to
+`Results/Train/2026-10-05_12-57-46_HaloD106_SNAPC148_cnngru_minmax_mirror_final_training_HaloD106_SNAPC148/`
+(gitignored; best_model.pth sha256 b0d79e77...c308f, identical on S3IT), with slurm-7019156.out.
+
+| | This model (one test split, 1835 traces, balanced) | Paper 4-fold CV, same setting (mean +- SD) |
+|---|---|---|
+| Balanced accuracy | 82.9 % | 83.3 +- 1.9 % |
+| AUC | 0.903 | 0.909 +- 0.019 |
+| Recall HaloD106 / SNAPC148 | 80.9 / 85.0 % | - |
+| After the Wasserstein filter (48 % removed) | 95.5 %: HaloD106 94.6, SNAPC148 96.6 % | HaloD106 92.7 +- 4.1, SNAPC148 95.7 +- 1.1 % |
+
+Paper values from `FinalDataset/GeneralData/MLresults/CrossValidation/HaloD106_SNAPC148/
+2026-05-15_04-01-22_protein_mirrored_halod106_snapc148_minmax_4fold_halod106_snapc148/`
+(cv_folds_metrics.csv, orig_conv_gru noaug; augmentation_sweep/cv_confmat_filtered.csv). The
+final model performs as the paper's cross-validation did. test_metrics.json's
+accuracy_per_class is per-class precision (84.4 / 81.6 %), not recall; the confusion matrix
+gives recall.
