@@ -467,6 +467,29 @@ result in `Results/Revisions/DFK785/checks/20261002_trace_assignment_verificatio
 - Not verified: the vesicle table itself (detection, labels) on slides 3-4; the protein
   identity of OUT traces; the final model.
 
+## Transfer test and mixture classification (classify job 7024507, transfer run_001)
+
+ML/classify.py with the final model on S3IT (A100), threshold 0.853 from the training run.
+Device check first, on the model's own test set: predictions agree with training for 99.4 %,
+Wasserstein r = 0.995, shift -0.0002 +- 0.001, kept 51.4 % (training 51.8 %), filtered
+accuracy 95.0 % (95.5 %). Outputs in `Results/Revisions/DFK785/classify/` (both runs,
+slurm-7024507.out).
+
+| Set | Traces | Accuracy, all | Kept | Accuracy, kept |
+|---|---|---|---|---|
+| slide 2 HT, all filtered | 512 | 91.0 % | 38 % | 98.0 % |
+| slide 2 HT, paper IN (4 px) | 440 | 93.0 % | 40 % | 98.3 % |
+| slide 1 SNAP, all filtered | 742 | 29.6 % | 17 % | 14.3 % |
+| slide 1 SNAP, paper IN (4 px) | 629 | 27.7 % | 17 % | 11.1 % |
+| slide 3 mixed | 394 | 19 % called SNAP | 24 % | 3 % called SNAP |
+| slide 4 mixed | 310 | 13 % called SNAP | 19 % | 0 % called SNAP |
+
+By provenance (transfer run_001, 2 px): clean single-dye vesicles, slide 2 HT 95.8 % (FOV
+bootstrap 92.6-98.5 %), slide 1 SNAP 24.2 % (18.7-30.5 %); on the mixed slides HT-labeled
+traces 86-89 % HaloD106 and SNAP-labeled 21-29 % SNAPC148, the same pattern as the pure
+slides. The model transfers to the DFK785 HT traces and fails on the DFK785 SNAP traces,
+whatever their vesicle; the cause is under investigation (below).
+
 ## Data overview (overview run_001, 2 px)
 
 | Slide | Experiment | FOVs acquired | Dried (bad_data/) | Usable |
