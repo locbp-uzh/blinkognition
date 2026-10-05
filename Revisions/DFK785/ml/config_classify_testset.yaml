@@ -1,0 +1,10 @@
+# Device check: ML/classify.py on the final model's own test set (exported by testset_check.py).
+# Run from ML/:  python classify.py -c ../Revisions/DFK785/ml/config_classify_testset.yaml
+model_dir: "../Results/Train/2026-10-05_12-57-46_HaloD106_SNAPC148_cnngru_minmax_mirror_final_training_HaloD106_SNAPC148"
+run_name: "testset_check"
+output_root: "../Results/Revisions/DFK785/classify"
+trace_sets:
+  - {name: "testHaloD106", path: "../Results/Revisions/DFK785/classify/testset_inputs", key: "testHaloD106", label: "HaloD106"}
+  - {name: "testSNAPC148", path: "../Results/Revisions/DFK785/classify/testset_inputs", key: "testSNAPC148", label: "SNAPC148"}
+mc_dropout: {n_mc: 100, wasserstein_threshold: "model"}
+system: {seed: 840410}

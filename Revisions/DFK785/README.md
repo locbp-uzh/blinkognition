@@ -566,3 +566,14 @@ Paper values from `FinalDataset/GeneralData/MLresults/CrossValidation/HaloD106_S
 final model performs as the paper's cross-validation did. test_metrics.json's
 accuracy_per_class is per-class precision (84.4 / 81.6 %), not recall; the confusion matrix
 gives recall.
+
+### Inference with ML/classify.py (2026-10-05)
+
+ML/classify.py (docs/classify.md) applies the model at the training run's own Wasserstein
+threshold (0.853, selected on its test set), never re-tuned on DFK785. Checked on the
+model's test set (`ml/testset_check.py`, 774 traces) on Apple MPS: predictions agree with
+training for 97.8 %, Wasserstein r = 0.97, initial accuracy 84.2 % (training 84.9 %), but the
+distances are lower by 0.037 (SE 0.002) than on the H100 (bfloat16) the model was trained on,
+so 45 % are kept instead of 52 %. Inference therefore runs on S3IT
+(`ml/submit_classify_DFK785.sh`: the same check on the GPU first, then slides 1-4 and the
+paper-IN sets), and `transfer.py` joins the predictions with the trace provenance.
