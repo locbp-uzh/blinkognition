@@ -540,5 +540,9 @@ The paper reports only cross-validation, which saves no model. The Fig. 4C setti
 (CNN-GRU, minmax, mirror augmentation, 70/15/15, 6000 frames, MC dropout 100) is
 retrained on the paper's FinalTraces with `ml/config_train_HaloD106_SNAPC148.yaml`,
 submitted from a clone of the revisions branch at `~/blinkognition_revisions` (commit
-6823f86; FinalTraces rsynced to `Inputs/FinalTraces`) as job 6823630, outputs in
-`~/blinkognition_revisions/Results/Train/`.
+6823f86; FinalTraces rsynced to `Inputs/FinalTraces`), outputs in
+`~/blinkognition_revisions/Results/Train/`. Job 6823630 (submitted 2026-10-02) failed after
+1 s on 2026-10-03: it was submitted with a plain `ssh cluster 'sbatch ...'`, a non-login shell
+with an empty BASH_ENV, so the job had no `module` command and no conda environment. Resubmitted
+unchanged on 2026-10-05 from a login shell (`ssh cluster 'bash -lc "... sbatch ..."'`) as
+job 7018538.
