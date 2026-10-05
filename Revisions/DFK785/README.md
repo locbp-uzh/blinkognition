@@ -541,8 +541,10 @@ The paper reports only cross-validation, which saves no model. The Fig. 4C setti
 retrained on the paper's FinalTraces with `ml/config_train_HaloD106_SNAPC148.yaml`,
 submitted from a clone of the revisions branch at `~/blinkognition_revisions` (commit
 6823f86; FinalTraces rsynced to `Inputs/FinalTraces`), outputs in
-`~/blinkognition_revisions/Results/Train/`. Job 6823630 (submitted 2026-10-02) failed after
-1 s on 2026-10-03: it was submitted with a plain `ssh cluster 'sbatch ...'`, a non-login shell
-with an empty BASH_ENV, so the job had no `module` command and no conda environment. Resubmitted
-unchanged on 2026-10-05 from a login shell (`ssh cluster 'bash -lc "... sbatch ..."'`) as
-job 7018538.
+`~/blinkognition_revisions/Results/Train/`. Jobs 6823630 (2026-10-03) and 7018538 (2026-10-05)
+failed within seconds: the job script, copied from ML/submit_train.sh, had only `module load
+miniforge3` + `conda activate`, which needs a shell that ran conda init (an interactive one).
+6823630 had no `module` either (sbatch over a plain ssh command); 7018538, submitted from a login
+shell, had `module` but stopped at "Run 'conda init' before 'conda activate'". The script now
+sources /etc/profile and evaluates the conda shell hook itself, as the dft and md job scripts
+do; tested in a clean non-login shell on the login node (activation only, no Python run).

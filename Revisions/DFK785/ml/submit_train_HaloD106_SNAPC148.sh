@@ -12,7 +12,14 @@
 #SBATCH --mem=128G
 #SBATCH --time=23:59:00
 
+# A batch shell never ran conda init (and has no `module` when sbatch came over a plain ssh
+# command): set both up here, as the dft and md job scripts do. Jobs 6823630 and 7018538
+# failed within seconds on the bare `module load` + `conda activate`.
+source /etc/profile
 module load miniforge3
-conda activate blink2-cuda
+eval "$(conda shell.bash hook)"
+conda activate blink2-cuda || { echo "conda activate blink2-cuda failed" >&2; exit 1; }
+echo "Node: $(hostname)  Python: $(which python)"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 python train.py -c ../Revisions/DFK785/ml/config_train_HaloD106_SNAPC148.yaml
