@@ -11,6 +11,9 @@ Tables (printed, and written to <out>/r3_*.csv):
 - models       protein models (CNN-GRU = r2_all_aug0, r3_resnet1d_protein, r3_tcn_protein):
                validation and mixed-slide AUC, per dataset and pooled, with FOV bootstrap
                intervals; mixed-slide within-dataset AUC
+- paired_mixed AUC difference to the CNN-GRU on the same mixed-slide traces, with a paired FOV
+               bootstrap (both models resampled together); frac_boot_above_0 = share of
+               resamples in which the model beats the CNN-GRU
 - scrambled    the five permutations per architecture: validation AUC (against the scrambled
                labels) and mixed-slide AUC (against the true labels), each run and their
                mean / min / max; the real model's mixed AUC next to them
@@ -31,7 +34,9 @@ import argparse
 import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ARCH = {"gru": "CNN-GRU", "resnet1d": "ResNet1D", "tcn": "TCN"}
@@ -55,6 +60,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--models", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/models")
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/comparisons")
+    ap.add_argument("--n-boot", type=int, default=2000)
+    ap.add_argument("--seed", type=int, default=840410)
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
     protein = {"gru": "r2_all_aug0", "resnet1d": "r3_resnet1d_protein", "tcn": "r3_tcn_protein"}
@@ -73,6 +80,43 @@ def main() -> None:
                          "AUC_within_dataset": f"{r['auc_within_dataset']:.2f}", "BA": f"{r['balanced_accuracy']:.2f}",
                          "kept": f"{r['kept_frac']:.2f}", "BA_kept": f"{r['kept_balanced_accuracy']:.2f}"})
     tables["models"] = pd.DataFrame(rows)
+
+    # Paired comparison on the mixed slides: all models score the same test traces, so the AUC
+    # difference to the CNN-GRU is bootstrapped over FOVs with the same resample for both models.
+    preds = {}
+    for arch, name in protein.items():
+        run = latest(a.models, name)
+        if run and (run / "predictions.csv").exists():
+            p = pd.read_csv(run / "predictions.csv", dtype={"slide": str, "fov": str, "true_class": str})
+            p = p[(p["set"] == "test_mixed") & p["true_class"].isin(["HT", "SNAP"])]
+            preds[arch] = p.set_index(["dataset", "extraction_key", "uniqueID"]).sort_index()
+    if "gru" in preds:
+        rng = np.random.default_rng(a.seed)
+        ref = preds["gru"]
+        rows = []
+        for arch in [k for k in preds if k != "gru"]:
+            other = preds[arch]
+            if not ref.index.equals(other.index) or not (ref["true_class"] == other["true_class"]).all():
+                raise ValueError(f"{arch}: mixed-slide test traces differ from the CNN-GRU's")
+            for ds in ["pooled"] + sorted(ref.index.get_level_values("dataset").unique()):
+                m = np.ones(len(ref), bool) if ds == "pooled" else (ref.index.get_level_values("dataset") == ds)
+                y = (ref["true_class"].to_numpy()[m] == "SNAP").astype(int)
+                s0, s1 = ref["p_SNAP"].to_numpy()[m], other["p_SNAP"].to_numpy()[m]
+                fov = (ref.index.get_level_values("dataset")[m] + "/" + ref["slide"].to_numpy()[m] + "/"
+                       + ref["fov"].to_numpy()[m])
+                groups = [np.flatnonzero(fov == f) for f in np.unique(fov)]
+                d0 = roc_auc_score(y, s1) - roc_auc_score(y, s0)
+                boot = []
+                for _ in range(a.n_boot):
+                    idx = np.concatenate([groups[k] for k in rng.integers(0, len(groups), len(groups))])
+                    if len(np.unique(y[idx])) == 2:
+                        boot.append(roc_auc_score(y[idx], s1[idx]) - roc_auc_score(y[idx], s0[idx]))
+                boot = np.array(boot)
+                rows.append({"model": ARCH[arch], "minus": "CNN-GRU", "dataset": ds, "n": int(m.sum()),
+                             "n_fovs": len(groups), "delta_auc": round(d0, 3),
+                             "delta_lo": round(np.percentile(boot, 2.5), 3), "delta_hi": round(np.percentile(boot, 97.5), 3),
+                             "frac_boot_above_0": round(float((boot > 0).mean()), 3)})
+        tables["paired_mixed"] = pd.DataFrame(rows)
 
     rows = []
     for arch in ARCH:
