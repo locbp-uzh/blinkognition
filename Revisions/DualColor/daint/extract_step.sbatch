@@ -28,5 +28,7 @@ case $STEP in
   rest)        CMD="cd $REPO/Extraction && python run_pipeline.py -c $CFG --start-from combine -r \$(cat $RUNFILE)" ;;
   *) echo "unknown step $STEP" >&2; exit 2 ;;
 esac
-srun --environment=picasso-env bash -c "set -euo pipefail; $CMD"
+# Picasso 0.8.8 race in the CLI MLE fit (loses spots with many threads): see picasso_sync/sitecustomize.py
+FIX="export PYTHONPATH=$REPO/Revisions/DualColor/daint/picasso_sync DUALCOLOR_PICASSO_SYNC_MLE=1"
+srun --environment=picasso-env bash -c "set -euo pipefail; $FIX; $CMD"
 echo "Done $DS $STEP $(date +%H:%M:%S)"
