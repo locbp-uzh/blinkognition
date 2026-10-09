@@ -1,0 +1,9 @@
+# Round 3 (TRAINING_NOTES.md point 5): one line per debug job (run_train_queue.sh).
+# @bginf:<run_name> = background-inference control on the latest model run *_<run_name>.
+
+Revisions/DualColor/ml/models_controls/r3_resnet1d_protein.yaml Revisions/DualColor/ml/models_controls/r3_tcn_protein.yaml Revisions/DualColor/ml/models_controls/r3_resnet1d_background.yaml Revisions/DualColor/ml/models_controls/r3_tcn_background.yaml
+Revisions/DualColor/ml/models_controls/r3_gru_background.yaml @bginf:r2_all_aug0 Revisions/DualColor/ml/models_controls/r3_gru_scrambled_s1.yaml Revisions/DualColor/ml/models_controls/r3_resnet1d_scrambled_s1.yaml
+@bginf:r3_resnet1d_protein @bginf:r3_tcn_protein Revisions/DualColor/ml/models_controls/r3_tcn_scrambled_s1.yaml Revisions/DualColor/ml/models_controls/r3_gru_scrambled_s2.yaml
+Revisions/DualColor/ml/models_controls/r3_resnet1d_scrambled_s2.yaml Revisions/DualColor/ml/models_controls/r3_resnet1d_scrambled_s3.yaml Revisions/DualColor/ml/models_controls/r3_tcn_scrambled_s2.yaml Revisions/DualColor/ml/models_controls/r3_tcn_scrambled_s3.yaml
+Revisions/DualColor/ml/models_controls/r3_resnet1d_scrambled_s4.yaml Revisions/DualColor/ml/models_controls/r3_resnet1d_scrambled_s5.yaml Revisions/DualColor/ml/models_controls/r3_tcn_scrambled_s4.yaml Revisions/DualColor/ml/models_controls/r3_tcn_scrambled_s5.yaml
+Revisions/DualColor/ml/models_controls/r3_gru_scrambled_s3.yaml Revisions/DualColor/ml/models_controls/r3_gru_scrambled_s4.yaml Revisions/DualColor/ml/models_controls/r3_gru_scrambled_s5.yaml

@@ -1,0 +1,43 @@
+# Round 3 (2026-10-09): the paper's other two models and the paper's controls (TRAINING_NOTES.md
+# point 5). Recipe = r2_all_aug0 (the factor chosen in round 2); only the model or the control
+# changes: model tcn, model zoo defaults.
+# Fixed before any round-3 prediction.
+run_name: r3_tcn_protein
+train_datasets:
+- DFK785
+- DFK788
+- DFK789
+test_datasets:
+- DFK785
+- DFK788
+- DFK789
+augmentation:
+  mirror: true
+  time_invariance: true
+  aug_factor: 0
+  time_warp_sigma: 0.5
+  noise_sigma: 0.5
+  magnitude_jitter: 0.5
+val_fov_fraction: 0.2
+seed: 840410
+train_label_filter: own_dye
+model:
+  name: tcn
+precision: fp32
+optimization:
+  batch_size: 64
+  max_epochs: 500
+  patience_limit: 10
+  lr: 0.0004
+  weight_decay: 0.0004
+  label_smoothing: 0.001
+  early_stopping:
+    auc_min_delta: 0.005
+    loss_mode: relative
+    loss_tolerance: 1.1
+    auc_tolerance: 0.003
+    loss_min_delta: 0.005
+mc_dropout:
+  n_mc: 100
+  trace_loss: 50.0
+balance_val: true

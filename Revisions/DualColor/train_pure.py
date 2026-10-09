@@ -45,6 +45,35 @@ uncertainty and kept = wd > threshold (the threshold auto-selected on the valida
 trace loss <= trace_loss %). Holdout: `holdout_datasets` are left out of training and
 validation entirely and their single-protein slides are predicted as a cross-session test.
 
+Model: model.name orig_conv_gru (the paper's final model), resnet1d or tcn (the paper's other
+two), with the model zoo's defaults (ML/models.py) unless model.kwargs overrides them.
+
+Controls (the paper's, SI "Further control experiments"):
+  label_scramble: true   the classes of the training pool (training and validation traces of
+                         the single-protein slides) are permuted before the FOV split, with
+                         np.random.default_rng(scramble_seed) (default: seed), so that several
+                         permutations can share one FOV split and training seed; class counts
+                         are kept, everything else is the same. The mixed-slide truth is not
+                         scrambled. Read across permutations: one scrambled model is one draw
+                         of an arbitrary function of the traces, whose mixed-slide AUC can lie
+                         far from 0.5 (the classes differ in trace properties).
+  trace_source: background
+                         the same model and recipe trained on background traces (background.py)
+                         instead of protein traces, labeled with the slide's protein. The
+                         protein sets are built first (same FOV split, same validation
+                         balancing); then, per dataset, slide and set (train / val), as many
+                         background traces as protein traces are drawn (seeded) from that
+                         set's FOVs, so the background model has the protein model's data
+                         budget, slides and FOVs. Predicted: its validation set (which chose
+                         the checkpoint) and 'val_unused', the other background traces of the
+                         validation FOVs; holdout datasets' single-protein background as
+                         'holdout_pure'. Slides differ in their background (even slides of one
+                         protein), so the readout is per dataset and two-sided, against the
+                         same-protein slide pairs (evaluate.py slide_pairs.csv).
+  background_inference: true
+                         after the protein predictions, classify_background.py's control on
+                         the trained model (background_inference/).
+
 Outputs (Results/Revisions/DualColor/models/<timestamp>_<run_name>/): best_model.pth,
 config_full.json (this config + resolved inputs), data_split.csv (every trace used, with its
 set), predictions.csv (validation, mixed test, holdout), threshold.json, loss_curve/, log.
@@ -74,6 +103,7 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset, WeightedRandomS
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1] / "ML"))
+from background import load_background  # noqa: E402
 from dc import REPO_ROOT, load_config, run_dir  # noqa: E402
 from train import build_model_from_config, set_seed  # noqa: E402
 from utils import (_balance_dataset, apply_augmentation, dataloader_kwargs_for, detect_accelerator, evaluate_uncertainty_filtered,  # noqa: E402
@@ -163,6 +193,47 @@ def split_fovs(meta: pd.DataFrame, frac: float, seed: int) -> pd.Series:
     return out
 
 
+def background_sets(meta: pd.DataFrame, mc: dict, seed: int, datasets: list[str], holdout: set
+                    ) -> tuple[pd.DataFrame, np.ndarray, list[dict]]:
+    """Background traces in place of the protein sets of `meta` (trace_source: background).
+
+    Each FOV of the protein training pool keeps its side of the split (train, or val for
+    val and val_unused). Per (dataset, slide, set) of the protein train and val sets, as many
+    background traces as protein traces are drawn without replacement from that slide's
+    FOVs on that side (background.py, background_min_gap_px). Background of the other validation
+    FOVs is 'val_unused'; val_fov marks
+    every background trace of a validation FOV. Single-protein background of holdout datasets
+    is 'holdout_pure'. Background of FOVs without protein training-pool traces and of the
+    mixed slides is not used.
+    """
+    loaded = [load_background(ds, (mc.get("trace_assignment_runs") or {}).get(ds),
+                              int(mc.get("background_min_gap_px", 3))) for ds in datasets]
+    bg = pd.concat([x[0] for x in loaded], ignore_index=True)
+    X = np.concatenate([x[1] for x in loaded], axis=0)
+    pool = meta[meta["set"].isin(["train", "val", "val_unused"])]
+    sides = (pool.assign(side=pool["set"].replace({"val_unused": "val"}))
+             .groupby(["dataset", "slide", "fov"])["side"].agg(lambda s: sorted(set(s))))
+    if (sides.map(len) > 1).any():
+        raise ValueError("a FOV of the protein training pool lies on both sides of the split")
+    side = sides.map(lambda s: s[0])
+    bg["fov_side"] = side.reindex(pd.MultiIndex.from_frame(bg[["dataset", "slide", "fov"]])).to_numpy()
+    bg["set"] = ""
+    rng = np.random.default_rng(seed)
+    need = meta[meta["set"].isin(["train", "val"])].groupby(["dataset", "slide", "set"]).size()
+    for (ds, slide, s), n in need.items():
+        cand = bg.index[(bg["dataset"] == ds) & (bg["slide"] == slide) & (bg["fov_side"] == s)].to_numpy()
+        if len(cand) < n:
+            raise ValueError(f"{ds} {slide} {s}: {len(cand)} background traces for {n} protein traces")
+        bg.loc[rng.choice(cand, size=n, replace=False), "set"] = s
+    bg["val_fov"] = bg["fov_side"] == "val"
+    bg.loc[bg["val_fov"] & (bg["set"] == ""), "set"] = "val_unused"
+    bg.loc[(bg["slide_type"] == "pure") & bg["dataset"].isin(holdout), "set"] = "holdout_pure"
+    bg["y_class"] = bg["true_class"].map({c: k for k, c in enumerate(CLASSES)})
+    print(f"Background in place of protein traces: {len(bg)} filtered background traces, "
+          f"{int(bg['val_fov'].sum())} in validation FOVs")
+    return bg, X, [x[2] for x in loaded]
+
+
 def predict(model, X: np.ndarray, n_mc: int, device, autocast_ctx, thr: float | None) -> pd.DataFrame:
     from scipy.stats import wasserstein_distance
     probs = mc_dropout_predict(model, torch.from_numpy(X).float(), n_mc=n_mc, batch_size=256, device=device,
@@ -210,6 +281,14 @@ def main() -> None:
     if mc.get("train_label_filter", "own_dye") == "own_dye":
         pure &= meta["own_dye"]                 # on a single-protein slide, a trace at an object of the slide's own dye
     train_pool = pure & meta["dataset"].isin(mc["train_datasets"]) & ~meta["dataset"].isin(holdout)
+    if mc.get("label_scramble", False):
+        # the paper's control: permute the classes of the whole training pool before the split
+        meta["true_class_unscrambled"] = meta["true_class"]
+        tp = meta.index[train_pool]
+        rng_s = np.random.default_rng(int(mc.get("scramble_seed", seed)))
+        meta.loc[tp, "true_class"] = rng_s.permutation(meta.loc[tp, "true_class"].to_numpy())
+        same = (meta.loc[tp, "true_class"] == meta.loc[tp, "true_class_unscrambled"]).mean()
+        print(f"Labels scrambled: {len(tp)} training-pool traces, {same:.3f} keep their class by chance")
     meta["set"] = ""
     meta.loc[train_pool, "set"] = split_fovs(meta[train_pool], float(mc["val_fov_fraction"]), seed)
     test = (meta["slide_type"] == "mixed") & meta["dataset"].isin(mc["test_datasets"]) & ~meta["dataset"].isin(holdout)
@@ -222,6 +301,12 @@ def main() -> None:
         vi = meta.index[meta["set"] == "val"].to_numpy()
         _, _, keep = _balance_dataset(vi, meta.loc[vi, "y_class"].to_numpy(int), random_seed=seed)
         meta.loc[np.setdiff1d(vi, vi[keep]), "set"] = "val_unused"
+    background = mc.get("trace_source", "protein") == "background"
+    if background:
+        if mc.get("label_scramble", False):
+            raise ValueError("label_scramble and trace_source: background are separate controls")
+        meta.drop(columns=["y_class"]).to_csv(out / "data_split_protein.csv", index=False)
+        meta, X_all, bg_inputs = background_sets(meta, mc, seed, datasets, holdout)
     print(pd.crosstab([meta["set"], meta["dataset"]], meta["true_class"].fillna("unlabeled")).to_string())
     meta.drop(columns=["y_class"]).to_csv(out / "data_split.csv", index=False)
 
@@ -303,18 +388,24 @@ def main() -> None:
                    "val_filtered_accuracy": sel["filtered_accuracy"], "val_removed_pct": sel["removed_percent"]},
                   f, indent=2)
     preds = [meta.loc[va_idx].reset_index(drop=True).join(val_pred)]
-    for s in ("test_mixed", "holdout_pure"):
-        idx = meta.index[meta["set"] == s].to_numpy()
+    extra = {s: meta.index[meta["set"] == s].to_numpy()
+             for s in ("test_mixed", "holdout_pure") + (("val_unused",) if background else ())}
+    for s, idx in extra.items():
         if len(idx):
             p, _ = predict(model, X_all[idx], n_mc, device, autocast_ctx, thr)
-            preds.append(meta.loc[idx].reset_index(drop=True).join(p))
+            preds.append(meta.loc[idx].reset_index(drop=True).assign(set=s).join(p))
     pd.concat(preds, ignore_index=True).drop(columns=["y_class"]).to_csv(out / "predictions.csv", index=False)
 
     with open(out / "config_full.json", "w") as f:
         json.dump({"config_file": args.config, "config": mc, "inputs": [loaded[d][2] for d in datasets],
                    "classes": CLASSES, "n_frames": int(T), "device": str(accel["name"]), "precision": precision,
                    "torch": torch.__version__, "wasserstein_threshold": thr, "epochs_run": len(tl),
-                   "best_val_auc": float(max(va)) if va else None}, f, indent=2)
+                   "best_val_auc": float(max(va)) if va else None,
+                   **({"background_inputs": bg_inputs} if background else {})}, f, indent=2)
+
+    if mc.get("background_inference", False) and not background:
+        from classify_background import classify_run
+        classify_run(out)
     print(f"Done: {out}")
 
 

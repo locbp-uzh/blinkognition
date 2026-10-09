@@ -52,7 +52,14 @@ objects shows the ATTO520 515/488 ratio (below).
 - `train_pure.py`, `ml/*.yaml`: training on the single-protein slides, test on the mixtures.
 - `evaluate.py`: metrics with FOV-cluster bootstrap intervals.
 - `compare_runs.py`: table of several models' metrics with the validation-AUC selection rule.
+- `background.py`: the filtered background traces with slide, FOV and class (gap >= 3 px to
+  every protein box), for the background controls.
+- `classify_background.py`: the background-inference control (a protein model classifies
+  background traces); train_pure.py options `label_scramble` and `trace_source: background`
+  are the other two controls (TRAINING_NOTES.md point 5).
 - `daint/extract.sbatch`, `daint/train.sbatch`: Daint jobs (picasso-env, blink2-cuda).
+- `daint/run_train_queue.sh`, `daint/queues/*.txt`: submit a list of train.sbatch jobs to
+  the debug partition as slots free.
 
 Outputs: `Results/Revisions/DualColor/<dataset>/<stage>/run_NNN/` (manifest, config, code),
 models in `Results/Revisions/DualColor/models/<timestamp>_<run_name>/`. On Daint `Results/` and
