@@ -175,6 +175,14 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    difference lies entirely below 0 (it is the paper's definition and the larger set, so it
    is kept unless it is shown to be worse).
 
+   Result (README.md "Round 4"; checks/20261009_round4_check): mixed AUC table 0.692 (SD 0.029),
+   paper-IN 0.717 (SD 0.014); paired difference +0.025 [-0.025, +0.075]. The paper-IN pool is the
+   default by the rule: not shown to be worse, not shown to be better. The mean gain comes from
+   two table runs that stopped early; on the other three seeds the pools agree within 0.012
+   (ensembles +0.007). The added traces are protein-like but less separable (AUC 0.73 vs 0.81 on
+   never-trained FOVs). With rounds 3 and 4, the mixed-slide AUC sits at 0.69-0.74 whatever the
+   architecture or the training pool.
+
 ## Open
 
 - Repeated runs (FOV-grouped k-fold within the single-protein slides, several seeds) to

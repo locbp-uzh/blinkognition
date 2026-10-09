@@ -347,6 +347,56 @@ Not done: a vesicle-population control (background boxes next to single-dye vesi
 mixed slides, compared within FOV after removing the movie common mode); training with the
 movie common mode removed from the inputs; repeated runs (TRAINING_NOTES "Open").
 
+## Trace yield and the paper's IN rule (2026-10-09)
+
+Why the dual-color datasets give few traces, measured stage by stage against the paper:
+Results/Revisions/DualColor/checks/20261009_trace_yield/README.md. Up to the filter (defined
+identically on both sides) DFK785 + DFK788 give as many traces per FOV as the paper (HT 10.5 vs
+10.4, SNAP 10.3 vs 11.7 without SP_Exp4, which alone gave 8453 of the 9647 published SNAP
+traces); the largest loss is the vesicle-assignment rule (the paper kept 0.82-0.94 of its
+filtered traces as IN, the vesicle table 0.24-0.61). The training slides now use the paper's IN
+rule (TRAINING_NOTES.md point 7; paper_in.py, Extraction_gt405 / Extraction_gt488 runs):
+1829 traces in the pool against 1165, chance share of IN calls 2-14 % per slide after the
+vesicle-channel gradient rule for DFK789 405 nm (checks/20261009_paper_in_gradient).
+
+## Round 4: table pool vs paper-IN pool (Daint jobs 5015392, 5015393, 5015427; models 2026-10-09_21-*)
+
+Design and rule: TRAINING_NOTES.md point 8 (fixed before the runs). CNN-GRU recipe of
+r2_all_aug0, five seeds per pool (the seed sets the FOV split, initialization and sampling;
+r2_all_aug0 is the table pool's seed 840410), the same 412 mixed-slide test traces. Tables:
+comparisons/r4_*.csv (round4_summary.py). All values and splits recomputed independently
+(checks/20261009_round4_check): test rows identical in all 10 runs, train / validation FOVs
+disjoint, both pools rebuilt exactly from their sources.
+
+| Pool | Training traces | Mixed AUC, seeds 840410 / 1 / 2 / 3 / 4 | Mean (SD) |
+|---|---|---|---|
+| Vesicle table (own dye, 4 px) | 899-921 | 0.713 / 0.657 / 0.664 / 0.716 / 0.711 | 0.692 (0.029) |
+| Paper IN | 1391-1471 | 0.701 / 0.718 / 0.740 / 0.711 / 0.715 | 0.717 (0.014) |
+
+- Paired difference (paper-IN minus table, same seed): +0.025 [-0.025, +0.075] (95 % t
+  interval, 4 df); DFK785 -0.031 [-0.075, +0.013], DFK788 +0.073 [-0.009, +0.155], DFK789
+  +0.025 [-0.021, +0.071]. By the rule of point 8 the paper-IN pool is the default: not shown
+  to be worse, not shown to be better (with five seeds the rule could only reject a deficit of
+  about 0.07).
+- The mean gain comes from two table-pool runs (seeds 1 and 2) that stopped early (best epochs
+  12 and 25, the lowest validation AUCs of the ten runs); on the other three seeds the pools
+  agree within 0.012, and the five-seed ensembles differ by +0.007. The lower seed spread of
+  the paper-IN runs is not established (F test p = 0.19) and is confounded with training
+  length: patience counts epochs, about 290 optimizer steps on the table pool against 450.
+- The two arms also differ in composition (697 added traces, 479 of them DFK785, 45 % of the
+  paper-IN DFK785 pool), in selection relative to the table-defined test set, and in the
+  validation set, so the comparison cannot separate size from these.
+- DFK785 drops in 4 of 5 seeds, on mixed slide 3 (the slide where the models work; slide 4 is at
+  chance in all runs). Not explained by purity: the paper-IN DFK785 chance share (14 %) is no
+  higher than the table's at 4 px (13-20 %).
+- Are the added traces protein traces (added_traces_check.py; checks/20261009_round4_added_traces)?
+  Scored by the five table-pool models on the FOVs each never trained on, the added traces
+  separate HT from SNAP at a within-dataset AUC of 0.73 (0.61-0.80 over the models) against 0.81
+  (0.75-0.85) for the table traces of the same FOVs (DFK785 0.74 vs 0.85; the table traces are
+  those models' validation set, a slight advantage). They carry protein information, but less.
+- Single-run differences of about 0.05 (rounds 2-3) are within the table pool's seed spread
+  (about 0.04 for the difference of two single runs).
+
 ## Status
 
 - Extraction on Daint: DFK785, DFK788, DFK789 submitted (jobs 5009197, 5009198, 5009538);
