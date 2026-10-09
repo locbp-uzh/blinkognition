@@ -129,6 +129,21 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    dual-channel or z-scored input (Figure S13). The z-scored traces exist locally and on
    Daint if a dual-channel condition is wanted later.
 
+7. Training-set IN rule: the paper's (2026-10-09, user decision; supersedes, for the
+   training set only, the 2026-10-02 decision to keep the vesicle table's border and SNR
+   threshold). The trace-yield deep dive (Results/Revisions/DualColor/checks/
+   20261009_trace_yield) found that extraction and filtering match the paper per FOV, and that
+   the vesicle table is the largest single loss: every paper session kept 0.82-0.94 of its
+   filtered traces as IN, the table keeps 0.24-0.61, and on the same DFK785 movies the paper
+   rule keeps 440 HT and 629 SNAP filtered traces against 225 and 381. On the single-protein
+   slides a trace is IN as in the paper (Extraction/extract.py): the vesicle-channel snapshot
+   (405 nm on HT / ATTO390 slides, 488 nm on SNAP / ATTO520 slides) localized at the gradient
+   the paper's paramfinder picks (ground-truth mode, 640 nm gradient fixed at the dataset's
+   value so the protein ROIs stay the same), clustered (2.5 px, >= 3 localizations), IN if a
+   cluster lies within 4 px of the ROI. The chance rate is measured per slide with the
+   neighbor-FOV null before training. The mixed-slide test set is unchanged (vesicle table,
+   single-dye vesicle within 2 px), so results stay comparable with rounds 1-3.
+
 ## Open
 
 - Repeated runs (FOV-grouped k-fold within the single-protein slides, several seeds) to
