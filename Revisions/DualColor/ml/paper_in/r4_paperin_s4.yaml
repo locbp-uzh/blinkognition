@@ -1,0 +1,43 @@
+# Round 4 (2026-10-09): training pool by the paper's IN rule vs the vesicle table (TRAINING_NOTES.md
+# point 8). Recipe = r2_all_aug0 (CNN-GRU, 4 px table pool or paper IN pool, patience 10, balanced
+# validation, mirror + time invariance, factor 0); mixed-slide test set unchanged. Pool: the paper's IN rule (paper_in runs). Seed 4.
+# Fixed before any round-4 prediction.
+run_name: r4_paperin_s4
+train_datasets:
+- DFK785
+- DFK788
+- DFK789
+test_datasets:
+- DFK785
+- DFK788
+- DFK789
+augmentation:
+  mirror: true
+  time_invariance: true
+  aug_factor: 0
+  time_warp_sigma: 0.5
+  noise_sigma: 0.5
+  magnitude_jitter: 0.5
+val_fov_fraction: 0.2
+seed: 4
+train_label_filter: paper_in
+model:
+  name: orig_conv_gru
+precision: fp32
+optimization:
+  batch_size: 64
+  max_epochs: 500
+  patience_limit: 10
+  lr: 0.0004
+  weight_decay: 0.0004
+  label_smoothing: 0.001
+  early_stopping:
+    auc_min_delta: 0.005
+    loss_mode: relative
+    loss_tolerance: 1.1
+    auc_tolerance: 0.003
+    loss_min_delta: 0.005
+mc_dropout:
+  n_mc: 100
+  trace_loss: 50.0
+balance_val: true

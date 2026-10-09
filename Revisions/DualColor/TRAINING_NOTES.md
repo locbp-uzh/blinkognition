@@ -144,6 +144,20 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    neighbor-FOV null before training. The mixed-slide test set is unchanged (vesicle table,
    single-dye vesicle within 2 px), so results stay comparable with rounds 1-3.
 
+8. Round 4, does the larger training pool help (2026-10-09; fixed before the runs; configs
+   ml/paper_in/r4_*.yaml). The CNN-GRU recipe of r2_all_aug0, trained on the vesicle-table pool
+   (own dye within 4 px; r2_all_aug0 is its seed 840410) and on the paper-IN pool (point 7),
+   five seeds each (840410, 1, 2, 3, 4; the seed sets the FOV split, the initialization and
+   the sampling). The mixed-slide test set is the same 412 traces for every run.
+   Readout: per seed, the mixed-slide AUC of each pool and their paired difference (paper-IN
+   minus table, same seed); the mean difference over the five seeds with a 95 % t interval
+   (4 degrees of freedom) from the seed-to-seed spread, which carries the training and split
+   variance that a single FOV bootstrap does not; per-run FOV-bootstrap intervals alongside.
+   The validation AUCs are reported, not compared (the two pools validate on different sets).
+   Rule: the paper-IN pool becomes the default training set unless the interval of the mean
+   difference lies entirely below 0 (it is the paper's definition and the larger set, so it
+   is kept unless it is shown to be worse).
+
 ## Open
 
 - Repeated runs (FOV-grouped k-fold within the single-protein slides, several seeds) to

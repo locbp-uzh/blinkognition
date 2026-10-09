@@ -16,6 +16,10 @@ dye label, since on some single-protein slides (DFK789 slides 2 and 4) many dete
 are not vesicles of that dye (515/488 = 0.2-0.4 instead of 3 for ATTO520; dim, no 405).
 'any' keeps traces at any detected object. train_radius_px, if set, replaces the
 assignment radius of the single-protein slides (e.g. 2 px, as on the mixed slides).
+train_label_filter: paper_in uses the paper's IN rule instead of the vesicle table
+(TRAINING_NOTES.md point 7; paper_in.py): a trace of a single-protein slide is in the pool if
+a vesicle-channel ground-truth cluster lies within 4 px (the dataset's latest paper_in run,
+or paper_in_runs: {<dataset>: run_NNN}).
 Classes: HT (ATTO390 slides), SNAP (ATTO520).
 Test truth on the mixed slides: only traces classed IN_ATTO390 / IN_ATTO520 (single-dye
 vesicle within the radius, no second one) carry a class.
@@ -175,10 +179,19 @@ def load_dataset(ds: str, mc: dict) -> tuple[pd.DataFrame, np.ndarray, dict]:
     single_dye = tr["class"].isin(["IN_ATTO390", "IN_ATTO520"])   # mixed slides: the label is the truth only here
     tr["true_class"] = np.where(dye == "mix", np.where(single_dye, tr["vesicle_label"].map(DYE_CLASS), None),
                                 dye.map(DYE_CLASS))
+    info = {"dataset": ds, "trace_assignment_run": str(ta.relative_to(REPO_ROOT)),
+            "extraction_run": str(ext_run.relative_to(REPO_ROOT))}
+    if mc.get("train_label_filter") == "paper_in":
+        pr = run_dir(cfg, "paper_in", (mc.get("paper_in_runs") or {}).get(ds))
+        pin = pd.read_csv(pr / "paper_in.csv")[["extraction_key", "uniqueID", "paper_in", "gt_dist_px"]]
+        tr = tr.merge(pin, on=["extraction_key", "uniqueID"], how="left", validate="one_to_one")
+        if tr.loc[tr["slide_type"] == "pure", "paper_in"].isna().any():
+            raise ValueError(f"{ds}: single-protein-slide traces missing from {pr / 'paper_in.csv'}")
+        tr["paper_in"] = tr["paper_in"].fillna(False).astype(bool)
+        info["paper_in_run"] = str(pr.relative_to(REPO_ROOT))
     tr = tr.reset_index(drop=True)
     X = traces_of(cfg, tr[["extraction_key", "uniqueID"]], ext_run)
-    return tr, X, {"dataset": ds, "trace_assignment_run": str(ta.relative_to(REPO_ROOT)),
-                   "extraction_run": str(ext_run.relative_to(REPO_ROOT))}
+    return tr, X, info
 
 
 def split_fovs(meta: pd.DataFrame, frac: float, seed: int) -> pd.Series:
@@ -276,10 +289,14 @@ def main() -> None:
     T = X_all.shape[-1]
     print(f"{len(meta)} filtered traces of {datasets}, {T} frames")
 
-    in_ves = meta["d1"] <= float(mc["train_radius_px"]) if mc.get("train_radius_px") else meta["in_vesicle"]
-    pure = (meta["slide_type"] == "pure") & in_ves
-    if mc.get("train_label_filter", "own_dye") == "own_dye":
-        pure &= meta["own_dye"]                 # on a single-protein slide, a trace at an object of the slide's own dye
+    label_filter = mc.get("train_label_filter", "own_dye")
+    if label_filter == "paper_in":              # the paper's IN rule (vesicle-channel clusters within 4 px)
+        pure = (meta["slide_type"] == "pure") & meta["paper_in"]
+    else:
+        in_ves = meta["d1"] <= float(mc["train_radius_px"]) if mc.get("train_radius_px") else meta["in_vesicle"]
+        pure = (meta["slide_type"] == "pure") & in_ves
+        if label_filter == "own_dye":
+            pure &= meta["own_dye"]             # on a single-protein slide, a trace at an object of the slide's own dye
     train_pool = pure & meta["dataset"].isin(mc["train_datasets"]) & ~meta["dataset"].isin(holdout)
     if mc.get("label_scramble", False):
         # the paper's control: permute the classes of the whole training pool before the split
