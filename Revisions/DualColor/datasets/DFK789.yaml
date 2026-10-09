@@ -1,0 +1,46 @@
+# DFK789 (acquired 2026-10-06 to 10-08). Readme: <data>/20261006_readme.txt. 640 nm at
+# 14-15 mW. Slides 2-3 had poor vesicle immobilization; slides 4-5 were coated with 6 %
+# biotin and immobilized better.
+base: ../base.yaml
+dataset: DFK789
+data_folder: 20261006_DFK789
+output_root: Results/Revisions/DualColor/DFK789
+
+slides:
+  slide1:
+    dye: ATTO520
+    folder: SNAP520
+    prefix: SNAP520
+    key: Slide1SNAP
+    sample: SNAP520 48 uL (fr.11) in 552 uL PB, 30 min, 40 FOVs
+    channels: ["405", "488", "515", "640"]
+  slide2:
+    dye: ATTO390
+    folder: HT390/day1
+    prefix: HT390
+    key: Slide2HT
+    sample: HT390 48 uL (fr.10) in 552 uL PB, 30 min, 66 FOVs; inefficient immobilization
+    channels: ["405", "488", "515", "640"]
+  slide3:
+    dye: mix
+    folder: HT390-SNAP520/day2a
+    prefix: HT390_SNAP520
+    key: Slide3Mix
+    sample: mix 48 uL HT390 (fr.10) + 48 uL SNAP520 (fr.11) in 552 uL PB, 60 min, 50 FOVs; very few vesicles
+    channels: ["405", "488", "515", "640"]
+  slide4:
+    dye: ATTO390
+    folder: HT390/day2
+    prefix: HT390
+    key: Slide4HT
+    sample: HT390 200 uL (fr.11) in 400 uL PB, 60 min, 6 % biotin, 30 FOVs (readme line says HT390+SNAP520 but lists only HT390; files are HT390)
+    channels: ["405", "488", "515", "640"]
+  slide5:
+    dye: mix
+    folder: HT390-SNAP520/day2b
+    prefix: HT390_SNAP520
+    key: Slide5Mix
+    sample: mix 100 uL HT390 (fr.11) + 100 uL SNAP520 (fr.11) in 500 uL PB, 120 min, 6 % biotin, 100 FOVs
+    channels: ["405", "488", "515", "640"]
+
+runs: {}

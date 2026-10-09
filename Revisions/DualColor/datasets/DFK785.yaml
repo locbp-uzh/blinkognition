@@ -1,0 +1,45 @@
+# DFK785 (acquired 2026-09-28/29). Readme: <data>/20260926_readme.txt. First analyzed in
+# Revisions/DFK785/ (vesicles, labels, occupancy, transfer test); dried FOVs of slides 3-4
+# are in bad_data/ and not used. 640 nm at 12 mW ("weaker than usual").
+base: ../base.yaml
+dataset: DFK785
+data_folder: 20260928_DFK785
+output_root: Results/Revisions/DualColor/DFK785
+
+# key: extraction protein key (file-name prefix of the staged 640 links)
+slides:
+  slide1:
+    dye: ATTO520
+    folder: SNAP520
+    prefix: SNAP520
+    key: Slide1SNAP
+    sample: SNAP-HMSiR-IA in ATTO520 vesicles
+    channels: ["405", "488", "640"]
+  slide2:
+    dye: ATTO390
+    folder: HT390
+    prefix: HT390
+    key: Slide2HT
+    sample: HT7-HMSiR-HTL in ATTO390 vesicles
+    channels: ["405", "488", "640"]
+  slide3:
+    dye: mix
+    folder: HT390_SNAP520
+    prefix: HT390_SNAP520
+    key: Slide3Mix
+    sample: mix 350 uL HT390 + 50 uL SNAP520, evening (FOVs 1-21 kept, rest dried)
+    channels: ["405", "488", "515", "640"]
+  slide4:
+    dye: mix
+    folder: HT390_SNAP520/new
+    prefix: HT390_SNAP520
+    key: Slide4Mix
+    sample: mix 350 uL HT390 + 50 uL SNAP520, next morning (FOVs 1-35 kept, rest dried)
+    channels: ["405", "488", "515", "640"]
+
+# Unmixing signatures: slides 1-2 have no 515 (see Revisions/DFK785/README.md).
+unmixing:
+  channels: ["405", "488"]
+
+# Run names, filled in as the stages run (stage/run_NNN under output_root).
+runs: {}

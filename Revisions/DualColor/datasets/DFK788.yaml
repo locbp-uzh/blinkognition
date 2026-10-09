@@ -1,0 +1,46 @@
+# DFK788 (acquired 2026-10-05/06). Readme: <data>/20261005_readme.txt. 640 nm at 14-15 mW
+# ("weaker than usually"); all slides have 405, 488, 515 and 640. Day 1: slides 1-3,
+# day 2 (next morning): slides 4-5 at higher protein concentration.
+base: ../base.yaml
+dataset: DFK788
+data_folder: 20261005_DFK788
+output_root: Results/Revisions/DualColor/DFK788
+
+slides:
+  slide1:
+    dye: ATTO520
+    folder: SNAP520/day1
+    prefix: SNAP520
+    key: Slide1SNAP
+    sample: SNAP520 1:50 after SEC (12 uL fr.9 in 588 uL PB), 45 min, 26 FOVs
+    channels: ["405", "488", "515", "640"]
+  slide2:
+    dye: ATTO390
+    folder: HT390/day1
+    prefix: HT390
+    key: Slide2HT
+    sample: HT390 1:25 after SEC (24 uL fr.11 in 576 uL PB), 30 min, 26 FOVs
+    channels: ["405", "488", "515", "640"]
+  slide3:
+    dye: mix
+    folder: HT390-SNAP520
+    prefix: HT390_SNAP520
+    key: Slide3Mix
+    sample: mix 12 uL HT390 (fr.11) + 12 uL SNAP520 (fr.9) in 576 uL PB, 30 min, 70 FOVs
+    channels: ["405", "488", "515", "640"]
+  slide4:
+    dye: ATTO520
+    folder: SNAP520/day2
+    prefix: SNAP520
+    key: Slide4SNAP
+    sample: SNAP520 48 uL (fr.9) in 552 uL PB, 30 min, next morning, 40 FOVs
+    channels: ["405", "488", "515", "640"]
+  slide5:
+    dye: ATTO390
+    folder: HT390/day2
+    prefix: HT390
+    key: Slide5HT
+    sample: HT390 48 uL (fr.11) in 552 uL PB, 30 min, next morning, 40 FOVs
+    channels: ["405", "488", "515", "640"]
+
+runs: {}

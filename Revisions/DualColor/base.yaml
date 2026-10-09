@@ -1,0 +1,89 @@
+# Shared settings of the dual-color (two-vesicle / two-protein) datasets. Each dataset
+# config in datasets/ names this file as `base`; dc.load_config merges the two (dataset
+# keys win). Copied from Revisions/DFK785/config.yaml (2026-10-09), where the choices are
+# documented; only dataset-specific keys (paths, slides, run names) moved to datasets/.
+
+# Raw data root; a dataset's input_root is data_root/data_folder. Override with
+# --data-root or the environment variable DUALCOLOR_DATA_ROOT (Daint: $SCRATCH/dual_color).
+data_root: /Volumes/MediumBerth/Agent/dual_color
+
+# Vesicle labels. home_channel: the dye's brightest channel among the unmixing channels.
+dyes:
+  ATTO390:
+    home_channel: "405"
+    color: blue
+    protein: HT7-HMSiR-HTL
+  ATTO520:
+    home_channel: "488"
+    color: orange
+    protein: SNAP-HMSiR-IA
+
+# Channel files recorded within this many seconds of the previous one belong to the
+# same FOV (a FOV takes about 6 s for its channels; FOVs are about 3.6 min apart).
+fov_max_gap_s: 60
+
+# Channel key -> file-name tag
+channel_tags:
+  "405": 405nm_TIRF2x_23pr_100ms_230x230
+  "488": 488nm_TIRF2x_6pr_30ms_230x230
+  "515": 515nm_TIRF2x_6pr_30ms_230x230
+  "640": 640nm_TIRF2xLP_90pr_30ms_230x230
+
+# Vesicle counting for the drying QC: the short movies (10 frames) are averaged and
+# spots detected as in Revisions/Bleedthrough/segment.py. 640 (HMSiR, blinking) is
+# not counted; only its acquisition time is read.
+count_channels: ["405", "488", "515"]
+background:
+  median_size_px: 25
+detection:
+  psf_sigma_px: 1.6
+  snr_threshold: 6.0
+  min_separation_px: 3
+  border_px: 10
+  merge_radius_px: 2.5     # peaks of different channels this close are one vesicle (vesicles.py)
+
+# ---------------------------------------------------------------------------
+# Analysis (vesicles.py, unmix.py, occupancy.py). Decided 2026-10-02: labels by
+# per-object unmixing with 405 + 488 (slides 1-2 have no 515; 515 is a check on
+# the mixed slides); protein occupancy by the robust peak score of the 640 trace
+# (A) with the GMM ON-frame count (B) as cross-check.
+
+snapshot_channels: ["405", "488", "515"]     # 10-frame movies, averaged for photometry
+detection_channels: ["405", "488", "515"]    # those present on a slide are used
+camera:
+  nonlinear_above_counts: 30000              # same iXon 888 as the revision test (any single frame)
+photometry:
+  aperture_radius_px: 3
+  annulus_px: [5, 8]
+  crowding_radius_px: 8                      # 1.04 um; crowded vesicles are left out of occupancy
+blanks:
+  n_per_fov: 150
+  min_dist_px: 8
+  seed: 42
+n_jobs: 8
+
+unmixing:
+  channels: ["405", "488"]
+  min_home_snr: 10                           # signature estimation, as in Revisions/Bleedthrough step 1
+  exclude_crowded: true
+  exclude_nonlinear: true
+  presence_snr: 5.0                          # label present at >= this many home-channel noise SDs (open)
+
+
+# Occupancy settings that overview.py reuses (crowding of the assigned vesicle).
+occupancy:
+  crowding_radius_px: 5                      # a neighbor closer than this: 'crowded' (0.65 um, decided 2026-10-02)
+
+# Trace assignment (assign_traces.py). Radii decided 2026-10-09: single-protein slides
+# (training data) at 4 px, the paper's radius, since no vesicle of the other protein exists
+# there; mixed slides (test data) at 2 px, so that a protein is not assigned to the wrong
+# vesicle. The trace itself is the same 5 x 5 box sum either way.
+trace_assignment:
+  boxsize: 5
+  match_radius_px:
+    pure: 4.0
+    mix: 2.0
+  null_radii_px: [1.5, 2.0, 2.5, 3.0, 4.0]
+
+overview:
+  image_width_px: 230
