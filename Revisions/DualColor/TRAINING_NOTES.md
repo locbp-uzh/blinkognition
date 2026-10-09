@@ -84,8 +84,9 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    Expected values. 0.5 is not the null for either background control: slides differ in
    their background even when they carry the same protein (lag-1 autocorrelation separates
    same-protein slides of DFK788 at AUC 0.82-0.92; skewness separates the DFK785 slides at
-   0.92, in the opposite direction on DFK789), and an almost untrained ResNet already gives
-   0.82 (DFK785) and 0.21 (DFK789). Pooled AUCs also mix in dataset identity (the class mix
+   0.92, in the opposite direction on DFK789), and a ResNet1D protein model trained for two
+   epochs (local smoke test; checks/20261009_round3_design_review/smoke_2epoch_resnet1d)
+   already classified background at 0.82 (DFK785) and 0.21 (DFK789). Pooled AUCs also mix in dataset identity (the class mix
    differs by dataset; a dataset-only score gets 0.64 on validation). So the readout is
    per dataset and within datasets, two-sided, and compared with the same-protein slide pairs
    of the same model (DFK788: slides 1 vs 4 SNAP, 2 vs 5 HT; DFK789: 2 vs 4 HT; DFK785 has
@@ -109,6 +110,18 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    rejection of ResNet and TCN. Its scrambling also scrambled the test labels and used one
    permutation; its CV used 4000 frames (here 6000 throughout DualColor).
 
+   Result (2026-10-09; README.md "Round 3"; numbers recomputed independently,
+   checks/20261009_round3_results_check): neither ResNet1D nor TCN replaces the CNN-GRU. Mixed
+   AUC 0.71 / 0.68 / 0.72 (CNN-GRU / ResNet1D / TCN), paired differences to the CNN-GRU
+   -0.031 [-0.082, 0.016] and +0.009 [-0.025, 0.044]: the first condition, read at readout as
+   "higher beyond the paired FOV bootstrap" (literally TCN is +0.009), fails for both. ResNet1D
+   also fails the background inference (no collapse; DFK789 beyond its same-protein reference);
+   TCN collapses as the CNN-GRU does and its only background excess is on DFK785 (no reference;
+   the CNN-GRU background run did not train). The scrambled models did not fit their labels
+   (near-initialization draws; the pipeline passes no labels, memorization-type leakage is
+   excluded by the split checks only). The background slide differences are a movie-wide common
+   mode (gone after removing it: slide pairs 0.41-0.59), which cannot raise the mixed-slide AUC.
+
 6. Input normalization: minmax only, one channel (2026-10-09, kept for now). Every DualColor
    model so far reads ProteinTraces/Filtered/<key>_filtered_minmax.pkl (and the background
    controls BackgroundTraces/Filtered/<key>_background_filtered_minmax.pkl), as the paper's
@@ -119,4 +132,15 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
 ## Open
 
 - Repeated runs (FOV-grouped k-fold within the single-protein slides, several seeds) to
-  estimate the variance of the results, which a single split cannot.
+  estimate the variance of the results, which a single split cannot. Proposal from the round-3
+  check, to discuss: 5 folds grouped by FOV and stratified by slide (every single-protein FOV
+  validated once; DFK785 31 + 31 validation FOVs instead of 7 + 7), 3 seeds, the mixed slides as
+  the fixed test; architectures compared paired by (fold, seed) with a margin declared in
+  advance; out-of-fold validation minus mixed AUC as the test of the validation inflation.
+- Controls that would answer what round 3 could not: background training to a fixed number of
+  epochs (the CNN-GRU background run stalled at ln 2), with random-initialization and skewness
+  baselines; scrambled runs that fit their labels; a vesicle-population control (background
+  boxes next to single-dye vesicles on the mixed slides, compared within FOV).
+- Input option: remove the movie common mode (the leave-one-out mean of the movie's background
+  traces) from the traces before training; expected to shrink the validation-mixed gap without
+  lowering the mixed AUC.

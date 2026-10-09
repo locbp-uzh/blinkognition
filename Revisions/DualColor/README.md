@@ -248,6 +248,105 @@ slides of the training datasets; holdout = single-protein slides of the dataset 
   differ only in patience (15 vs 10) and validation balancing, yet holdout DFK788 moves from
   0.73 to 0.69 (mixed 0.68 to 0.63) and holdout DFK789 from 0.73 to 0.68 (mixed 0.70 to 0.66).
 
+## Round 3: ResNet1D, TCN and the paper's controls (Daint jobs 5013893-5014450, models 2026-10-09_16-50 to 17-51)
+
+Design and decision rule: TRAINING_NOTES.md point 5 (fixed before the runs; independent design
+review in checks/20261009_round3_design_review). Tables: `Results/Revisions/DualColor/comparisons/
+r3_*.csv` (round3_summary.py). Every point value was recomputed independently from the
+predictions (about 260 values, no mismatch > 0.005) and every split checked (zero train /
+validation FOV overlap in all 20 runs; the ResNet1D and TCN protein runs use r2_all_aug0's exact
+sets): checks/20261009_round3_results_check. One training seed per condition; intervals are
+95 % FOV-cluster bootstrap and cover test sampling only, not training variance (round 2 saw
+run-to-run shifts of 0.04-0.05).
+
+Protein models (mixed slides: 189 HT / 223 SNAP traces, 172 FOVs; paired = both models
+resampled over the same FOVs):
+
+| Model | Val AUC | Mixed AUC | Mixed DFK785 / 788 / 789 | Mixed, paired difference to the CNN-GRU |
+|---|---|---|---|---|
+| CNN-GRU (r2_all_aug0) | 0.81 [0.74-0.87] | 0.71 [0.66-0.76] | 0.65 / 0.75 / 0.75 | |
+| ResNet1D | 0.86 [0.79-0.92] | 0.68 [0.63-0.74] | 0.63 / 0.69 / 0.74 | -0.031 [-0.082, 0.016] |
+| TCN | 0.83 [0.75-0.90] | 0.72 [0.67-0.77] | 0.68 / 0.75 / 0.73 | +0.009 [-0.025, 0.044] |
+
+- No difference to the CNN-GRU is detected on the mixed slides (not shown equal: a ResNet1D
+  deficit up to 0.08 or a TCN gain up to 0.04 is not excluded). Within-dataset AUCs equal the
+  pooled ones. The three models' mixed-slide scores correlate (Spearman 0.62-0.79).
+- Validation: the pooled paired differences include 0 (ResNet1D +0.05 [-0.02, 0.12], TCN +0.02
+  [-0.03, 0.07]); only ResNet1D on DFK785 is ahead beyond noise (+0.10 [+0.02, +0.19], 7 + 7
+  FOVs, one slide per class). Every model drops from validation to mixed on DFK785 (CNN-GRU 0.84
+  to 0.65, TCN 0.89 to 0.68, ResNet1D 0.94 to 0.63).
+- DFK785 mixed slide 4 is at chance for all three (0.48-0.56); DFK785's mixed AUC rests on
+  slide 3 (0.72-0.78).
+
+Label scrambling (five permutations per architecture, same FOV split and training seed):
+
+| Model | Val AUC, scrambled labels | Mixed AUC, true labels | Real model, SD above the permutation mean |
+|---|---|---|---|
+| CNN-GRU | 0.51-0.57 (mean 0.54) | 0.43-0.58 (0.53 +- 0.06) | 3.0 |
+| ResNet1D | 0.52-0.56 (0.54) | 0.41-0.64 (0.53 +- 0.10) | 1.5 |
+| TCN | 0.54-0.57 (0.55) | 0.43-0.66 (0.55 +- 0.10) | 1.8 |
+
+- No scrambled model fit its labels (training loss at ln 2, stopped at epochs 11-20): they are
+  near-initialization draws. They show that labels do not reach the scores through the pipeline
+  or the evaluation; leakage that only a memorizing model could use is excluded by the direct
+  split checks, not by this control. Five permutations cannot give p below 1/6 alone.
+- Scored against the true labels, the scrambled ResNet1D and TCN models separate the validation
+  classes at 0.31-0.71 (CNN-GRU 0.42-0.54), and this tracks their mixed AUC (r = 0.92): untrained
+  functions of these two architectures already read generic trace statistics that differ
+  between the proteins, which widens their null spread.
+
+Background training (same recipe on background traces matched to the protein sets; AUC on the
+held-out background of the validation FOVs):
+
+| Model | DFK785 | DFK788 | DFK789 | Training fit |
+|---|---|---|---|---|
+| CNN-GRU | 0.60 [0.46-0.76] | 0.60 [0.49-0.70] | 0.30 [0.09-0.52] | none (loss at ln 2 for all 15 epochs) |
+| ResNet1D | 0.87 [0.69-0.99] | 0.54 [0.34-0.73] | 0.24 [0.05-0.52] | train accuracy 0.69 |
+| TCN | 0.89 [0.75-0.99] | 0.56 [0.38-0.72] | 0.24 [0.07-0.50] | train accuracy 0.70 (after 16 flat epochs) |
+
+- On DFK785 ResNet1D and TCN separate the HT from the SNAP slide more than the CNN-GRU (paired
+  +0.27 [+0.08, +0.43] and +0.29 [+0.12, +0.44]; 14 FOVs), but DFK785 has no same-protein pair,
+  and the CNN-GRU run did not train, so its 0.60 is an untrained reference rather than evidence
+  that the architecture cannot read slide cues. On DFK788 and DFK789 the three are within noise
+  of each other.
+
+Background inference (protein model on background, deterministic pass, FOVs not trained on):
+
+| Model | Called SNAP | DFK785 | DFK788 | DFK789 |
+|---|---|---|---|---|
+| CNN-GRU | 0 % (mean p_SNAP 0.027) | 0.47 [0.29-0.63] | 0.39 [0.29-0.51] | 0.45 [0.35-0.55] |
+| ResNet1D | 63 % | 0.11 [0.03-0.24] | 0.53 [0.35-0.72] | 0.81 [0.69-0.90] |
+| TCN | 0 % (mean p_SNAP 0.0004) | 0.79 [0.64-0.93] | 0.43 [0.30-0.55] | 0.40 [0.33-0.47] |
+
+- By the paper's criterion (collapse into one class) the CNN-GRU and TCN pass, ResNet1D fails.
+  The CNN-GRU's per-dataset AUCs lie within its same-protein slide pairs (0.36-0.61). TCN's DFK785
+  ranking (0.79) is 0.4 logit between slides at an output about 6 logits from any protein call.
+  ResNet1D's background outputs fall inside its protein decision range, and on DFK789 its
+  HT-vs-SNAP slide pairs (0.79, 0.84) exceed its same-protein pair (0.54): the one place where
+  the same-protein reference flags a model.
+
+What the background slide differences are (checks/20261009_round3_results_check, reproduced
+locally): a movie-wide common mode. The skewness of the
+filtered background alone separates DFK785's slides at 0.92 and DFK789's at 0.17-0.19, and the
+lag-1 autocorrelation separates slides of one protein (DFK788 slides 2 vs 5: 0.92). After
+removing each movie's common mode (per trace, the leave-one-out mean of the other background
+traces of the movie, regressed out), every slide pair lies at 0.41-0.59. It does not depend on
+the distance to the nearest protein box (not local protein residue), and the background-trained
+ResNet1D and TCN outputs track the skewness. A movie-wide component is shared by both classes
+of a mixed FOV, so it cannot raise the mixed-slide AUC; it can raise the validation AUC.
+
+Decision (rule of point 5): neither ResNet1D nor TCN replaces the CNN-GRU. The first condition
+("mixed-slide AUC higher") is read as higher beyond the paired FOV bootstrap, a reading made at
+readout (taken literally, TCN is +0.009); it fails for both. ResNet1D is rejected more firmly
+(lower point estimate, no collapse, DFK789 inference beyond its reference); TCN is level with
+the CNN-GRU, and its background excess is only on DFK785, where there is no reference and the
+CNN-GRU comparator did not train. The outcome agrees with the paper's choice of the CNN-GRU;
+with one seed and a matched background budget it is weaker evidence than the paper's.
+
+Not done: a vesicle-population control (background boxes next to single-dye vesicles on the
+mixed slides, compared within FOV after removing the movie common mode); training with the
+movie common mode removed from the inputs; repeated runs (TRAINING_NOTES "Open").
+
 ## Status
 
 - Extraction on Daint: DFK785, DFK788, DFK789 submitted (jobs 5009197, 5009198, 5009538);
