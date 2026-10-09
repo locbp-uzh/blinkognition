@@ -112,6 +112,47 @@ objects reach 488 SNR 10 (818 / 1492 and 2211 / 4254), so part of the SNAP label
 on such objects. evaluate.py therefore also reports a 515-confirmed subset (SNAP: 515/488 in
 2.0-4.5 with 488 SNR >= 10; HT: 515 SNR < 5).
 
+## Extraction results (corrected chain, 2026-10-09 10:56-11:35)
+
+Run folders (Daint scratch, fetched to `Results/Revisions/DualColor/<ID>/Extraction/` without
+the per-movie folders and background traces): DFK785 *_optparam_003, DFK788 *_optparam_002,
+DFK789 *_optparam_002. Every movie extracted (118, 202, 286; no failures). DFK785 reproduces
+the local extraction of 2026-10-02 (filtered 742 / 512 / 395 / 310 against 742 / 512 / 394 / 310).
+
+| Dataset | Gradient | Slide | Single ROIs | Filtered (pass rate) |
+|---|---|---|---|---|
+| DFK785 | 20000 | 1 SNAP / 2 HT / 3 mix / 4 mix | 1134 / 690 / 577 / 476 | 742 / 512 / 395 / 310 (66-75 %) |
+| DFK788 | 20000 | 1 SNAP / 2 HT / 3 mix / 4 SNAP / 5 HT | 234 / 270 / 781 / 234 / 702 | 126 / 150 / 431 / 127 / 359 (51-56 %) |
+| DFK789 | 10000 | 1 SNAP / 2 HT / 3 mix / 4 HT / 5 mix | 392 / 1106 / 379 / 543 / 2506 | 129 / 235 / 71 / 45 / 347 (8-33 %) |
+
+## Trace assignment (DFK785 run_002, DFK788 run_001, DFK789 run_001)
+
+The 640 registration estimated from the data agrees across datasets (405: dy 0.35-0.41,
+dx -1.36 to -1.53 px; 488: 0.14-0.29, -0.35 to -0.58; 515: 0.25-0.40, -0.46 to -0.59); residual
+offsets of the IN pairs are below 0.03 px everywhere. Filtered traces by class (4 px on the
+single-protein slides, 2 px on the mixed slides):
+
+| Dataset | Slide | IN_ATTO390 | IN_ATTO520 | IN_dual | IN_no label | ambiguous | OUT |
+|---|---|---|---|---|---|---|---|
+| DFK785 | 1 SNAP | 4 | 379 | 6 | 0 | 2 | 351 |
+| | 2 HT | 221 | 18 | 67 | 4 | 13 | 187 |
+| | 3 mix | 40 | 49 | 50 | 0 | 1 | 255 |
+| | 4 mix | 45 | 29 | 15 | 4 | 0 | 217 |
+| DFK788 | 1 SNAP | 0 | 73 | 3 | 0 | 0 | 50 |
+| | 2 HT | 89 | 0 | 18 | 0 | 2 | 41 |
+| | 3 mix | 61 | 100 | 155 | 0 | 2 | 113 |
+| | 4 SNAP | 0 | 62 | 2 | 0 | 1 | 62 |
+| | 5 HT | 200 | 2 | 21 | 1 | 7 | 128 |
+| DFK789 | 1 SNAP | 1 | 56 | 1 | 2 | 0 | 69 |
+| | 2 HT | 54 | 3 | 2 | 5 | 2 | 168 |
+| | 3 mix | 15 | 11 | 4 | 2 | 0 | 39 |
+| | 4 HT | 12 | 2 | 2 | 0 | 2 | 27 |
+| | 5 mix | 28 | 34 | 10 | 4 | 0 | 270 |
+
+Training data (single-protein slides, own-dye vesicle within 4 px): about 570 SNAP and 576
+HT traces. Test data (mixed slides, single-dye vesicle within 2 px): 189 HT and 223 SNAP
+(DFK785 85 / 78, DFK788 61 / 100, DFK789 43 / 45).
+
 ## Status
 
 - Extraction on Daint: DFK785, DFK788, DFK789 submitted (jobs 5009197, 5009198, 5009538);
