@@ -16,6 +16,15 @@ IN if the nearest cluster lies closer than max_dist_closest_ground_truth (4 px) 
 (x, y). No channel registration, as in the paper. The 640 ROIs are those of the 640-only run
 (the ground-truth runs localize 640 at the same gradient; their own ROIs are not used).
 
+Vesicle-channel gradient: the run's (paramfinder in ground-truth mode). With the 640 gradient
+fixed, the paramfinder's ground-truth objective is the same for every ground-truth gradient, so
+its choice is its first trial. --gt-gradient CH=G replaces it by G for that channel (G not below
+the run's): the localizations with net gradient >= G, a subset of the run's, are clustered as
+get_and_cluster_locs does (cluster_subset; with G at the run's gradient it gives the same
+clusters). Rule used (TRAINING_NOTES.md point 7): keep the paramfinder's gradient unless the
+estimated chance share of IN calls, (1 - f) * null_in / in, exceeds 0.15 on a slide of the run;
+then the lowest gradient (1000 steps) at which every slide of the run is at or below 0.15.
+
 Chance: every FOV's ROIs are also scored against the clusters of the next FOV of the same slide
 in acquisition order (the last against the first), i.e. the same vesicle pattern statistics
 without the true positions; null_in is the IN rate this gives. The excess over chance,
@@ -27,7 +36,7 @@ gt_dist_px, paper_in, null_dist_px, null_in), clusters.csv (clusters per FOV), s
 slide, all ROIs and filtered: n, IN, null IN, f), manifest.
 
 Usage (picasso-env, from the repo root):
-    python Revisions/DualColor/paper_in.py DFK788 [--gt405-run NAME] [--gt488-run NAME]
+    python Revisions/DualColor/paper_in.py DFK788 [--gt405-run NAME] [--gt488-run NAME] [--gt-gradient 405=3000]
 """
 
 from __future__ import annotations
@@ -65,10 +74,29 @@ def gt_run(cfg: dict, ch: str, name: str | None) -> Path:
     return runs[0]
 
 
-def clusters_of(locs: Path, gcfg: dict) -> np.ndarray:
+def cluster_subset(locs: Path, gcfg: dict, gradient: int) -> np.ndarray:
+    """get_and_cluster_locs on the localizations with net gradient >= gradient (corners, no dummy)."""
+    from picasso import clusterer, io as pio, lib
+    loc, info = pio.load_locs(str(locs))
+    loc = lib.ensure_sanity(loc[loc["net_gradient"] >= gradient], info)
+    if not len(loc):
+        return np.empty((0, 2))
+    c = clusterer.cluster(loc, radius_xy=float(gcfg.get("max_distance_ground_truth", 2.5)),
+                          min_locs=int(gcfg.get("min_on_ground_truth", 3)), frame_analysis=False, radius_z=None,
+                          pixelsize=130)
+    c = clusterer.find_cluster_centers(c, pixelsize=None)
+    shift = int(gcfg["boxsize"]) / 2
+    x, y = np.asarray(c["x"]) - shift, np.asarray(c["y"]) - shift
+    ok = np.isfinite(x) & np.isfinite(y)
+    return np.stack((np.round(np.where(ok, x, 0)).astype(int), np.round(np.where(ok, y, 0)).astype(int)), axis=1)
+
+
+def clusters_of(locs: Path, gcfg: dict, gradient: int | None = None) -> np.ndarray:
     """(n, 2) cluster box corners (x, y) of one vesicle-channel movie, as extract.py."""
     if not locs.exists():
         return np.empty((0, 2))
+    if gradient is not None:
+        return cluster_subset(locs, gcfg, gradient)
     _, _, x, y, _, _ = xu.get_and_cluster_locs(str(locs), box_size=int(gcfg["boxsize"]),
                                                max_distance=float(gcfg.get("max_distance_ground_truth", 2.5)),
                                                min_locs=int(gcfg.get("min_on_ground_truth", 3)))
@@ -86,7 +114,10 @@ def main() -> None:
     ap.add_argument("dataset")
     ap.add_argument("--gt405-run", default=None)
     ap.add_argument("--gt488-run", default=None)
+    ap.add_argument("--gt-gradient", action="append", default=[], metavar="CH=G",
+                    help="vesicle-channel gradient override, e.g. 405=3000 (repeatable)")
     a = ap.parse_args()
+    override = {k: int(v) for k, v in (x.split("=") for x in a.gt_gradient)}
     setup_logging()
     cfg = load_config(a.dataset)
     ds, tags = cfg["dataset"], cfg["channel_tags"]
@@ -105,6 +136,8 @@ def main() -> None:
         run = gt_run(cfg, ch, getattr(a, f"gt{ch}_run"))
         gcfg = yaml.safe_load(open(HERE / "extraction" / f"config_gt{ch}_{ds}.yaml"))
         extra[f"gt{ch}_run"] = rel_to_repo(run)
+        grad = override.get(ch)
+        extra[f"gt{ch}_gradient"] = grad if grad is not None else "run's (paramfinder)"
         f = fovs[fovs["slide"] == slide].sort_values("acq_order").reset_index(drop=True)
         key, link640 = s["key"], {}
         cl = {}
@@ -112,7 +145,7 @@ def main() -> None:
             name640 = key + Path(r.file_640).name[len(s["prefix"]):]
             suffix = name640[len(key + "_" + tags["640"]):]                          # '_NNNN.nd2' or '.nd2'
             locs = run / ds / key / f"{key}_{tags[ch]}{suffix[:-4]}_locs.hdf5"
-            cl[r.fov] = clusters_of(locs, gcfg)
+            cl[r.fov] = clusters_of(locs, gcfg, grad)
             link640[r.fov] = name640
             crow.append({"slide": slide, "fov": r.fov, "gt_channel": ch, "locs": rel_to_repo(locs),
                          "locs_found": locs.exists(), "n_clusters": len(cl[r.fov])})

@@ -144,6 +144,23 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    neighbor-FOV null before training. The mixed-slide test set is unchanged (vesicle table,
    single-dye vesicle within 2 px), so results stay comparable with rounds 1-3.
 
+   Result (2026-10-09; paper_in runs: DFK785 run_001, DFK788 run_001, DFK789 run_002; checks/
+   20261009_paper_in_gradient). paper_in.py reproduces extract.py's ground-truth calls on DFK785
+   (670/670, 1114/1114 ROIs). With the 640 gradient fixed, the paramfinder's ground-truth
+   objective is flat (the same score for every ground-truth gradient), so its choice is its
+   first trial: 405 nm 1000 / 4000 / 1000 and 488 nm 7000 / 4000 / 8000 (DFK785 / 788 / 789).
+   On DFK789's HT slides 1000 gives about 920 clusters per FOV, mostly noise, and the rule stops
+   selecting (estimated chance share of IN calls 68 % and 30 %); everywhere else the rule is
+   insensitive to the gradient. Rule adopted (before any training): keep the paramfinder's
+   gradient unless the chance share (1 - f) * null / in exceeds 15 % (about the vesicle table's
+   own chance level on DFK785) on a slide of the run; then the lowest gradient, in 1000 steps,
+   at which every slide is at or below 15 %. Only DFK789 405 nm changes, to 3000.
+   Filtered traces in the pool (paper IN / filtered, chance share): DFK785 SNAP 629 / 742 (14 %),
+   HT 441 / 510 (14 %); DFK788 SNAP 80 / 126 and 80 / 127 (7 %, 2 %), HT 133 / 150 and 318 / 359
+   (3 %, 7 %); DFK789 SNAP 68 / 129 (8 %), HT 61 / 234 and 19 / 45 (4 %, 3 %). Training set
+   (seed 840410 split): 734 HT / 695 SNAP (1429) against 458 / 454 (912) with the table;
+   validation 162 / 162 against 119 / 119.
+
 8. Round 4, does the larger training pool help (2026-10-09; fixed before the runs; configs
    ml/paper_in/r4_*.yaml). The CNN-GRU recipe of r2_all_aug0, trained on the vesicle-table pool
    (own dye within 4 px; r2_all_aug0 is its seed 840410) and on the paper-IN pool (point 7),
