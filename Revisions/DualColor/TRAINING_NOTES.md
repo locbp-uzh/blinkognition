@@ -35,6 +35,13 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    mean, balanced validation set of held-out FOVs) is the chosen one; all factors are
    reported on the mixed slides and holdout slides.
 
+   Result (Daint jobs 5013068, 5013069, 5013182; README.md "Round 2"): the rule chooses
+   factor 0 (all), 0 (holdout DFK785, a collapsed model), 5 (holdout DFK788), 3 (holdout
+   DFK789). Mixed AUC of the primary setup 0.71 / 0.72 / 0.71 at factors 0 / 3 / 5; only
+   holdout DFK788 gains (+0.02 to +0.08 AUC on all sets), and the round-1 to round-2 shift at
+   factor 0 (patience and validation balancing only) is as large (-0.04 to -0.05). Holdout
+   DFK785 does not train at any factor. One seed; the effect is within run-to-run spread.
+
 ## Open
 
 - Repeated runs (FOV-grouped k-fold within the single-protein slides, several seeds) to

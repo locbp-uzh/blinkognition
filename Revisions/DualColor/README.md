@@ -51,6 +51,7 @@ objects shows the ATTO520 515/488 ratio (below).
   estimated from the data.
 - `train_pure.py`, `ml/*.yaml`: training on the single-protein slides, test on the mixtures.
 - `evaluate.py`: metrics with FOV-cluster bootstrap intervals.
+- `compare_runs.py`: table of several models' metrics with the validation-AUC selection rule.
 - `daint/extract.sbatch`, `daint/train.sbatch`: Daint jobs (picasso-env, blink2-cuda).
 
 Outputs: `Results/Revisions/DualColor/<dataset>/<stage>/run_NNN/` (manifest, config, code),
@@ -200,6 +201,43 @@ SNAP): its numbers describe a collapsed model and are not reported.
   the time augmentation removes absolute position only.
 - Frame interval of the DualColor 640 movies: 34.49 ms (ND2 timestamps; DFK785, DFK788,
   DFK789), as for the paper's movies.
+
+## Round 2: augmentation sweep (Daint jobs 5013068, 5013069, 5013182; models 2026-10-09_15-*)
+
+Design in TRAINING_NOTES.md points 1-4: 4 px training set, the paper's early stopping
+(patience 10), balanced validation, the paper's augmentation at factors 0 / 3 / 5 on top of
+mirror and time invariance, one seed. Per setup, the factor with the highest validation AUC
+is the chosen one (rule fixed before the runs). Table:
+`Results/Revisions/DualColor/comparisons/r2_aug_sweep.csv` (compare_runs.py). Mixed = mixed
+slides of the training datasets; holdout = single-protein slides of the dataset left out.
+
+| Setup | Factor | Epochs (best) | Val AUC | Mixed AUC | Mixed kept, BA of kept | Holdout AUC | Holdout kept, BA of kept |
+|---|---|---|---|---|---|---|---|
+| all | 0 (chosen) | 43 (33) | 0.81 [0.74-0.87] | 0.71 [0.66-0.76] | 52 %, 0.68 | | |
+| | 3 | 36 (26) | 0.80 | 0.72 [0.67-0.77] | 48 %, 0.75 | | |
+| | 5 | 28 (18) | 0.80 | 0.71 [0.66-0.76] | 44 %, 0.75 | | |
+| holdout DFK785 | 0 (chosen) | 15 (5) | 0.61 [0.48-0.73] | 0.53 | 100 %, 0.50 | 0.66 | 100 %, 0.52 |
+| | 3 | 16 (6) | 0.55 | 0.55 | 80 %, 0.52 | 0.69 | 85 %, 0.65 |
+| | 5 | 17 (7) | 0.57 | 0.52 | 53 %, 0.51 | 0.69 | 66 %, 0.57 |
+| holdout DFK788 | 0 | 38 (28) | 0.76 [0.65-0.86] | 0.63 [0.55-0.70] | 51 %, 0.65 | 0.69 [0.63-0.75] | 55 %, 0.68 |
+| | 3 | 60 (50) | 0.82 | 0.68 [0.61-0.75] | 38 %, 0.68 | 0.73 [0.67-0.79] | 44 %, 0.70 |
+| | 5 (chosen) | 62 (52) | 0.84 [0.72-0.92] | 0.65 [0.57-0.72] | 37 %, 0.68 | 0.72 [0.66-0.77] | 43 %, 0.72 |
+| holdout DFK789 | 0 | 71 (61) | 0.79 | 0.66 [0.60-0.72] | 44 %, 0.67 | 0.68 [0.57-0.80] | 33 %, 0.73 |
+| | 3 (chosen) | 63 (53) | 0.80 [0.72-0.87] | 0.67 [0.61-0.73] | 49 %, 0.66 | 0.68 [0.59-0.79] | 40 %, 0.65 |
+| | 5 | 41 (31) | 0.79 | 0.65 [0.58-0.71] | 66 %, 0.63 | 0.68 [0.57-0.79] | 65 %, 0.68 |
+
+- Primary setup: augmentation leaves the mixed AUC at 0.71-0.72. Factors 3 and 5 keep fewer
+  traces at a higher accuracy, a coverage trade at each model's own threshold rather than a
+  better ranking. Validation differs by 0.01 against intervals 0.13 wide.
+- Holdout DFK788: factors 3 and 5 are ahead of 0 on validation, mixed and holdout (+0.02 to
+  +0.08 AUC), intervals overlapping. Holdout DFK789: no effect.
+- Holdout DFK785 fails at every factor (best epoch 5-7, validation near chance on 35 + 35
+  traces); factor 0 collapses to p_SNAP about 0.57 for every trace. Not reported as transfer.
+- The rule picks a different factor in every setup (0, 0, 5, 3): validation cannot tell the
+  factors apart.
+- Run-to-run spread is as large as the augmentation effect. Round 1 and round 2 factor 0
+  differ only in patience (15 vs 10) and validation balancing, yet holdout DFK788 moves from
+  0.73 to 0.69 (mixed 0.68 to 0.63) and holdout DFK789 from 0.73 to 0.68 (mixed 0.70 to 0.66).
 
 ## Status
 
