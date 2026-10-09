@@ -22,7 +22,12 @@ CFG=../Revisions/DualColor/extraction/config_640only_$DS.yaml
 RUNFILE=$WORK/runs/$DS.txt
 echo "Dataset $DS step $STEP on $(hostname) $(date +%H:%M:%S), repo $(git -C "$REPO" log --oneline -1)"
 case $STEP in
-  paramfinder) CMD="cd $REPO && DUALCOLOR_DATA_ROOT=$SCRATCH/dual_color python Revisions/DualColor/stage_inputs.py $DS --stage-root Inputs/DualColor_640only && cd Extraction && python paramfinder.py -c $CFG" ;;
+  # paramfinder keeps its Optuna study in the staged experiment folder and LOADS it if present
+  # (load_if_exists), replaying old trials: a rerun must start a fresh study.
+  paramfinder) STUDY=$WORK/stage/$DS/$DS; TS=$(date +%Y%m%d_%H%M%S)
+               for f in optimization_no_gt.db optimized_localization_params_no_gt.yaml; do
+                 [ -e "$STUDY/$f" ] && mv "$STUDY/$f" "$STUDY/$f.before_$TS" && echo "moved aside $f"; done
+               CMD="cd $REPO && DUALCOLOR_DATA_ROOT=$SCRATCH/dual_color python Revisions/DualColor/stage_inputs.py $DS --stage-root Inputs/DualColor_640only && cd Extraction && python paramfinder.py -c $CFG" ;;
   localize)    CMD="cd $REPO/Extraction && python localize.py -c $CFG 2>&1 | tee $WORK/runs/$DS.localize.log; grep -o 'Output folder: .*' $WORK/runs/$DS.localize.log | tail -1 | sed 's/Output folder: //' > $RUNFILE; test -s $RUNFILE" ;;
   extract)     CMD="cd $REPO/Extraction && python extract.py -c $CFG -r \$(cat $RUNFILE)" ;;
   rest)        CMD="cd $REPO/Extraction && python run_pipeline.py -c $CFG --start-from combine -r \$(cat $RUNFILE)" ;;
