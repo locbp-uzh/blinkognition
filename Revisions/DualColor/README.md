@@ -65,8 +65,9 @@ models in `Results/Revisions/DualColor/models/<timestamp>_<run_name>/`. On Daint
   Real protein-vesicle pairs lie within 2.5 px (DFK785 chance analysis), so the 2-4 px ring of
   the training set adds traces that are mostly not in a vesicle (about 13-20 % of 4 px IN
   calls on the DFK785 single-protein slides were chance). The user's caveat: a training set
-  defined differently from the test set may differ in kind. Checked by also training at 2 px
-  if the 4 px model looks suspicious (not run yet).
+  defined differently from the test set may differ in kind. So the primary model is also
+  trained at 2 px (ml/pure_all_timeinv_2px.yaml, train_radius_px) and both are compared on
+  the same test set.
 - Training traces on single-protein slides: at a vesicle carrying the slide's own dye label
   (train_label_filter: own_dye), because on DFK789's HT slides most detected objects are not
   ATTO390 vesicles (below).
@@ -113,8 +114,12 @@ on such objects. evaluate.py therefore also reports a 515-confirmed subset (SNAP
 
 ## Status
 
-- Extraction on Daint: DFK785 and DFK788 submitted (jobs 5009197, 5009198); DFK789 after the
-  copy of its last two folders.
+- Extraction on Daint: DFK785, DFK788, DFK789 submitted (jobs 5009197, 5009198, 5009538);
+  all three copies verified against the local data (DFK785 410 files, DFK788 808, DFK789 1144;
+  identical byte totals).
+- Models fixed in ml/ (six): pure_all_timeinv (primary), pure_all_paperaug (paper's
+  augmentation only), pure_all_timeinv_2px (training at 2 px), pure_holdout_<ID>_timeinv x3
+  (cross-session).
 - Trace assignment tested on DFK785 with the old local extraction (trace_assignment run_001;
   superseded once the Daint extraction is in): the data-driven registration gives 405 (0.34,
   -1.50), 488 (0.29, -0.35), 515 (0.25, -0.59) px, matching the occupancy offsets of DFK785
