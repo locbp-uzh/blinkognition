@@ -14,7 +14,9 @@ radius of a vesicle (trace_assignment run, d1 <= radius_px). The protein is the 
 with train_label_filter: own_dye (default) the nearest vesicle must also carry the slide's
 dye label, since on some single-protein slides (DFK789 slides 2 and 4) many detected objects
 are not vesicles of that dye (515/488 = 0.2-0.4 instead of 3 for ATTO520; dim, no 405).
-'any' keeps traces at any detected object. Classes: HT (ATTO390 slides), SNAP (ATTO520).
+'any' keeps traces at any detected object. train_radius_px, if set, replaces the
+assignment radius of the single-protein slides (e.g. 2 px, as on the mixed slides).
+Classes: HT (ATTO390 slides), SNAP (ATTO520).
 Test truth on the mixed slides: only traces classed IN_ATTO390 / IN_ATTO520 (single-dye
 vesicle within the radius, no second one) carry a class.
 
@@ -199,7 +201,8 @@ def main() -> None:
     T = X_all.shape[-1]
     print(f"{len(meta)} filtered traces of {datasets}, {T} frames")
 
-    pure = (meta["slide_type"] == "pure") & meta["in_vesicle"]
+    in_ves = meta["d1"] <= float(mc["train_radius_px"]) if mc.get("train_radius_px") else meta["in_vesicle"]
+    pure = (meta["slide_type"] == "pure") & in_ves
     if mc.get("train_label_filter", "own_dye") == "own_dye":
         pure &= meta["own_dye"]                 # on a single-protein slide, a trace at an object of the slide's own dye
     train_pool = pure & meta["dataset"].isin(mc["train_datasets"]) & ~meta["dataset"].isin(holdout)
