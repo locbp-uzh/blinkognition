@@ -153,6 +153,54 @@ Training data (single-protein slides, own-dye vesicle within 4 px): about 570 SN
 HT traces. Test data (mixed slides, single-dye vesicle within 2 px): 189 HT and 223 SNAP
 (DFK785 85 / 78, DFK788 61 / 100, DFK789 43 / 45).
 
+## Models (Daint jobs 5010462-3, 2026-10-09; Results/Revisions/DualColor/models/2026-10-09_11-*)
+
+Six models fixed in ml/ before any mixed-slide prediction, each applied once. Test = mixed
+slides, single-dye vesicle within 2 px: 189 HT, 223 SNAP traces in 172 FOVs. AUC: ranking of
+p_SNAP; BA: balanced accuracy at the argmax; kept: fraction of the labeled traces kept by the
+Wasserstein threshold selected on validation; intervals: 95 % FOV-cluster bootstrap.
+
+| Model | Val AUC (pure, held-out FOVs) | Mixed AUC | Mixed BA | Kept | BA of kept |
+|---|---|---|---|---|---|
+| pure_all_timeinv (primary) | 0.80 [0.73-0.86] | 0.72 [0.66-0.77] | 0.64 [0.59-0.69] | 41 % | 0.77 [0.70-0.83] |
+| pure_all_paperaug | 0.69 | 0.50 [0.44-0.56] | 0.52 | 54 % | 0.47 |
+| pure_all_timeinv_2px | 0.77 | 0.70 [0.65-0.75] | 0.65 | 48 % | 0.74 |
+
+Primary model by dataset (mixed): DFK785 AUC 0.65 (slide 3 0.77, slide 4 0.48: at chance),
+DFK788 0.75, DFK789 0.75. Clean or 515-confirmed subsets change nothing (AUC 0.71).
+
+Cross-session (single-protein slides of a dataset never seen in training): holdout DFK788
+AUC 0.73, BA 0.63 (its threshold keeps 97 %); holdout DFK789 AUC 0.73, BA 0.68, BA of the 30 %
+kept 0.86. Holdout DFK785 did not train (loss at ln 2 for all epochs; 431 traces, 274 HT / 157
+SNAP): its numbers describe a collapsed model and are not reported.
+
+### Check (2026-10-09, three agents; Results/Revisions/DualColor/checks/20261009_model_verification)
+
+- No leakage in any model: sets disjoint by trace and by FOV, test only mixed slides of the
+  configured datasets, holdout datasets absent from training, training traces exactly the
+  stated rule (recomputed from the vesicle positions), threshold reproduced from the
+  validation set alone (on test it would differ in 5 of 6 models). All 111 rows of the six
+  metrics.csv files reproduced to 1e-16.
+- The signal is in the traces, not in FOV or slide composition: among HT-SNAP pairs from the
+  same FOV the primary model's AUC is 0.76 [0.69-0.82] (259 pairs, 67 FOVs); labels shuffled
+  within FOVs give 0.50 +- 0.05 (p = 0.001); FOV- or slide-level scores reach at most 0.53-0.59.
+  It cannot separate the protein from the vesicle population: HT is always in ATTO390 vesicles
+  and SNAP in ATTO520 vesicles, prepared separately (inherent in the design).
+- Label noise is not the limit: chance coincidences at 2 px are 7.4 % pooled, capping AUC and
+  BA near 0.93-0.96.
+- A physical-feature baseline does as well as the CNN on the same split: logistic regression
+  on nine features (ON events, mean ON and OFF, duty cycle, span, first and last ON frame,
+  relative ON level, OFF noise) AUC 0.72 [0.67-0.76], random forest 0.74 [0.69-0.79]; paired
+  differences to the CNN include 0. The features that separate the proteins on both pure and
+  mixed slides are the mean ON duration (HT 2.2-2.4 vs SNAP 1.5-1.6 frames) and the relative ON
+  level; event count, span and last ON frame separate on the pure slides but weakly on the
+  mixed ones (slide cues). Exploratory, not pre-declared: averaging CNN and random forest
+  gives 0.745.
+- The primary model still leans on the active-window length (Spearman -0.39 with p_SNAP);
+  the time augmentation removes absolute position only.
+- Frame interval of the DualColor 640 movies: 34.49 ms (ND2 timestamps; DFK785, DFK788,
+  DFK789), as for the paper's movies.
+
 ## Status
 
 - Extraction on Daint: DFK785, DFK788, DFK789 submitted (jobs 5009197, 5009198, 5009538);
