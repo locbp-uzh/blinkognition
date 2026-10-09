@@ -20,12 +20,15 @@ Classes: HT (ATTO390 slides), SNAP (ATTO520).
 Test truth on the mixed slides: only traces classed IN_ATTO390 / IN_ATTO520 (single-dye
 vesicle within the radius, no second one) carry a class.
 
-Validation by FOV. In every single-protein slide a fraction `val_fov_fraction` of the FOVs
+Validation by FOV (balance_val: true subsamples its larger class, as the paper does). In every single-protein slide a fraction `val_fov_fraction` of the FOVs
 (at least one) is held out as validation; traces of one FOV share focus, laser and sample
 conditions, so a random trace split would leak them into both sets. Early stopping, the
 checkpoint and the Wasserstein threshold use only this validation set.
 
 Augmentation (training set only):
+  aug_factor       the paper's sweep (ML/utils.apply_augmentation): N - 1 extra copies with time
+                   warping (clipped to +-5 %), Gaussian noise and magnitude jitter (clipped to
+                   +-5 %), parameters time_warp_sigma, noise_sigma, magnitude_jitter
   mirror           the paper's: one extra copy with the GMM active window reversed in place
   time_invariance  per sample and epoch: a random circular shift (0 to T-1 frames) and a
                    time reversal with probability 0.5, so that absolute timing (where in the
@@ -73,7 +76,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1] / "ML"))
 from dc import REPO_ROOT, load_config, run_dir  # noqa: E402
 from train import build_model_from_config, set_seed  # noqa: E402
-from utils import (apply_augmentation, dataloader_kwargs_for, detect_accelerator, evaluate_uncertainty_filtered,  # noqa: E402
+from utils import (_balance_dataset, apply_augmentation, dataloader_kwargs_for, detect_accelerator, evaluate_uncertainty_filtered,  # noqa: E402
                    mc_dropout_predict, plot_losses, train_model)
 
 CLASSES = ["HT", "SNAP"]
@@ -180,6 +183,7 @@ def predict(model, X: np.ndarray, n_mc: int, device, autocast_ctx, thr: float | 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-c", "--config", required=True)
+    ap.add_argument("--dry-run", action="store_true", help="build the sets and the augmented training set, then stop")
     args = ap.parse_args()
     with open(args.config) as f:
         mc = yaml.safe_load(f)
@@ -211,18 +215,36 @@ def main() -> None:
     test = (meta["slide_type"] == "mixed") & meta["dataset"].isin(mc["test_datasets"]) & ~meta["dataset"].isin(holdout)
     meta.loc[test, "set"] = "test_mixed"
     meta.loc[pure & meta["dataset"].isin(holdout), "set"] = "holdout_pure"
-    meta["y"] = meta["true_class"].map({c: k for k, c in enumerate(CLASSES)})
+    meta["y_class"] = meta["true_class"].map({c: k for k, c in enumerate(CLASSES)})
+    if mc.get("balance_val", False):
+        # as the paper (balance_val: true): subsample the larger class of the validation set;
+        # the traces left out are neither trained on nor validated ('val_unused')
+        vi = meta.index[meta["set"] == "val"].to_numpy()
+        _, _, keep = _balance_dataset(vi, meta.loc[vi, "y_class"].to_numpy(int), random_seed=seed)
+        meta.loc[np.setdiff1d(vi, vi[keep]), "set"] = "val_unused"
     print(pd.crosstab([meta["set"], meta["dataset"]], meta["true_class"].fillna("unlabeled")).to_string())
-    meta.drop(columns=["y"]).to_csv(out / "data_split.csv", index=False)
+    meta.drop(columns=["y_class"]).to_csv(out / "data_split.csv", index=False)
 
     tr_idx = meta.index[meta["set"] == "train"].to_numpy()
     va_idx = meta.index[meta["set"] == "val"].to_numpy()
-    X_tr, y_tr = X_all[tr_idx], meta.loc[tr_idx, "y"].to_numpy(int)
-    X_va, y_va = X_all[va_idx], meta.loc[va_idx, "y"].to_numpy(int)
+    X_tr, y_tr = X_all[tr_idx], meta.loc[tr_idx, "y_class"].to_numpy(int)
+    X_va, y_va = X_all[va_idx], meta.loc[va_idx, "y_class"].to_numpy(int)
 
+    # The paper's augmentation (ML/utils.apply_augmentation): aug_factor N = the originals plus N - 1
+    # warped / noisy / jittered copies, plus one mirrored copy with include_mirror; 0 or 1 = no copies.
     aug = mc.get("augmentation", {})
-    if aug.get("mirror", True):
-        X_tr, y_tr = apply_augmentation(X_tr, y_tr, aug_factor=0, include_mirror=True, random_seed=seed)
+    aug_factor = int(aug.get("aug_factor", 0))
+    if aug.get("mirror", True) or aug_factor > 1:
+        X_tr, y_tr = apply_augmentation(X_tr, y_tr, aug_factor=aug_factor,
+                                        time_warp_sigma=float(aug.get("time_warp_sigma", 0.03)),
+                                        noise_sigma=float(aug.get("noise_sigma", 0.02)),
+                                        magnitude_jitter=float(aug.get("magnitude_jitter", 0.02)),
+                                        include_mirror=bool(aug.get("mirror", True)), random_seed=seed)
+    if args.dry_run:
+        print(f"Dry run: train {len(y_tr)} after augmentation {dict(zip(CLASSES, np.bincount(y_tr, minlength=2)))}, "
+              f"val {len(y_va)} {dict(zip(CLASSES, np.bincount(y_va, minlength=2)))}; finite {np.isfinite(X_tr).all()}, "
+              f"range {X_tr.min():.3f}..{X_tr.max():.3f}")
+        return
     accel = detect_accelerator()
     device = accel["device"]
     precision = mc.get("precision", "fp32")
@@ -286,7 +308,7 @@ def main() -> None:
         if len(idx):
             p, _ = predict(model, X_all[idx], n_mc, device, autocast_ctx, thr)
             preds.append(meta.loc[idx].reset_index(drop=True).join(p))
-    pd.concat(preds, ignore_index=True).drop(columns=["y"]).to_csv(out / "predictions.csv", index=False)
+    pd.concat(preds, ignore_index=True).drop(columns=["y_class"]).to_csv(out / "predictions.csv", index=False)
 
     with open(out / "config_full.json", "w") as f:
         json.dump({"config_file": args.config, "config": mc, "inputs": [loaded[d][2] for d in datasets],

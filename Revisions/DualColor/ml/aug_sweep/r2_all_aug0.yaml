@@ -1,0 +1,44 @@
+# Round 2 (2026-10-09), augmentation sweep as in the paper (TRAINING_NOTES.md points 1-4):
+# 4 px training set, early stopping as the paper (patience 10, combined criterion), validation
+# balanced as the paper, the paper's augmentation sweep (factors 0, 3, 5; time warp, noise and
+# jitter sigma 0.5; mirror) with time invariance kept on top. One seed. Fixed before any
+# round-2 prediction; the factor is chosen per setup by validation AUC.
+run_name: r2_all_aug0
+train_datasets:
+- DFK785
+- DFK788
+- DFK789
+test_datasets:
+- DFK785
+- DFK788
+- DFK789
+augmentation:
+  mirror: true
+  time_invariance: true
+  aug_factor: 0
+  time_warp_sigma: 0.5
+  noise_sigma: 0.5
+  magnitude_jitter: 0.5
+val_fov_fraction: 0.2
+seed: 840410
+train_label_filter: own_dye
+model:
+  name: orig_conv_gru
+precision: fp32
+optimization:
+  batch_size: 64
+  max_epochs: 500
+  patience_limit: 10
+  lr: 0.0004
+  weight_decay: 0.0004
+  label_smoothing: 0.001
+  early_stopping:
+    auc_min_delta: 0.005
+    loss_mode: relative
+    loss_tolerance: 1.1
+    auc_tolerance: 0.003
+    loss_min_delta: 0.005
+mc_dropout:
+  n_mc: 100
+  trace_loss: 50.0
+balance_val: true
