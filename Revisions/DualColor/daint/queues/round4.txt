@@ -1,0 +1,4 @@
+# Round 4 (TRAINING_NOTES.md point 8): table pool vs paper-IN pool, five seeds each (r2_all_aug0 is table seed 840410).
+Revisions/DualColor/ml/paper_in/r4_paperin_s840410.yaml Revisions/DualColor/ml/paper_in/r4_paperin_s1.yaml Revisions/DualColor/ml/paper_in/r4_table_s1.yaml Revisions/DualColor/ml/paper_in/r4_paperin_s2.yaml
+Revisions/DualColor/ml/paper_in/r4_table_s2.yaml Revisions/DualColor/ml/paper_in/r4_paperin_s3.yaml Revisions/DualColor/ml/paper_in/r4_table_s3.yaml Revisions/DualColor/ml/paper_in/r4_paperin_s4.yaml
+Revisions/DualColor/ml/paper_in/r4_table_s4.yaml
