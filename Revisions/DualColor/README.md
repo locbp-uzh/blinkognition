@@ -57,6 +57,8 @@ objects shows the ATTO520 515/488 ratio (below).
 - `classify_background.py`: the background-inference control (a protein model classifies
   background traces); train_pure.py options `label_scramble` and `trace_source: background`
   are the other two controls (TRAINING_NOTES.md point 5).
+- `plot_sample_traces.py`, `round3_summary.py`: sample traces per dataset and slide type
+  (Results/Revisions/SampleTraces/); the round-3 tables (Results/Revisions/DualColor/comparisons/r3_*.csv).
 - `daint/extract.sbatch`, `daint/train.sbatch`: Daint jobs (picasso-env, blink2-cuda).
 - `daint/run_train_queue.sh`, `daint/queues/*.txt`: submit a list of train.sbatch jobs to
   the debug partition as slots free.

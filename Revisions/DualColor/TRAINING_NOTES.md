@@ -109,6 +109,13 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    rejection of ResNet and TCN. Its scrambling also scrambled the test labels and used one
    permutation; its CV used 4000 frames (here 6000 throughout DualColor).
 
+6. Input normalization: minmax only, one channel (2026-10-09, kept for now). Every DualColor
+   model so far reads ProteinTraces/Filtered/<key>_filtered_minmax.pkl (and the background
+   controls BackgroundTraces/Filtered/<key>_background_filtered_minmax.pkl), as the paper's
+   final CNN-GRU (Figure 3C); the paper saw ResNet and TCN learn more from background with
+   dual-channel or z-scored input (Figure S13). The z-scored traces exist locally and on
+   Daint if a dual-channel condition is wanted later.
+
 ## Open
 
 - Repeated runs (FOV-grouped k-fold within the single-protein slides, several seeds) to
