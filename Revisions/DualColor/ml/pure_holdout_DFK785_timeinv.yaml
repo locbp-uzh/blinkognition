@@ -1,0 +1,32 @@
+# HT vs SNAP from the single-protein slides of the dual-color datasets (train_pure.py).
+# Fixed before any mixed-slide prediction was looked at (2026-10-09).
+# Cross-session check: DFK785 left out of training and validation.
+run_name: pure_holdout_DFK785_timeinv
+train_datasets: [DFK788, DFK789]
+test_datasets: [DFK788, DFK789]
+holdout_datasets: [DFK785]          # its single-protein slides are the cross-session test
+augmentation:
+  mirror: true
+  time_invariance: true
+val_fov_fraction: 0.2
+seed: 840410
+train_label_filter: own_dye          # pure slides: trace at a vesicle labeled with the slide's own dye
+model:
+  name: orig_conv_gru                # the paper's CNN-GRU, trained from scratch
+precision: fp32                      # bf16 autocast makes the GRU ~30x slower on GH200
+optimization:                        # the paper's values (Revisions/DFK785/ml/config_train_HaloD106_SNAPC148.yaml)
+  batch_size: 64
+  max_epochs: 500
+  patience_limit: 15
+  lr: 0.0004
+  weight_decay: 0.0004
+  label_smoothing: 0.001
+  early_stopping:
+    auc_min_delta: 0.005
+    loss_mode: relative
+    loss_tolerance: 1.10
+    auc_tolerance: 0.003
+    loss_min_delta: 0.005
+mc_dropout:
+  n_mc: 100
+  trace_loss: 50.0                   # threshold auto-selected on the validation FOVs, removing at most 50 %

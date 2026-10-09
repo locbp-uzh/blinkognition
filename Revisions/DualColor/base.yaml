@@ -84,6 +84,10 @@ trace_assignment:
     pure: 4.0
     mix: 2.0
   null_radii_px: [1.5, 2.0, 2.5, 3.0, 4.0]
+  registration:                            # 640 offset per vesicle detection channel, estimated from the data
+    search_px: 3.0                         # first pairing radius (offsets start at 0)
+    refine_px: 2.0                         # later iterations
+    max_iter: 5
 
 overview:
   image_width_px: 230
