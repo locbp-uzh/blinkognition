@@ -15,7 +15,7 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    vs 0.77; the 2 px model is skewed toward SNAP (recall HT 0.47, SNAP 0.83). 4 px gives
    912 training traces against 782.
 
-2. Early stopping exactly as in the paper (2026-10-09): patience 10 epochs (SI, "Combined
+2. Early stopping exactly as in the paper (2026-10-09; amended by point 10, warm-up of 25 epochs): patience 10 epochs (SI, "Combined
    early stopping"; published CV config patience_limit 10), the paper's combined criterion
    (checkpoint when AUC improves >= 0.005 with loss <= 1.10 x best, or AUC within 0.003 of
    best with loss improved >= 0.005), max 500 epochs. The first round used patience 15
@@ -321,14 +321,12 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    DFK789 +0.022 [-0.100, +0.136]. Overall +0.100 [+0.046, +0.158], carried by DFK785 mixed slide
    4; without it +0.021 [-0.034, +0.078], almost all of it from DFK785 slide 3. Warm-up cost on the
    nine runs trained in both rounds: mixed AUC +0.001 (SD 0.027; 95 % t interval [-0.020,
-   +0.021]). Proposed, for the user to decide: keep warmup_epochs 25 in later CNN-GRU rounds
-   (point 10 fixed it for round 5b; point 2 otherwise stands); W = 25 was calibrated on CNN-GRU
-   plateau ends, so another architecture needs its own check.
+   +0.021]). Decision (user, 2026-10-10): warmup_epochs 25 stays in the CNN-GRU recipe for later
+   rounds, amending point 2 (otherwise the paper's early stopping). W = 25 was calibrated on
+   CNN-GRU plateau ends, so another architecture needs its own check first.
 
 ## Open
 
-- Early stopping for later rounds: keep the warm-up (W = 25, point 10) or return to the paper's
-  rule (point 2); for ResNet1D / TCN on these folds, check their plateau ends first.
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,
   with a margin declared in advance), if wanted after round 5.
 - Controls that would answer what round 3 could not: background training to a fixed number of
