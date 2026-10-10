@@ -548,6 +548,14 @@ Yardstick for later comparisons on these folds (point 9): the SD of the mixed AU
 the 0.027 between rounds 5 and 5b is not a noise reference (it holds the warm-up's effect, mostly
 in one pair; without it 0.013), and it rests on nine pairs (95 % range of an SD with 8 df: 0.018-0.051).
 
+## Data quality and the next acquisitions (2026-10-10; checks/20261010_data_quality)
+
+Four analyses of the round-5b predictions with an adversarial check of each key claim (the folder README has the
+findings). In short: classification rises steeply with trace SNR (mixed AUC 0.58 to 0.82 from the dim to the bright
+SNR third, not label noise), while more traces of the current quality buy little (doubling projected +0.01 to +0.03);
+vesicle density sets the chance coincidences, protein loading the yield; the worst slides are DFK785 mixed slide 4
+(test), DFK789 slides 2 and 4 HT and the DFK785 single-protein pair (training); DFK788 is the best session.
+
 ## Paper code (checked 2026-10-10)
 
 The revisions run on the `revisions` branch, on top of `main` (6f93bb0, untouched). Outside
