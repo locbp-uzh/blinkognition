@@ -17,6 +17,19 @@ Tables (printed, and written to <out>/r4_*.csv):
            interval (n - 1 degrees of freedom) from the seed-to-seed spread
 - decision the rule of point 8: the paper-IN pool is the default unless the interval of the
            pooled mean difference lies entirely below 0
+- ba       per run, set (val, test_mixed) and dataset: balanced accuracy at the argmax of the MC
+           mean before the MC-dropout filter (all traces) and after it (the traces kept at the
+           run's own Wasserstein threshold, chosen on its validation set), with FOV-bootstrap
+           intervals, the kept fraction and the threshold
+- ba_summary per pool, set and dataset: mean and SD over the seeds of the same quantities, and
+           the mean gain from the filter (kept minus all)
+- ba_paired per mixed-slide dataset and quantity (balanced accuracy of all traces, of the kept
+           traces at each run's own threshold, and of the MATCHED_FRAC most certain traces by
+           Wasserstein distance, ranked within the pooled set or within each dataset): the
+           paper-IN minus table difference by seed, its mean and 95 % t interval. Each run picks
+           its own threshold and so keeps a different fraction; balanced accuracy rises as fewer
+           traces are kept, so only the matched-fraction row compares the pools' certainty ranking
+           at equal coverage
 
 Usage:
     python Revisions/DualColor/round4_summary.py [--models Results/Revisions/DualColor/models] [--out DIR]
@@ -34,6 +47,21 @@ from scipy import stats
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SEEDS = [840410, 1, 2, 3, 4]
 DATASETS = ["DFK785", "DFK788", "DFK789"]
+MATCHED_FRAC = 0.5  # about the kept fraction of every round-4 run at its own threshold (0.44-0.59)
+
+
+def balanced_accuracy(t: pd.Series, p: pd.Series) -> float:
+    return float(np.mean([(p[t == c] == c).mean() for c in sorted(t.unique())]))
+
+
+def matched_ba(pred: pd.DataFrame, frac: float) -> float:
+    top = pred.nlargest(int(round(frac * len(pred))), "wasserstein")
+    return balanced_accuracy(top["true_class"], top["prediction"])
+
+
+def t_interval(d: np.ndarray) -> tuple[float, float, float]:
+    half = stats.t.ppf(0.975, len(d) - 1) * d.std(ddof=1) / np.sqrt(len(d)) if len(d) > 1 else np.nan
+    return d.mean(), d.mean() - half, d.mean() + half
 
 
 def latest(models: Path, name: str) -> Path | None:
@@ -75,6 +103,53 @@ def main() -> None:
             rows.append(r)
     runs = pd.DataFrame(rows)
     tables = {"runs": runs}
+    ba = []
+    for pool in ["table", "paperin"]:
+        for seed in SEEDS:
+            run = latest(a.models, run_name(pool, seed))
+            if run is None:
+                continue
+            thr = pd.read_json(run / "threshold.json", typ="series")["wasserstein_threshold"]
+            m = pd.read_csv(run / "evaluation" / "metrics.csv")
+            for _, x in m[m["subset"] == "all"].iterrows():
+                ba.append({"pool": pool, "seed": seed, "set": x["set"], "dataset": x["dataset"], "n": int(x["n"]),
+                           "n_HT": int(x["n_HT"]), "n_SNAP": int(x["n_SNAP"]), "threshold": thr,
+                           "ba_all": x["balanced_accuracy"], "ba_all_lo": x["balanced_accuracy_lo"],
+                           "ba_all_hi": x["balanced_accuracy_hi"], "kept_frac": x["kept_frac"],
+                           "ba_kept": x["kept_balanced_accuracy"], "ba_kept_lo": x["kept_balanced_accuracy_lo"],
+                           "ba_kept_hi": x["kept_balanced_accuracy_hi"]})
+            pr = pd.read_csv(run / "evaluation" / "predictions_annotated.csv", usecols=["set", "dataset", "true_class",
+                                                                                         "prediction", "wasserstein"])
+            pr = pr[(pr["set"] == "test_mixed") & pr["true_class"].isin(["HT", "SNAP"])]
+            for ds, g in [("pooled", pr)] + list(pr.groupby("dataset")):
+                ba.append({"pool": pool, "seed": seed, "set": "test_mixed", "dataset": ds,
+                           "ba_matched": matched_ba(g, MATCHED_FRAC)})
+    ba = pd.DataFrame(ba)
+    if len(ba):
+        key = ["pool", "seed", "set", "dataset"]
+        bm = ba.dropna(subset=["ba_matched"])[key + ["ba_matched"]]
+        ba = ba.dropna(subset=["n"]).drop(columns="ba_matched").merge(bm, on=key, how="left")
+    if len(ba):
+        ba["gain"] = ba["ba_kept"] - ba["ba_all"]
+        tables["ba"] = ba
+        g = ba.groupby(["pool", "set", "dataset"], sort=False)
+        tables["ba_summary"] = pd.concat(
+            [g.size().rename("n_seeds"), g["n"].first(),
+             g[["ba_all", "kept_frac", "ba_kept", "gain"]].agg(["mean", "std"]).pipe(
+                 lambda t: t.set_axis([f"{c}_{s}" for c, s in t.columns], axis=1))], axis=1).reset_index()
+        mix = ba[ba["set"] == "test_mixed"].pivot(index="seed", columns=["pool", "dataset"])
+        if {"table", "paperin"} <= set(ba["pool"]):
+            bp = []
+            for q, label in [("ba_all", "all traces"), ("ba_kept", "kept at own threshold"),
+                             ("kept_frac", "kept fraction"), ("ba_matched", f"{MATCHED_FRAC:.0%} most certain")]:
+                for ds in ["pooled"] + DATASETS:
+                    d = (mix[(q, "paperin", ds)] - mix[(q, "table", ds)]).dropna()
+                    mean, lo, hi = t_interval(d.to_numpy())
+                    bp.append({"quantity": label, "dataset": ds, "n_seeds": len(d),
+                               "table_mean": mix[(q, "table", ds)].mean(), "paperin_mean": mix[(q, "paperin", ds)].mean(),
+                               "mean_diff": mean, "diff_lo": lo, "diff_hi": hi,
+                               "n_seeds_positive": int((d > 0).sum())})
+            tables["ba_paired"] = pd.DataFrame(bp)
     if len(runs) and set(runs["pool"]) == {"table", "paperin"}:
         w = runs.pivot(index="seed", columns="pool")
         paired = pd.DataFrame(index=w.index)

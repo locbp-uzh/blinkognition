@@ -183,6 +183,13 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    never-trained FOVs). With rounds 3 and 4, the mixed-slide AUC sits at 0.69-0.74 whatever the
    architecture or the training pool.
 
+   Balanced accuracy, added after the fact (2026-10-10; not part of the rule, so descriptive):
+   mixed BA before / after the MC-dropout filter, table 0.632 / 0.689 at 0.52 kept, paper-IN
+   0.654 / 0.753 at 0.49 kept. Paired: BA all +0.022 [+0.007, +0.036] (5 of 5 seeds), BA of the
+   50 % most certain traces +0.053 [-0.010, +0.117]. The BA gain without an AUC gain is the
+   operating point: the table runs' argmax boundary swings between HT-biased and SNAP-biased
+   across seeds, the paper-IN runs' does not. Same confounds as the AUC comparison.
+
 ## Open
 
 - Repeated runs (FOV-grouped k-fold within the single-protein slides, several seeds) to

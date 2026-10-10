@@ -397,6 +397,37 @@ disjoint, both pools rebuilt exactly from their sources.
 - Single-run differences of about 0.05 (rounds 2-3) are within the table pool's seed spread
   (about 0.04 for the difference of two single runs).
 
+Balanced accuracy before and after the MC-dropout filter (comparisons/r4_ba.csv,
+r4_ba_summary.csv, r4_ba_paired.csv; added to round4_summary.py 2026-10-10). Before: argmax of
+the mean over 100 MC passes, all traces. After: the traces kept at the run's own Wasserstein
+threshold (selected on its validation set, trace loss at most 50 %). Mixed slides, mean (SD)
+over the five seeds:
+
+| Pool | Dataset | BA all | Kept fraction | BA kept | Gain |
+|---|---|---|---|---|---|
+| Vesicle table | pooled | 0.632 (0.018) | 0.520 (0.055) | 0.689 (0.040) | +0.056 |
+| Vesicle table | DFK785 / 788 / 789 | 0.618 / 0.620 / 0.656 | 0.50 / 0.52 / 0.55 | 0.645 / 0.697 / 0.725 | |
+| Paper IN | pooled | 0.654 (0.014) | 0.491 (0.022) | 0.753 (0.018) | +0.099 |
+| Paper IN | DFK785 / 788 / 789 | 0.590 / 0.689 / 0.677 | 0.49 / 0.47 / 0.53 | 0.643 / 0.808 / 0.817 | |
+
+On validation (each run's own held-out single-protein FOVs, so different sets per pool): table
+0.689 to 0.785 at 0.57 kept, paper IN 0.730 to 0.846 at 0.53 kept.
+
+- Paired by seed (paper IN minus table, 95 % t interval, 4 df), pooled mixed slides: BA all
+  +0.022 [+0.007, +0.036] (5 of 5 seeds); BA kept at own threshold +0.064 [-0.006, +0.135];
+  kept fraction -0.029 [-0.108, +0.049]; BA of the 50 % most certain traces (matched coverage)
+  +0.053 [-0.010, +0.117] (4 of 5). Per dataset, the matched-coverage difference is DFK785
+  -0.025, DFK788 +0.092 [+0.028, +0.156] (5 of 5), DFK789 +0.078 (5 of 5).
+- Why BA moves when AUC does not: the table runs' decision boundary swings between the classes
+  (mixed recall HT / SNAP from 0.77 / 0.48 to 0.44 / 0.83 across seeds); the paper-IN runs stay
+  balanced (0.59-0.67 / 0.61-0.73). AUC ignores the operating point; BA at the argmax does not.
+- The filter gain is larger for the paper-IN pool partly because its thresholds are higher
+  (0.39-0.56 against 0.10-0.42) and so keep slightly fewer traces; the matched-coverage row
+  removes that. The confounds listed above (training length, composition, validation set)
+  apply to these differences too.
+- Verified: the BA function of round4_summary.py reproduces evaluate.py's all / kept BA and kept
+  fraction in all 120 run x dataset comparisons (maximum difference 6e-17).
+
 ## Status
 
 - Extraction on Daint: DFK785, DFK788, DFK789 submitted (jobs 5009197, 5009198, 5009538);
