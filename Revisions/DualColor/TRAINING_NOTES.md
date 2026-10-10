@@ -313,8 +313,22 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    (mean and SD of the paired differences: the cost of the warm-up plus training variance) and
    for the six that were not (the rescue).
 
+   Result (2026-10-10; README.md "Round 5b"; checks/20261010_round5b_check): all 15 runs trained
+   (plateau ends 8-21, checkpoints at epochs 26-81). Mixed AUC 0.706 (SD 0.014), balanced
+   accuracy 0.643 all / 0.725 kept; out-of-fold AUC within datasets 0.80-0.82. Gap d per dataset:
+   DFK785 +0.218 [+0.129, +0.316] (mixed slide 3 +0.097 [+0.009, +0.204], within what label noise
+   accounts for at that slide; slide 4 +0.370 [+0.234, +0.499]), DFK788 -0.004 [-0.084, +0.083],
+   DFK789 +0.022 [-0.100, +0.136]. Overall +0.100 [+0.046, +0.158], carried by DFK785 mixed slide
+   4; without it +0.021 [-0.034, +0.078], almost all of it from DFK785 slide 3. Warm-up cost on the
+   nine runs trained in both rounds: mixed AUC +0.001 (SD 0.027; 95 % t interval [-0.020,
+   +0.021]). Proposed, for the user to decide: keep warmup_epochs 25 in later CNN-GRU rounds
+   (point 10 fixed it for round 5b; point 2 otherwise stands); W = 25 was calibrated on CNN-GRU
+   plateau ends, so another architecture needs its own check.
+
 ## Open
 
+- Early stopping for later rounds: keep the warm-up (W = 25, point 10) or return to the paper's
+  rule (point 2); for ResNet1D / TCN on these folds, check their plateau ends first.
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,
   with a margin declared in advance), if wanted after round 5.
 - Controls that would answer what round 3 could not: background training to a fixed number of

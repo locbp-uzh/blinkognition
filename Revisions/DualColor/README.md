@@ -463,6 +463,91 @@ by slide. The untrained runs still rank the held-out DFK785 FOVs at AUC 0.67-0.7
 on the mixed slides (0.49-0.58): a simple early feature tells the two DFK785 single-protein slides apart
 without carrying over to the mixtures (compare the round-3 background models, 0.87-0.89 on DFK785).
 
+## Round 5b: the k-fold with the early-stopping warm-up (Daint jobs 5021495, 5021496, 5021515, 5021577; models 2026-10-10_12-*)
+
+Design: TRAINING_NOTES.md points 9 and 10 (warmup_epochs 25; reviewed in
+checks/20261010_round5b_review). Tables: comparisons/r5b_*.csv (kfold_summary.py --prefix r5b
+--compare-with r5; log r5b_summary.log). The 15 splits equal the round-5 dry runs.
+
+All 15 runs trained: plateau ends at epochs 8-21, checkpoints at epochs 26-81 (one at 26, the
+first allowed), stops at 36-91. No trained-only tables were needed.
+
+Mixed slides (412 traces), per run, mean (SD) over the 15 runs:
+
+| | Pooled | DFK785 | DFK788 | DFK789 |
+|---|---|---|---|---|
+| AUC | 0.706 (0.014) | 0.623 (0.030) | 0.747 (0.028) | 0.750 (0.012) |
+| Balanced accuracy, all traces | 0.643 (0.019) | 0.582 | 0.675 | 0.674 |
+| Kept fraction | 0.468 (0.045) | 0.44 | 0.46 | 0.54 |
+| Balanced accuracy, kept traces | 0.725 (0.032) | 0.641 | 0.775 | 0.757 |
+
+AUC within datasets 0.691 (0.015); range of the pooled AUC 0.675-0.732; SD of the 3 repeat means
+0.004 (2 df). Ensembles: the five fold models of a repeat 0.718-0.722; all 15, 0.722 [0.665,
+0.771], balanced accuracy 0.664 [0.611, 0.710]. Round 4 (paper-IN pool, 80 % of the FOVs, five
+seeds; descriptive only): AUC 0.717 (0.014), balanced accuracy 0.654 all / 0.753 kept.
+
+Out-of-fold (every pool trace scored once by a model that never saw its FOV; per repeat): AUC
+within datasets 0.802-0.822 (DFK785 0.82-0.84, DFK788 0.73-0.74, DFK789 0.75-0.79); balanced
+accuracy 0.70-0.73 all, 0.80-0.84 kept at 0.52-0.54 kept. Per run, the untouched test folds score
+as the validation folds that chose the checkpoint (balanced accuracy 0.718 all / 0.815 kept,
+against 0.721 / 0.816): the checkpoint selection inflates nothing measurable. Slide pairs (mean
+over the repeats): HT vs SNAP slides DFK785 0.84, DFK788 0.71-0.77 (separation 0.21-0.27), DFK789
+0.81 for HT slide 2 and 0.64 for HT slide 4; same-protein pairs DFK788 SNAP slides 1 vs 4 0.43 and
+HT slides 2 vs 5 0.53 (separation 0.07, 0.03), DFK789 HT slides 2 vs 4 0.64 (separation 0.14). The
+held-out FOVs of DFK788 separate by protein far more than by slide. On DFK789, HT slide 4 (19 pool
+traces in 17 FOVs) scores between HT slide 2 and the SNAP slide, 0.14 from each, so DFK789's one
+same-protein reference neither shows nor excludes a slide cue as large as the protein signal there.
+
+Gap d (test-fold AUC minus mixed AUC, same model; point 9c). The SD of d over the 15 models holds
+training variance and the differences between the models' test folds (each a fifth of the FOVs):
+
+| Unit | Test fold | Mixed | d [95 % interval] | SD of d over models |
+|---|---|---|---|---|
+| DFK785 | 0.841 | 0.623 | +0.218 [+0.129, +0.316] | 0.057 |
+| DFK785 slide 3 (89 traces) | | 0.744 | +0.097 [+0.009, +0.204] | 0.056 |
+| DFK785 slide 4 (74 traces) | | 0.471 | +0.370 [+0.234, +0.499] | 0.064 |
+| DFK788 (slide 3) | 0.742 | 0.747 | -0.004 [-0.084, +0.083] | 0.025 |
+| DFK789 | 0.772 | 0.750 | +0.022 [-0.100, +0.136] | 0.082 |
+| DFK789 slide 3 (26 traces) | | 0.823 | -0.051 [-0.202, +0.110] | 0.079 |
+| DFK789 slide 5 (62 traces) | | 0.712 | +0.060 [-0.076, +0.195] | 0.086 |
+| Overall (mixed pair weights) | 0.791 | 0.691 | +0.100 [+0.046, +0.158] | 0.031 |
+| Overall without DFK785 slide 4 | 0.767 | 0.747 | +0.021 [-0.034, +0.078] | 0.029 |
+
+Reading, as declared in point 9 (per dataset and mixed slide first, then overall):
+- DFK785 carries the gap, through its mixed slide 4: d +0.370 [+0.234, +0.499], mixed AUC 0.42-0.58
+  in all 15 runs, and 0.40-0.59, always below slide 3, in all 55 protein models trained on these
+  data so far (checks/20261010_round5b_check/reading). The gap is reported as a property of that
+  slide, not of held-out FOVs; its cause is not known.
+- DFK785 slide 3 keeps +0.097 [+0.009, +0.204], at the upper end of what the mixed truth's label
+  noise alone accounts for at that slide's own chance shares and mixed AUC (0.03-0.04 if
+  chance-coincident traces score as their true protein, 0.07-0.09 if their scores carry no
+  information; point 9's 0.02-0.05 is for both DFK785 mixed slides together). So slide 3 shows no
+  gap that label noise cannot account for. DFK785 has one single-protein slide per class and no
+  same-protein reference, so slide cues and protein signal cannot be separated there.
+- DFK788 and DFK789 show no gap: d -0.004 [-0.084, +0.083] and +0.022 [-0.100, +0.136], whose upper
+  ends bound it at about 0.08 and 0.14. These are means over the 15 models: a single model's DFK789
+  test fold misses its mixed AUC by -0.13 to +0.22. The two DFK789 mixed slides differ in sign
+  (slide 3 -0.051, slide 5 +0.060), both intervals including 0.
+- Overall: +0.100 [+0.046, +0.158], interval above 0, so validation numbers are not quoted as the
+  expected mixed-slide performance. Without DFK785 slide 4 it is +0.021 [-0.034, +0.078], of which
+  +0.019 comes from DFK785 slide 3 (DFK788 and DFK789 together +0.002).
+
+Against round 5, paired by (repeat, fold) (r5b_paired.csv). On the nine pairs trained in both rounds
+the warm-up changes the mixed AUC by +0.001 (SD of the paired differences 0.027; 95 % t interval
+[-0.020, +0.021], 8 df), balanced accuracy all -0.010 (0.030), kept +0.001 (0.043), test-fold AUC
++0.009 (0.033): no measurable cost, at a resolution of about 0.02 in mixed AUC. As declared in point
+10, a paired difference holds training variance (same seeds, GPU nondeterminism) as well as the
+effect of the warm-up. In six of the nine pairs the round-5 checkpoint already lay after epoch
+25, so the warm-up forced nothing; they differ by -0.009 (SD 0.013), training variance. In the
+other three it forced a later checkpoint (round-5 epochs 22, 22 and 17; round 5b 30, 48 and 63):
+-0.011, +0.009 and +0.064. The six
+runs that did not train in round 5 now reach 0.707 (SD 0.009; +0.182 against round 5).
+
+Yardstick for later comparisons on these folds (point 9): the SD of the mixed AUC over the 15 runs,
+0.014. A later comparison pairs by (repeat, fold) and uses the SD of its own paired differences;
+the 0.027 between rounds 5 and 5b is not a noise reference (it holds the warm-up's effect, mostly
+in one pair; without it 0.013), and it rests on nine pairs (95 % range of an SD with 8 df: 0.018-0.051).
+
 ## Paper code (checked 2026-10-10)
 
 The revisions run on the `revisions` branch, on top of `main` (6f93bb0, untouched). Outside
