@@ -1,0 +1,54 @@
+# Round 5 (2026-10-10): FOV-grouped repeated k-fold on the paper-IN pool (TRAINING_NOTES.md point 9).
+# Recipe = r4_paperin (CNN-GRU, paper-IN pool, patience 10, balanced validation, mirror + time
+# invariance, factor 0). Repeat with partition seed 2, fold 3: test fold 3, validation fold
+# 4, training the other three; run seed 10 x 2 + 3. Fixed before any round-5 run.
+run_name: r5_kfold_p2_f3
+train_datasets:
+- DFK785
+- DFK788
+- DFK789
+test_datasets:
+- DFK785
+- DFK788
+- DFK789
+augmentation:
+  mirror: true
+  time_invariance: true
+  aug_factor: 0
+  time_warp_sigma: 0.5
+  noise_sigma: 0.5
+  magnitude_jitter: 0.5
+seed: 23
+kfold:
+  n_folds: 5
+  fold: 3
+  partition_seed: 2
+train_label_filter: paper_in
+trace_assignment_runs:   # pinned to round 4's inputs: the folds depend on the exact pool
+  DFK785: run_002
+  DFK788: run_001
+  DFK789: run_001
+paper_in_runs:
+  DFK785: run_001
+  DFK788: run_001
+  DFK789: run_002
+model:
+  name: orig_conv_gru
+precision: fp32
+optimization:
+  batch_size: 64
+  max_epochs: 500
+  patience_limit: 10
+  lr: 0.0004
+  weight_decay: 0.0004
+  label_smoothing: 0.001
+  early_stopping:
+    auc_min_delta: 0.005
+    loss_mode: relative
+    loss_tolerance: 1.1
+    auc_tolerance: 0.003
+    loss_min_delta: 0.005
+mc_dropout:
+  n_mc: 100
+  trace_loss: 50.0
+balance_val: true

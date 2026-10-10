@@ -190,14 +190,87 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    operating point: the table runs' argmax boundary swings between HT-biased and SNAP-biased
    across seeds, the paper-IN runs' does not. Same confounds as the AUC comparison.
 
+9. Round 5, FOV-grouped repeated k-fold on the paper-IN pool (requested 2026-10-10; fixed
+   before the runs; configs ml/kfold/r5_*.yaml, summary kfold_summary.py). The question: how
+   well do the models do on single-protein FOVs they never saw, every FOV counted once, how much
+   does that differ from the mixed slides, and how much do the mixed-slide results move from
+   one training set to the next. CNN-GRU only (round 3: neither other architecture replaces
+   it); the folds are fixed by the partition seed and the pool (the configs pin the
+   trace_assignment and paper_in runs of round 4), so ResNet1D or TCN can be added later paired
+   by (repeat, fold), checking that kfold_fold in data_split.csv is unchanged per trace.
+   Recipe: r4_paperin (paper-IN pool, patience 10, balanced validation, mirror + time
+   invariance, factor 0, fp32, MC dropout 100 passes, trace loss at most 50 %).
+   Folds: in every single-protein slide, the FOVs with pool traces are shuffled (partition
+   seed) and dealt in turn into 5 folds from a random starting fold, so each fold holds
+   floor(n/5) or ceil(n/5) of every slide's FOVs and a FOV lies in one fold only.
+   Run (repeat r, fold k): test fold k ('test_oof', every pool trace of those FOVs, not
+   balanced); validation fold (k + 1) mod 5 (early stopping, checkpoint, Wasserstein
+   threshold; balanced, the excess 'val_unused', as before); training the other three folds.
+   The test fold never touches the model or its threshold (nested), so its scores are not
+   inflated by the checkpoint selection; the price is training on 60 % of the FOVs (1053-1131
+   traces) instead of 80 % (round 4 paper-IN: 1391-1471). Round 4 did not vary the training-set
+   size alone (its pools differ in composition too; paper-IN minus table +0.025 [-0.025,
+   +0.075]), so the cost of the smaller training set is not known; round-5 absolute numbers
+   describe models trained on 60 % of the FOVs.
+   Repeats: 3, partition seeds 840410, 1, 2; run seed 10 x partition seed + k (initialization,
+   sampling, validation balancing). 15 runs; mixed-slide test the same 412 traces.
+   Readouts (all on the 'all' subset):
+   a. Out-of-fold (per repeat, the five test folds together cover every pool trace once): AUC
+      within datasets (at the pool's own pair weights, DFK785 about 0.8) and per dataset, balanced accuracy of all traces and of the kept ones
+      (each trace at its own fold model's threshold), kept fraction, 95 % FOV-cluster bootstrap
+      intervals (evaluate.py metrics); slide pairs (HT slide vs SNAP slide, and same-protein
+      pairs as the reference; evaluate.py slide_pairs).
+   b. Mixed slides: per run AUC (pooled and within datasets), balanced accuracy all / kept,
+      kept fraction; mean and SD over the 15 runs (the same 412 traces: training variance
+      alone) and the SD of the 3 repeat means (2 degrees of freedom: reported, not read); ensembles
+      (mean p_SNAP over the five fold models of a repeat, and over all 15): AUC and balanced
+      accuracy at the argmax (no kept set: each model has its own threshold).
+   c. Held-out-FOV vs mixed-slide gap, per model, dataset and mixed slide: d = (AUC on its test
+      fold, per dataset) - (AUC on the mixed slides of that dataset, or on one mixed slide), the
+      same model on both sides; per dataset and per mixed slide the mean over the 15 models, and
+      overall the per-dataset means weighted by the mixed set's HT x SNAP pair counts (DFK785
+      0.45, DFK788 0.42, DFK789 0.13), so that the pool's heavier DFK785 share does not set the
+      comparison (the overall row gives both sides at these weights). Sensitivity: the overall d
+      without DFK785 mixed slide 4 (at chance for every model so far: round-4 AUC 0.44-0.55,
+      against about 0.74 on slide 3), weights recomputed. Interval: 95 % FOV-cluster bootstrap
+      with the models fixed (pool FOVs and mixed FOVs resampled within their slide, the same
+      draw for all 15 models). The SD of d over the 15 models, reported next to it, holds
+      training variance and the differences between the models' test folds; the SD of the
+      mixed AUC over the runs is training variance alone.
+   Reading (declared now; no automatic change to the recipe). d is read per dataset and per
+   mixed slide first, then overall. If the interval of the overall d lies above 0, the AUC on
+   held-out FOVs of the single-protein slides is higher than the AUC on the mixed slides
+   against their vesicle-table truth; validation numbers are then not quoted as expected
+   mixed-slide performance, and choices stay read on the mixed slides, as now. The reading
+   names the datasets and slides that carry the gap; a gap that rests on DFK785 slide 4 (the
+   sensitivity row) is reported as a property of that slide, not of held-out FOVs. A positive
+   d does not by itself show that the models use slide-specific cues: it also holds the lower
+   label purity of the mixed-slide truth (a protein within 2 px of a vesicle by chance carries
+   a random class on the mixed slides and the right one on the single-protein slides; from the
+   trace-assignment null about 0.01-0.03 of d overall, 0.02-0.05 on DFK785) and any other
+   difference between single-protein and mixed slides. DFK785 has one single-protein slide per
+   class and no same-protein reference, so its d cannot separate slide cues from protein
+   signal; the same-protein slide pairs of readout a (DFK788, DFK789) can. If the interval
+   includes 0, round 5 shows no gap, and its upper end bounds it (the 412 mixed traces keep
+   the interval near +-0.06 whatever the number of repeats). The mixed-slide SD over the 15
+   runs (training sets sharing 33-67 % of their traces within a repeat, 60 % across) is the
+   yardstick for margins in later comparisons on these folds, which pair by (repeat, fold) and
+   use the SD of the paired differences. Round-5 mixed numbers are compared with round 4 only
+   descriptively (the training fraction differs).
+   Pre-submission review (2026-10-10; checks/20261010_round5_review, four reviewers and one
+   skeptic per finding): no blocker. Folds, sets, pool and mixed test verified from the 15 dry
+   runs (checks/20261010_round5_dryrun); the round-4 splits reproduce exactly with the new
+   code; the partitions are the same under Daint's numpy 1.26.4. kfold_summary.py tested end
+   to end on synthetic runs with planted gaps (point estimates exact, 95 % interval coverage
+   0.94-0.95 over 1000 synthetic worlds; duplicated or missing test-fold traces raise). The
+   eight minor findings are fixed above and in kfold_summary.py (wording of c and the reading,
+   per-slide and sensitivity rows, both sides of the overall row, pinned inputs, OOF coverage
+   check). Estimated runtime: about 13 min per 4-run debug job.
+
 ## Open
 
-- Repeated runs (FOV-grouped k-fold within the single-protein slides, several seeds) to
-  estimate the variance of the results, which a single split cannot. Proposal from the round-3
-  check, to discuss: 5 folds grouped by FOV and stratified by slide (every single-protein FOV
-  validated once; DFK785 31 + 31 validation FOVs instead of 7 + 7), 3 seeds, the mixed slides as
-  the fixed test; architectures compared paired by (fold, seed) with a margin declared in
-  advance; out-of-fold validation minus mixed AUC as the test of the validation inflation.
+- Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,
+  with a margin declared in advance), if wanted after round 5.
 - Controls that would answer what round 3 could not: background training to a fixed number of
   epochs (the CNN-GRU background run stalled at ln 2), with random-initialization and skewness
   baselines; scrambled runs that fit their labels; a vesicle-population control (background

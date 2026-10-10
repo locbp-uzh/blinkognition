@@ -1,0 +1,5 @@
+# Round 5 (TRAINING_NOTES.md point 9): FOV-grouped repeated k-fold on the paper-IN pool, 3 repeats x 5 folds.
+Revisions/DualColor/ml/kfold/r5_kfold_p840410_f0.yaml Revisions/DualColor/ml/kfold/r5_kfold_p840410_f1.yaml Revisions/DualColor/ml/kfold/r5_kfold_p840410_f2.yaml Revisions/DualColor/ml/kfold/r5_kfold_p840410_f3.yaml
+Revisions/DualColor/ml/kfold/r5_kfold_p840410_f4.yaml Revisions/DualColor/ml/kfold/r5_kfold_p1_f0.yaml Revisions/DualColor/ml/kfold/r5_kfold_p1_f1.yaml Revisions/DualColor/ml/kfold/r5_kfold_p1_f2.yaml
+Revisions/DualColor/ml/kfold/r5_kfold_p1_f3.yaml Revisions/DualColor/ml/kfold/r5_kfold_p1_f4.yaml Revisions/DualColor/ml/kfold/r5_kfold_p2_f0.yaml Revisions/DualColor/ml/kfold/r5_kfold_p2_f1.yaml
+Revisions/DualColor/ml/kfold/r5_kfold_p2_f2.yaml Revisions/DualColor/ml/kfold/r5_kfold_p2_f3.yaml Revisions/DualColor/ml/kfold/r5_kfold_p2_f4.yaml

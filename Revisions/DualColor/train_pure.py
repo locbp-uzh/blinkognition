@@ -29,6 +29,14 @@ Validation by FOV (balance_val: true subsamples its larger class, as the paper d
 conditions, so a random trace split would leak them into both sets. Early stopping, the
 checkpoint and the Wasserstein threshold use only this validation set.
 
+FOV-grouped k-fold (kfold: {n_folds, fold, partition_seed}; replaces val_fov_fraction;
+TRAINING_NOTES.md point 9): in every single-protein slide the FOVs with training-pool traces
+are shuffled with partition_seed and dealt in turn into n_folds folds from a random starting
+fold (kfold_folds). Fold `fold` is the test fold ('test_oof': all its pool traces, not
+balanced, predicted like the mixed slides), fold (fold + 1) mod n_folds the validation fold,
+the rest the training set. The fold of every pool trace is written to data_split.csv
+(kfold_fold).
+
 Augmentation (training set only):
   aug_factor       the paper's sweep (ML/utils.apply_augmentation): N - 1 extra copies with time
                    warping (clipped to +-5 %), Gaussian noise and magnitude jitter (clipped to
@@ -80,7 +88,8 @@ Controls (the paper's, SI "Further control experiments"):
 
 Outputs (Results/Revisions/DualColor/models/<timestamp>_<run_name>/): best_model.pth,
 config_full.json (this config + resolved inputs), data_split.csv (every trace used, with its
-set), predictions.csv (validation, mixed test, holdout), threshold.json, loss_curve/, log.
+set), predictions.csv (validation, mixed test, k-fold test fold, holdout), threshold.json,
+loss_curve/, log.
 
 Usage (Daint, blink2-cuda; from the repo root):
     python Revisions/DualColor/train_pure.py -c Revisions/DualColor/ml/<config>.yaml
@@ -206,6 +215,28 @@ def split_fovs(meta: pd.DataFrame, frac: float, seed: int) -> pd.Series:
     return out
 
 
+def kfold_folds(meta: pd.DataFrame, n_folds: int, partition_seed: int) -> pd.Series:
+    """Fold (0 .. n_folds - 1) per row: per (dataset, slide), the FOVs in a seeded random order are
+    dealt in turn into the folds from a random starting fold, so every fold gets floor(n / n_folds)
+    or ceil(n / n_folds) of the slide's FOVs."""
+    rng = np.random.default_rng(partition_seed)
+    out = pd.Series(-1, index=meta.index, dtype=int)
+    for (ds, slide), g in meta.groupby(["dataset", "slide"]):
+        fovs = rng.permutation(np.array(sorted(g["fov"].unique())))
+        start = int(rng.integers(n_folds))
+        fold_of = {f: (start + i) % n_folds for i, f in enumerate(fovs)}
+        out[g.index] = g["fov"].map(fold_of).to_numpy()
+    return out
+
+
+def kfold_sets(folds: pd.Series, n_folds: int, fold: int) -> pd.Series:
+    """'test_oof' (fold `fold`), 'val' (the next fold) or 'train' (the others) per row."""
+    if not 0 <= fold < n_folds or n_folds < 3:
+        raise ValueError(f"kfold: fold {fold} of {n_folds} (needs n_folds >= 3, 0 <= fold < n_folds)")
+    return pd.Series(np.select([folds == fold, folds == (fold + 1) % n_folds], ["test_oof", "val"], "train"),
+                     index=folds.index)
+
+
 def background_sets(meta: pd.DataFrame, mc: dict, seed: int, datasets: list[str], holdout: set
                     ) -> tuple[pd.DataFrame, np.ndarray, list[dict]]:
     """Background traces in place of the protein sets of `meta` (trace_source: background).
@@ -307,7 +338,20 @@ def main() -> None:
         same = (meta.loc[tp, "true_class"] == meta.loc[tp, "true_class_unscrambled"]).mean()
         print(f"Labels scrambled: {len(tp)} training-pool traces, {same:.3f} keep their class by chance")
     meta["set"] = ""
-    meta.loc[train_pool, "set"] = split_fovs(meta[train_pool], float(mc["val_fov_fraction"]), seed)
+    kf = mc.get("kfold")
+    if kf:
+        if "val_fov_fraction" in mc:
+            raise ValueError("kfold replaces val_fov_fraction; set one of them")
+        if mc.get("trace_source", "protein") == "background":
+            raise ValueError("kfold is not implemented for trace_source: background")
+        n_folds, fold = int(kf["n_folds"]), int(kf["fold"])
+        meta["kfold_fold"] = -1
+        meta.loc[train_pool, "kfold_fold"] = kfold_folds(meta[train_pool], n_folds, int(kf["partition_seed"]))
+        meta.loc[train_pool, "set"] = kfold_sets(meta.loc[train_pool, "kfold_fold"], n_folds, fold)
+        print(f"k-fold: fold {fold} of {n_folds} (partition seed {kf['partition_seed']}) is the test fold, "
+              f"fold {(fold + 1) % n_folds} the validation fold")
+    else:
+        meta.loc[train_pool, "set"] = split_fovs(meta[train_pool], float(mc["val_fov_fraction"]), seed)
     test = (meta["slide_type"] == "mixed") & meta["dataset"].isin(mc["test_datasets"]) & ~meta["dataset"].isin(holdout)
     meta.loc[test, "set"] = "test_mixed"
     meta.loc[pure & meta["dataset"].isin(holdout), "set"] = "holdout_pure"
@@ -406,7 +450,7 @@ def main() -> None:
                   f, indent=2)
     preds = [meta.loc[va_idx].reset_index(drop=True).join(val_pred)]
     extra = {s: meta.index[meta["set"] == s].to_numpy()
-             for s in ("test_mixed", "holdout_pure") + (("val_unused",) if background else ())}
+             for s in ("test_mixed", "test_oof", "holdout_pure") + (("val_unused",) if background else ())}
     for s, idx in extra.items():
         if len(idx):
             p, _ = predict(model, X_all[idx], n_mc, device, autocast_ctx, thr)

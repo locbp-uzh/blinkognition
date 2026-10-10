@@ -59,6 +59,11 @@ objects shows the ATTO520 515/488 ratio (below).
   are the other two controls (TRAINING_NOTES.md point 5).
 - `plot_sample_traces.py`, `round3_summary.py`: sample traces per dataset and slide type
   (Results/Revisions/SampleTraces/); the round-3 tables (Results/Revisions/DualColor/comparisons/r3_*.csv).
+- `paper_in.py`, `added_traces_check.py`, `round4_summary.py`: the paper's IN rule on the
+  single-protein slides (picasso-env); the check of the traces it adds; the round-4 tables
+  (comparisons/r4_*.csv).
+- `kfold_summary.py`, `ml/kfold/*.yaml`: the round-5 FOV-grouped repeated k-fold
+  (train_pure.py option `kfold`; TRAINING_NOTES.md point 9) and its tables (comparisons/r5_*.csv).
 - `daint/extract.sbatch`, `daint/train.sbatch`: Daint jobs (picasso-env, blink2-cuda).
 - `daint/run_train_queue.sh`, `daint/queues/*.txt`: submit a list of train.sbatch jobs to
   the debug partition as slots free.
