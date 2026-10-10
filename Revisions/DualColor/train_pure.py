@@ -48,7 +48,9 @@ Augmentation (training set only):
                    reasons, cannot be learned
 
 Model and optimization: the paper's (orig_conv_gru, AdamW, label smoothing, combined AUC +
-loss early stopping, class-balanced sampling), trained from scratch. Precision: fp32 by
+loss early stopping, class-balanced sampling), trained from scratch. optimization.early_stopping.
+warmup_epochs W (default 0, the paper's): the first W epochs only train and early stopping
+starts at epoch W + 1 (TRAINING_NOTES.md point 10). Precision: fp32 by
 default (bf16 autocast makes the GRU about 30x slower on GH200).
 
 Test, applied once with everything fixed: for the datasets in `test_datasets`, every filtered
@@ -431,7 +433,8 @@ def main() -> None:
                                 threshold_metric="argmax", auc_min_delta=float(es.get("auc_min_delta", 0.005)),
                                 loss_mode=str(es.get("loss_mode", "relative")),
                                 loss_tolerance=float(es.get("loss_tolerance", 1.10)),
-                                auc_tolerance=es.get("auc_tolerance"), loss_min_delta=es.get("loss_min_delta"))
+                                auc_tolerance=es.get("auc_tolerance"), loss_min_delta=es.get("loss_min_delta"),
+                                warmup_epochs=int(es.get("warmup_epochs", 0)))
     plot_losses(tl, vl, save_path=str(out / "loss_curve"))
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
 

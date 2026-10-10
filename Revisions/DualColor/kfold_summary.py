@@ -5,9 +5,10 @@
 
 """
 Round 5 summary (TRAINING_NOTES.md point 9): the FOV-grouped repeated k-fold on the paper-IN
-pool, from the evaluate.py outputs of the latest run of each name r5_kfold_p<seed>_f<fold>.
+pool, from the evaluate.py outputs of the latest run of each name <prefix>_kfold_p<seed>_f<fold>
+(--prefix: r5, or r5b for round 5b, point 10, the same runs with an early-stopping warm-up).
 
-Tables (printed, and written to <out>/r5_*.csv):
+Tables (printed, and written to <out>/<prefix>_*.csv):
 - runs          per run: repeat, fold, epochs, set sizes, threshold; AUC on its test fold
                 (oof_auc_within: within datasets at the test fold's own HT x SNAP pair
                 weights, DFK785 about 0.8; oof_auc_mixed_weights: the per-dataset AUCs at the
@@ -41,14 +42,30 @@ Tables (printed, and written to <out>/r5_*.csv):
                 sd_of_repeat_means (2 degrees of freedom) is reported, not read
 - gap_runs      per model and unit (dataset or mixed slide): the two AUCs and d
 
+Post hoc (added 2026-10-10 after the round-5 results; not declared in point 9): some runs stop
+on the initial plateau, where the training loss stays near ln 2 and the validation AUC is noise
+(a spike in the first epochs is kept as the best checkpoint and patience runs out before the
+model learns). runs.left_plateau marks the runs whose training loss fell below PLATEAU_LOSS in
+some epoch (run log). If some did not, the tables mixed_summary_trained, ensembles_trained (all
+trained runs) and gap_trained (with its sensitivity row) repeat those readouts on the trained
+runs only, after the declared tables (whose bootstrap draws they do not change).
+
+- paired        with --compare-with <prefix> (that round's <out>/<prefix>_runs.csv): per (repeat,
+                fold) the epochs, best epoch, plateau flag, and the mixed and test-fold AUCs and
+                balanced accuracies of both rounds, with their differences (this round minus the
+                other); then mean and SD rows over the pairs trained in both rounds, over the
+                pairs not trained in the other round, and over all pairs (a mixture of the two)
+
 Usage (after evaluate.py on every run):
-    python Revisions/DualColor/kfold_summary.py [--models DIR] [--out DIR] [--n-boot 2000]
+    python Revisions/DualColor/kfold_summary.py [--prefix r5] [--compare-with PREFIX] [--models DIR] [--out DIR]
+                                                [--n-boot 2000]
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -70,6 +87,7 @@ POOL_SETS = ["train", "val", "val_unused", "test_oof"]
 # Declared in point 9: the gap is also reported without this mixed slide (at chance for every model so far:
 # round-4 AUC 0.44-0.55, against about 0.74 on DFK785 slide 3)
 SENSITIVITY_DROP = ["DFK785 slide4"]
+PLATEAU_LOSS = 0.65   # post hoc: a run that never trains below this loss stayed on the initial plateau (ln 2 = 0.693)
 
 
 def latest(models: Path, name: str) -> Path | None:
@@ -78,13 +96,13 @@ def latest(models: Path, name: str) -> Path | None:
     return runs[-1] if runs else None
 
 
-def load_runs(models: Path) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+def load_runs(models: Path, prefix: str = "r5") -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     """Per-run info, the labeled test_oof + test_mixed predictions of every run, and the pool keys
     (data_split.csv) per repeat."""
     info, preds, pools = [], [], {}
     for p in PARTITION_SEEDS:
         for k in range(N_FOLDS):
-            name = f"r5_kfold_p{p}_f{k}"
+            name = f"{prefix}_kfold_p{p}_f{k}"
             run = latest(models, name)
             if run is None:
                 print(f"missing: {name}")
@@ -98,7 +116,14 @@ def load_runs(models: Path) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             if pools.setdefault(p, pool) != pool:
                 raise ValueError(f"{run}: training pool differs from the other runs of repeat {p}")
             sp = split["set"].value_counts()
+            log = (run / f"{name}.log").read_text() if (run / f"{name}.log").exists() else None
+            losses = [float(m.group(1)) for m in re.finditer(r"^Epoch \d+ \S+ train loss: ([0-9.]+)", log or "", re.M)]
+            best = re.search(r"best AUC [0-9.]+ at epoch (\d+)", log or "")
+            if log is None:
+                print(f"{run.name}: no run log, counted as trained in the post-hoc tables")
             info.append({"repeat": p, "fold": k, "run": run.name, "epochs": int(full["epochs_run"]),
+                         "best_epoch": int(best.group(1)) if best else np.nan,
+                         "left_plateau": log is None or (bool(losses) and min(losses) < PLATEAU_LOSS),
                          "threshold": float(full["wasserstein_threshold"]),
                          **{f"n_{s}": int(sp.get(s, 0)) for s in ("train", "val", "val_unused", "test_oof")}})
             pr = pd.read_csv(run / "evaluation" / "predictions_annotated.csv",
@@ -258,12 +283,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--models", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/models")
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/comparisons")
+    ap.add_argument("--prefix", default="r5", help="run names <prefix>_kfold_p<seed>_f<fold> (r5, r5b)")
+    ap.add_argument("--compare-with", help="prefix of an earlier round on the same folds (its <out>/<prefix>_runs.csv)")
     ap.add_argument("--n-boot", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=840410)
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(a.seed)
-    info, pred, pools = load_runs(a.models)
+    info, pred, pools = load_runs(a.models, a.prefix)
     runs = run_metrics(a.models, info, mixed_weights(pred))
     tables = {"runs": runs}
     tables["oof"], tables["oof_slide_pairs"] = oof_tables(pred, pools, a.n_boot, rng)
@@ -275,10 +302,43 @@ def main() -> None:
     sens = sens[sens["unit"] == "overall"].assign(unit=f"overall without {', '.join(SENSITIVITY_DROP)}",
                                                   kind="sensitivity")
     tables["gap"] = pd.concat([g, sens], ignore_index=True)
+    trained = runs.loc[runs["left_plateau"], ["repeat", "fold"]]
+    if len(trained) < len(runs):   # post hoc: the readouts on the runs that left the initial plateau
+        print(f"post hoc: {len(runs) - len(trained)} of {len(runs)} runs never trained below {PLATEAU_LOSS} "
+              f"(stayed on the initial plateau): " + ", ".join(runs.loc[~runs["left_plateau"], "run"]))
+        pt = pred.merge(trained, on=["repeat", "fold"])
+        tables["mixed_summary_trained"] = mixed_summary(runs[runs["left_plateau"]])
+        e = ensembles(pt, a.n_boot, rng)
+        tables["ensembles_trained"] = e[e["ensemble"] == "all runs"].assign(ensemble="all trained runs")
+        g, _ = gap(pt, a.n_boot, rng)
+        drop = (pt["set"] == "test_mixed") & (pt["dataset"] + " " + pt["slide"]).isin(SENSITIVITY_DROP)
+        sens, _ = gap(pt[~drop], a.n_boot, rng)
+        sens = sens[sens["unit"] == "overall"].assign(unit=f"overall without {', '.join(SENSITIVITY_DROP)}",
+                                                      kind="sensitivity")
+        tables["gap_trained"] = pd.concat([g, sens], ignore_index=True)
+    if a.compare_with:
+        other = pd.read_csv(a.out / f"{a.compare_with}_runs.csv")
+        q = ["epochs", "best_epoch", "left_plateau", "mixed_auc", "mixed_auc_within", "mixed_ba_all", "mixed_ba_kept",
+             "mixed_kept_frac", "oof_auc_within"]
+        pr = runs[["repeat", "fold"] + q].merge(other[["repeat", "fold"] + q], on=["repeat", "fold"],
+                                                 suffixes=(f"_{a.prefix}", f"_{a.compare_with}"), validate="one_to_one")
+        for c in q[3:]:
+            pr[f"diff_{c}"] = pr[f"{c}_{a.prefix}"] - pr[f"{c}_{a.compare_with}"]
+        # summary rows by what the earlier round's run did: trained in both rounds (the cost of the change plus
+        # training variance), not trained in the earlier round (the rescue), and all pairs (a mixture of the two)
+        both = pr[f"left_plateau_{a.prefix}"].astype(bool) & pr[f"left_plateau_{a.compare_with}"].astype(bool)
+        rescued = ~pr[f"left_plateau_{a.compare_with}"].astype(bool)
+        rows = []
+        for label, m in [("trained in both rounds", both), (f"not trained in {a.compare_with}", rescued),
+                         ("all pairs (mixture)", pd.Series(True, index=pr.index))]:
+            v = pr.loc[m].drop(columns=["repeat", "fold"]).astype(float)
+            rows += [v.mean().to_frame().T.assign(repeat=f"mean, {label}", fold=f"n={int(m.sum())}"),
+                     v.std(ddof=1).to_frame().T.assign(repeat=f"sd, {label}", fold=f"n={int(m.sum())}")]
+        tables["paired"] = pd.concat([pr] + rows, ignore_index=True)
     with pd.option_context("display.width", 250, "display.max_columns", 50, "display.max_rows", 300,
                            "display.float_format", "{:.3f}".format):
         for k, t in tables.items():
-            t.to_csv(a.out / f"r5_{k}.csv", index=False)
+            t.to_csv(a.out / f"{a.prefix}_{k}.csv", index=False)
             print(f"\n## {k}\n{t.to_string(index=False)}")
 
 

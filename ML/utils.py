@@ -925,7 +925,7 @@ def train_model(
     autocast_ctx=None, scaler=None, clip_grad_norm=1.0, verbose=False,
     threshold_metric="balanced_accuracy",
     auc_min_delta=0.005, loss_mode="relative", loss_tolerance=1.10,
-    auc_tolerance=None, loss_min_delta=None
+    auc_tolerance=None, loss_min_delta=None, warmup_epochs=0
 ):
     """
     Train model with combined AUC + loss early stopping.
@@ -944,8 +944,13 @@ def train_model(
         loss_tolerance: Loss constraint threshold (multiplier for relative, additive for absolute)
         auc_tolerance: (Optional) Max AUC drop from best to allow alternative checkpoint
         loss_min_delta: (Optional) Min loss improvement required for alternative checkpoint
+        warmup_epochs: The first warmup_epochs epochs only train: no checkpoint, no patience,
+            and no best-loss tracking; the early-stopping rule starts at epoch
+            warmup_epochs + 1 (always a checkpoint). 0 (default) is the original behavior.
     """
     autocast_ctx = autocast_ctx or (lambda: nullcontext())
+    if warmup_epochs and warmup_epochs >= max_epochs:
+        raise ValueError(f"warmup_epochs ({warmup_epochs}) must be smaller than max_epochs ({max_epochs})")
 
     best_val_auc = -float("inf")
     best_val_loss = float("inf")
@@ -1044,6 +1049,8 @@ def train_model(
 
         train_losses.append(train_loss); val_losses.append(val_loss); val_aucs.append(val_auc)
         print(f"Epoch {epoch:03d} — train loss: {train_loss:.4f}, acc: {train_acc:.3f} | val loss: {val_loss:.4f}, acc: {val_acc:.3f}, auc: {val_auc:.3f}")
+        if epoch <= warmup_epochs:   # warm-up: training only, early stopping starts afterwards
+            continue
 
         # Track best loss independently (for loss constraint check)
         if val_loss < best_val_loss:

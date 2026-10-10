@@ -433,6 +433,53 @@ On validation (each run's own held-out single-protein FOVs, so different sets pe
 - Verified: the BA function of round4_summary.py reproduces evaluate.py's all / kept BA and kept
   fraction in all 120 run x dataset comparisons (maximum difference 6e-17).
 
+## Round 5: FOV-grouped repeated k-fold (Daint jobs 5021067, 5021068, 5021105, 5021136; models 2026-10-10_10-*)
+
+Design: TRAINING_NOTES.md point 9 (fixed before the runs, reviewed in checks/20261010_round5_review).
+Tables: comparisons/r5_*.csv (kfold_summary.py; log r5_summary.log). The 15 Daint splits equal the
+local dry runs (checks/20261010_round5_dryrun) trace for trace, with the pinned inputs.
+
+6 of the 15 runs did not train: their training loss never left the initial plateau (ln 2; below
+0.65 in no epoch), the best checkpoint was a validation-AUC spike at epochs 2-8 and patience ran
+out at epochs 12-18. Their mixed AUC is 0.46-0.58, against 0.67-0.72 for the nine others. The
+plateau ended at epochs 8-21 in every run that left it (rounds 4 and 5), later on smaller
+training sets; the failure and the fix are TRAINING_NOTES.md point 10, rerun as round 5b.
+
+Declared readouts (all 15 runs), mixed slides: AUC 0.633 (SD 0.096), balanced accuracy 0.591 all /
+0.648 kept at 0.55 kept; ensembles of the five fold models of a repeat 0.700-0.721, of all 15 0.713
+(the untrained models' near-constant scores barely move a mean). Gap d (test-fold AUC minus
+mixed AUC, same model): overall +0.090 [+0.038, +0.145]; DFK785 +0.190 (slide 3 +0.091, slide 4
++0.311), DFK788 -0.015, DFK789 +0.080; without DFK785 slide 4 +0.024 [-0.028, +0.075].
+
+Post hoc, the nine trained runs (r5_*_trained.csv; not declared, superseded by round 5b): mixed AUC
+0.705 (SD 0.020; DFK785 0.629, DFK788 0.739, DFK789 0.746), balanced accuracy 0.649 all / 0.725
+kept at 0.49 kept; test-fold AUC within datasets 0.808. Gap overall +0.090 [+0.032, +0.149],
+carried by DFK785 slide 4 (+0.373 [+0.230, +0.506]); without it +0.012 [-0.051, +0.072]; DFK788
+-0.013, DFK789 +0.035.
+
+Out-of-fold slide pairs (all runs): HT vs SNAP slides 0.57-0.80, same-protein pairs 0.41-0.62
+(separation 0.02-0.12), so the held-out FOVs of DFK788 and DFK789 separate by protein more than
+by slide. The untrained runs still rank the held-out DFK785 FOVs at AUC 0.67-0.78 while near chance
+on the mixed slides (0.49-0.58): a simple early feature tells the two DFK785 single-protein slides apart
+without carrying over to the mixtures (compare the round-3 background models, 0.87-0.89 on DFK785).
+
+## Paper code (checked 2026-10-10)
+
+The revisions run on the `revisions` branch, on top of `main` (6f93bb0, untouched). Outside
+`Revisions/` they change four things, none of which changes a paper run:
+
+- `ML/utils.py` `train_model(..., warmup_epochs=0)` (TRAINING_NOTES.md point 10): with the default
+  both added lines are no-ops; the paper's `ML/train.py` does not pass it and `ML/crossval.py` has
+  its own loop. `tests/test_warmup.py` reproduces the train_model of 83efc7c (before the option)
+  exactly (losses, AUCs, saved checkpoint).
+- `Extraction/run_pipeline.py`: the step scripts are taken from the folder of run_pipeline.py
+  instead of the config's folder; the same folder for the paper's `Extraction/config.yaml`.
+- `Extraction/utils.py` `rel_under`: `os.path.abspath` instead of `Path.resolve()`; the same output
+  folders for real files (also under a symlinked root), different only for a movie that is itself
+  a symlink to outside the input root, where the old version wrote to the wrong folder.
+- New files only: `ML/classify.py`, `ML/config_classify.yaml`, `docs/classify.md` (inference with a
+  trained model; not called by the paper's code).
+
 ## Status
 
 - Extraction on Daint: DFK785, DFK788, DFK789 submitted (jobs 5009197, 5009198, 5009538);

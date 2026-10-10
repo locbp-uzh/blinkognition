@@ -267,6 +267,52 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    per-slide and sensitivity rows, both sides of the overall row, pinned inputs, OOF coverage
    check). Estimated runtime: about 13 min per 4-run debug job.
 
+   Result (2026-10-10, Daint jobs 5021067, 5021068, 5021105, 5021136; README.md "Round 5"): 6
+   of the 15 runs stopped on the initial plateau and did not train (point 10); the declared
+   readouts are dominated by them and are superseded by round 5b.
+
+10. Early stopping with a warm-up; round 5 rerun as round 5b (user decision 2026-10-10; fixed
+   before the runs; configs ml/kfold_warmup/r5b_*.yaml).
+   The failure: every CNN-GRU run starts on a plateau where the training loss stays near
+   ln 2 = 0.693 (0.665-0.70) and the validation AUC swings from epoch to epoch (0.35-0.77 in
+   rounds 4 and 5, about 2.3 times the sampling SD of a no-signal AUC on these sets, 0.03): the
+   spikes are transient weak cues, not noise (the six failed checkpoints rank their own test
+   folds at 0.62-0.73 and the mixed slides at 0.46-0.58). The plateau ended (training loss
+   below 0.65) at epochs 8-21 in the 19 runs of rounds 4 and 5 that left it (10 of 10 in round
+   4, 9 of 15 in round 5). When a spike in the first epochs becomes the best checkpoint and the
+   plateau outlasts it by the patience (10 epochs), the run stops untrained: 6 of 15 round-5
+   runs (best epochs 2-8, censored at epochs 12-18, mixed AUC 0.46-0.58, against 0.67-0.72 for
+   the other nine). In round 4 the table seed 1 checkpoint (epoch 12) lies just before its
+   plateau end (epoch 14), but that model had started to learn (validation loss 0.63, mixed
+   AUC 0.66).
+   The fix: optimization.early_stopping.warmup_epochs W (ML/utils.train_model, default 0 = the
+   paper's behavior, unchanged): the first W epochs only train; the paper's rule, with all its
+   state (best AUC, best loss, patience), starts at epoch W + 1, which is therefore always a
+   checkpoint (if its AUC is finite), and the earliest stop is epoch W + 1 + patience. W = 25,
+   above the latest plateau end among the runs that left the plateau (21). A run still fails
+   if its plateau outlasts about W + 10 epochs (spliced round-4/5 logs: 10 % of runs with a
+   34-epoch plateau, 56 % at 41), which a censored lognormal fit to the round-5 plateau ends
+   puts at about 0.3 % of runs (longer patience instead, 13-20 epochs, fails 6-25 %). Round 5b
+   therefore uses the paper's early stopping from epoch 26, a deviation from point 2.
+   Everything else as round 5 (same 15 configs, folds, seeds and inputs), so round 5b pairs
+   with round 5 by (repeat, fold). The training itself is not reproduced: same-seed runs on the
+   same training set (rounds 1 and 2) agree at epoch 1 and diverge from epoch 2 (GPU
+   nondeterminism); one pair's plateau ended at epoch 12 vs 17, and their mixed AUC differed by
+   -0.044 to +0.011. A paired difference therefore holds training variance as well as the
+   effect of the warm-up.
+   Declared now: a run whose training loss never falls below 0.65 is reported as not trained
+   (kfold_summary.py left_plateau). The readouts of point 9 are computed on all 15 runs; if
+   any run is not trained, readouts b and c are repeated on the trained runs
+   (mixed_summary_trained, ensembles_trained for the ensemble of all trained runs,
+   gap_trained). Readout a needs all five fold models of a repeat and stays on all runs,
+   naming the untrained folds. Expected cost: the runs that peaked before epoch 26 (three
+   trained round-5 runs: p840410_f1 22, p1_f1 22, p1_f2 17) now take their checkpoint at epoch
+   26 or later; in the 11 round-4/5 runs whose W = 25 replay ends inside their logs, the
+   checkpoint is the one the paper's rule chose. r5b_paired.csv gives per (repeat, fold) the
+   round-5 and round-5b numbers and is read separately for the nine pairs trained in round 5
+   (mean and SD of the paired differences: the cost of the warm-up plus training variance) and
+   for the six that were not (the rescue).
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,
