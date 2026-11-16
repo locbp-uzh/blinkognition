@@ -1,0 +1,55 @@
+# DFK846 (acquired 2026-11-11/12, after the laser re-alignment). Readme: <data>/20261111-readme.txt;
+# the source's own analysis notes: <data>/README_analysis.md (slides 1-4 only). 640 nm at 23 mW.
+# Slides mapped by ND2 acquisition time: HT390/day1b is slide 1 (13:28), HT390/day1 slide 2
+# (15:32). The HT390 SEC fractions were diluted (more volume added). Slide 6 is HT390 (files,
+# folder; the readme's sample line repeats slide 5's SNAP520) with 10 % biotin; the others 4 %.
+base: ../base.yaml
+dataset: DFK846
+data_folder: 20261111_DFK846
+output_root: Results/Revisions/DualColor/DFK846
+
+slides:
+  slide1:
+    dye: ATTO390
+    folder: HT390/day1b
+    prefix: HT390
+    key: Slide1HT
+    sample: HT390 75 uL fr.11 in 550 uL PB, 30 min, 20 FOVs (11 Nov 13:28-14:37)
+    channels: ["405", "488", "515", "640"]
+  slide2:
+    dye: ATTO390
+    folder: HT390/day1
+    prefix: HT390
+    key: Slide2HT
+    sample: HT390 200 uL fr.11 in 500 uL PB, 30 min, 21 FOVs (11 Nov 15:32-16:43)
+    channels: ["405", "488", "515", "640"]
+  slide3:
+    dye: ATTO520
+    folder: SNAP520/day1
+    prefix: SNAP520
+    key: Slide3SNAP
+    sample: SNAP520 20 uL fr.11 in 580 uL PB, 30 min, 40 FOVs (11 Nov 17:22-19:42)
+    channels: ["405", "488", "515", "640"]
+  slide4:
+    dye: mix
+    folder: HT390_SNAP520
+    prefix: HT390_SNAP520
+    key: Slide4Mix
+    sample: mix 100 uL HT390 (fr.11) + 10 uL SNAP520 (fr.11) in 500 uL, 30 min, 135 FOVs (11 Nov 21:44 - 12 Nov 05:45)
+    channels: ["405", "488", "515", "640"]
+  slide5:
+    dye: ATTO520
+    folder: SNAP520/day2
+    prefix: SNAP520
+    key: Slide5SNAP
+    sample: SNAP520 20 uL fr.11 in 580 uL PB, 30 min, next day, 91 FOVs (12 Nov 08:46-14:09)
+    channels: ["405", "488", "515", "640"]
+  slide6:
+    dye: ATTO390
+    folder: HT390/day2
+    prefix: HT390
+    key: Slide6HT
+    sample: HT390, 10 % biotin, next day, 119 FOVs (12 Nov 15:59-23:02; readme 120)
+    channels: ["405", "488", "515", "640"]
+
+runs: {}

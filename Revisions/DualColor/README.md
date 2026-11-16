@@ -37,6 +37,29 @@ DFK789 slide 4: the readme line says "HT390+SNAP520 (200 uL of HT390 ...)" but l
 HT390, and the files are HT390. The vesicles confirm a single-protein slide: none of its
 objects shows the ATTO520 515/488 ratio (below).
 
+Three newer sessions after the 640 nm laser re-alignment (copied 2026-11-14,
+`dual_color/SOURCES.md`): 640 nm at 23-24 mW, 515 nm at 17 % (was 6 %). Slide lists and sample
+lines in `datasets/DFK84{2,3,6}.yaml`; first look in the section "New sessions" below.
+
+| Dataset | Slide | Folder | Content | FOVs |
+|---|---|---|---|---|
+| DFK842 | 2 | HT390 | HT | 18 |
+| | 3 | HT390_SNAP520 | mix (5 uL HT + 50 uL SNAP) | 101 |
+| | 4 | SNAP520/day2 | SNAP, next day | 40 |
+| DFK843 | 1 | HT390/day1 | HT | 40 |
+| | 2 | SNAP520/day1 | SNAP | 40 |
+| | 3 | HT390_SNAP520 | mix (5 + 5 uL) | 120 |
+| | 4 | SNAP520/day2 | SNAP, next day | 60 |
+| | 5 | HT390/day2 | HT, next day | 60 |
+| DFK846 | 1 | HT390/day1b | HT | 20 |
+| | 2 | HT390/day1 | HT | 21 |
+| | 3 | SNAP520/day1 | SNAP | 40 |
+| | 4 | HT390_SNAP520 | mix (100 uL HT + 10 uL SNAP) | 135 |
+| | 5 | SNAP520/day2 | SNAP, next day | 91 |
+| | 6 | HT390/day2 | HT, next day, 10 % biotin | 119 |
+
+DFK842 slide 1 was not saved.
+
 ## Layout
 
 - `base.yaml`: analysis settings shared by all datasets (copied from the DFK785 config).
@@ -64,6 +87,10 @@ objects shows the ATTO520 515/488 ratio (below).
   (comparisons/r4_*.csv).
 - `kfold_summary.py`, `ml/kfold/*.yaml`: the round-5 FOV-grouped repeated k-fold
   (train_pure.py option `kfold`; TRAINING_NOTES.md point 9) and its tables (comparisons/r5_*.csv).
+- `extraction/run_local.sh`: the same extraction chain on a Mac (picasso-env, Picasso MLE patch),
+  staging outside the exFAT volume; used for DFK842/843/846.
+- `transfer_check.py`: trained models applied unchanged to other datasets (ensemble AUC with
+  FOV-cluster intervals, recall at 0.5).
 - `daint/extract.sbatch`, `daint/train.sbatch`: Daint jobs (picasso-env, blink2-cuda).
 - `daint/run_train_queue.sh`, `daint/queues/*.txt`: submit a list of train.sbatch jobs to
   the debug partition as slots free.
@@ -555,6 +582,27 @@ findings). In short: classification rises steeply with trace SNR (mixed AUC 0.58
 SNR third, not label noise), while more traces of the current quality buy little (doubling projected +0.01 to +0.03);
 vesicle density sets the chance coincidences, protein loading the yield; the worst slides are DFK785 mixed slide 4
 (test), DFK789 slides 2 and 4 HT and the DFK785 single-protein pair (training); DFK788 is the best session.
+
+## New sessions DFK842, DFK843, DFK846 (2026-11-16; checks/20261116_new_sessions_first_look)
+
+Extracted locally (`extraction/run_local.sh`), vesicles/unmixing/trace_assignment run_001, with an
+independent five-agent check (the folder README has every number and caveat). In short:
+
+- Better: trace background and noise at the paper's level; mixed slides much cleaner (dual vesicles
+  6-10 % vs 14-34 %, traces lost to unclear vesicles 9 % vs 38 %); 757 mixed test traces and 443
+  within-FOV HT-SNAP pairs (old 412 and 259). DFK843 mixed is the best mixed slide so far.
+- Not better for classification: the paper's final model separates the new traces as poorly as the
+  old (AUC 0.70 vs 0.71; 0.90 on its own test split); the HT/SNAP mean-ON contrast is 1.4-1.5x (paper
+  2.1-3.1x). Photons per localization +21 % (not significant), background +61 %.
+- HT brightness varies by slide (0.37-0.89x paper amplitude), with spot width tracking the per-slide
+  PFS focus offset in the ND2 metadata; DFK843/846 HT are shorter-lived than the paper's, DFK842 HT
+  keep the old sessions' long kinetics.
+- The round-5b models transfer at their old in-session level (mixed AUC 0.74-0.80; DFK846 inflated by
+  composition), but call most new HT traces SNAP at 0.5; an equal-recall threshold from the new
+  single-protein slides (about 0.75) gives mixed balanced accuracy 0.69-0.77.
+- `evaluate.py`'s 515/488 window [2.0, 4.5] does not fit the new 515 power (ATTO520 ratio 4.0-5.8):
+  re-derive it per session before evaluating DFK842-846 with it.
+- No paper-IN runs exist yet for the new sessions.
 
 ## Paper code (checked 2026-10-10)
 

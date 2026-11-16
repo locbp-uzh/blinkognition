@@ -1,0 +1,47 @@
+# DFK843 (acquired 2026-11-09/10, after the laser re-alignment). Readme: <data>/20261109-readme.txt;
+# the source's own analysis notes: <data>/README_analysis.md. 640 nm at 23 mW. All slides 4 %
+# biotin, 30 min incubation (mix 25 min), 20x washed. Day 1: slides 1-3; day 2 (next day, same
+# fractions at half the volume): slides 4-5 (both numbered "slide 4" in the readme).
+base: ../base.yaml
+dataset: DFK843
+data_folder: 20261109_DFK843
+output_root: Results/Revisions/DualColor/DFK843
+
+slides:
+  slide1:
+    dye: ATTO390
+    folder: HT390/day1
+    prefix: HT390
+    key: Slide1HT
+    sample: HT390 20 uL fr.11 in 580 uL PB, 30 min, 40 FOVs (09 Nov 12:57-15:17)
+    channels: ["405", "488", "515", "640"]
+  slide2:
+    dye: ATTO520
+    folder: SNAP520/day1
+    prefix: SNAP520
+    key: Slide2SNAP
+    sample: SNAP520 20 uL fr.11 in 580 uL PB, 30 min, 40 FOVs (09 Nov 15:39-17:59)
+    channels: ["405", "488", "515", "640"]
+  slide3:
+    dye: mix
+    folder: HT390_SNAP520
+    prefix: HT390_SNAP520
+    key: Slide3Mix
+    sample: mix 5 uL HT390 (fr.11) + 5 uL SNAP520 (fr.11) in 590 uL PB, 25 min, 120 FOVs (09 Nov 18:29 - 10 Nov 01:36)
+    channels: ["405", "488", "515", "640"]
+  slide4:
+    dye: ATTO520
+    folder: SNAP520/day2
+    prefix: SNAP520
+    key: Slide4SNAP
+    sample: SNAP520 10 uL fr.11 in 590 uL PB, 30 min, next day, 60 FOVs (10 Nov 09:21-12:53)
+    channels: ["405", "488", "515", "640"]
+  slide5:
+    dye: ATTO390
+    folder: HT390/day2
+    prefix: HT390
+    key: Slide5HT
+    sample: HT390 10 uL fr.11 in 590 uL PB, 30 min, next day, 60 FOVs (10 Nov 13:36-17:08)
+    channels: ["405", "488", "515", "640"]
+
+runs: {}

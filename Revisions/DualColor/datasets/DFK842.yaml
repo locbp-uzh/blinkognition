@@ -1,0 +1,33 @@
+# DFK842 (acquired 2026-11-04/05, after the laser re-alignment). Readme: <data>/20261104-readme.txt;
+# the source's own analysis notes: <data>/README_analysis.md (first analysed there as "DFK841").
+# 640 nm at 24 mW (DFK785-789: 12-15 mW). All slides 4 % biotin. Slide 1 (SNAP520, 35 FOV) was
+# not saved (one stray FOV in SNAP520/ at 18:09) and is not used. Folder SNAP520/day2 is slide 4.
+base: ../base.yaml
+dataset: DFK842
+data_folder: 20261104-DFK842
+output_root: Results/Revisions/DualColor/DFK842
+
+slides:
+  slide2:
+    dye: ATTO390
+    folder: HT390
+    prefix: HT390
+    key: Slide2HT
+    sample: HT390 20 uL fr.11 in 580 uL PB, 15 min, 10x washed, 18 FOVs (04 Nov 19:03-20:04)
+    channels: ["405", "488", "515", "640"]
+  slide3:
+    dye: mix
+    folder: HT390_SNAP520
+    prefix: HT390_SNAP520
+    key: Slide3Mix
+    sample: mix 5 uL HT390 (fr.11) + 50 uL SNAP520 (fr.10) in 545 uL PB, 15 min, 101 FOVs (04 Nov 21:34 - 05 Nov 03:33)
+    channels: ["405", "488", "515", "640"]
+  slide4:
+    dye: ATTO520
+    folder: SNAP520/day2
+    prefix: SNAP520
+    key: Slide4SNAP
+    sample: SNAP520 100 uL fr.10 in 500 uL PB, 15 min, next day, 40 FOVs (05 Nov 13:02-15:22)
+    channels: ["405", "488", "515", "640"]
+
+runs: {}
