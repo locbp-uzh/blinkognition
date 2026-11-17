@@ -88,7 +88,16 @@ DFK842 slide 1 was not saved.
 - `kfold_summary.py`, `ml/kfold/*.yaml`: the round-5 FOV-grouped repeated k-fold
   (train_pure.py option `kfold`; TRAINING_NOTES.md point 9) and its tables (comparisons/r5_*.csv).
 - `extraction/run_local.sh`: the same extraction chain on a Mac (picasso-env, Picasso MLE patch),
-  staging outside the exFAT volume; used for DFK842/843/846.
+  staging outside the exFAT volume; used for DFK842/843/846. With a fourth argument gt405 / gt488
+  it runs the ground-truth-mode paramfinder and localize for paper_in.py
+  (`extraction/config_gt<ch>_<ID>.yaml`).
+- `ml/round6/make_configs.py`, `ml/round6/*.yaml`, `round6_summary.py`: round 6 (TRAINING_NOTES.md
+  point 11), the paper-IN pool of all six sessions in three designs (leave one experiment out,
+  within experiment, pooled); train_pure.py options `val_datasets`, `pool_exclude` and
+  `augmentation.mirror_n_jobs`; outputs in Results/Revisions/DualColor/round6/.
+- `tests/`: test_warmup.py (paper training unchanged by the warm-up option), test_slide_pairs.py,
+  test_mirror_parallel.py (parallel mirror identical to apply_augmentation), test_round6_metrics.py
+  (equal-recall threshold, within-FOV AUC).
 - `transfer_check.py`: trained models applied unchanged to other datasets (ensemble AUC with
   FOV-cluster intervals, recall at 0.5).
 - `daint/extract.sbatch`, `daint/train.sbatch`: Daint jobs (picasso-env, blink2-cuda).
@@ -602,7 +611,7 @@ independent five-agent check (the folder README has every number and caveat). In
   single-protein slides (about 0.75) gives mixed balanced accuracy 0.69-0.77.
 - `evaluate.py`'s 515/488 window [2.0, 4.5] does not fit the new 515 power (ATTO520 ratio 4.0-5.8):
   re-derive it per session before evaluating DFK842-846 with it.
-- No paper-IN runs exist yet for the new sessions.
+- No paper-IN runs exist yet for the new sessions (made for round 6, 2026-11-17).
 
 ## Paper code (checked 2026-10-10)
 

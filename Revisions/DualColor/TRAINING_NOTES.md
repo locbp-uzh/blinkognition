@@ -325,6 +325,91 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    rounds, amending point 2 (otherwise the paper's early stopping). W = 25 was calibrated on
    CNN-GRU plateau ends, so another architecture needs its own check first.
 
+11. Round 6: the paper-IN pool of all six sessions, three training designs (user request
+   2026-11-17; fixed before the runs; configs ml/round6/, made by ml/round6/make_configs.py;
+   summary round6_summary.py). Revisions are under time pressure: no new slides; the existing
+   six sessions are used as fully as possible.
+
+   Pool. The paper's IN rule (point 7) on the single-protein slides of all six sessions. Old
+   sessions: round 4's runs, pinned (trace_assignment DFK785 run_002, DFK788 run_001, DFK789
+   run_001; paper_in DFK785 run_001, DFK788 run_001, DFK789 run_002). New sessions:
+   trace_assignment run_001; ground-truth-mode runs Extraction_gt405 / Extraction_gt488 made on the
+   Mac (extraction/run_local.sh gt mode: paramfinder and localize, 640 gradient fixed at the
+   640-only runs' 10000, as the old sessions' Daint runs); paper_in run_001 with point 7's
+   gradient rule (chance share of IN calls at most 15 %), the rule evaluated first
+   (checks/20261117_round6_paper_in/gradient_rule.py) so that the compliant run is run_001.
+   Amendment to point 7 for round 6 (pre-submission review): the 15 % is checked on the filtered
+   ROIs of the FOVs that enter the pool, so that excluded slides and FOVs (below) do not set the
+   gradient of the ones used. Two exclusions, based on the first look (checks/
+   20261116_new_sessions_first_look) and declared before any round-6 training: DFK846 Slide1HT
+   (background below the session's level, ramping over its first 9 FOVs) and DFK846 Slide3SNAP
+   FOVs 13-40 (the ATTO520 label fades to 1-3 % of its start and the 640 yield falls by 70 %: the
+   sample changes during the acquisition, and the paper-IN truth depends on that label).
+   Everything else is kept, the dim-HT slides and DFK843 Slide4SNAP included. The first look also
+   suggested dropping DFK846 Slide2HT (39 traces, falling yield); kept (user, 2026-11-17): its
+   ATTO390 label does not fade, a falling yield alone has not been an exclusion reason, and the
+   sessions are to be used as fully as possible. Mixed-slide test sets unchanged (vesicle table,
+   single-dye vesicle within 2 px): DFK785 slides 3 and 4, DFK788 slide 3, DFK789 slides 3 and 5,
+   DFK842 slide 3, DFK843 slide 3, DFK846 slide 4.
+
+   Recipe: round 5b's (CNN-GRU, patience 10 after a 25-epoch warm-up, balanced validation, mirror
+   and time invariance, factor 0, fp32, MC dropout 100 passes, trace loss at most 50 %); only the
+   split differs between designs. The mirror's per-trace GMM runs in parallel
+   (augmentation.mirror_n_jobs; output identical to apply_augmentation, tests/
+   test_mirror_parallel.py), since the six-session pool would otherwise spend most of a 30-min
+   debug job on it.
+
+   Designs (every run also predicts all eight mixed slides; the test named here is the design's
+   primary one, the others are secondary):
+   A. Leave one experiment out (6 sessions x 3 seeds = 18 runs; val_datasets). Training: the pool
+      of the other five sessions, every FOV. Validation: the whole pool of the left-out session's
+      single-protein slides (balanced): early stopping, checkpoint, Wasserstein threshold and the
+      equal-recall threshold below. Test: the left-out session's mixed slide(s). The model never
+      trains on the left-out session, but its stopping point and thresholds come from that
+      session's single-protein slides, as they would for any new session recorded with its own
+      single-protein controls. Seeds 840410, 1, 2.
+   B. Within experiment (6 x 5 = 30 runs). Training and FOV-grouped validation (val_fov_fraction
+      0.2 per slide, as rounds 1-4) from one session's pool; test: its own mixed slide(s). Seeds
+      840410, 1, 2, 3, 4. Pools are small (DFK789 about 150 traces), so these runs are expected to
+      be noisy; secondary readout: the session-to-session transfer matrix.
+   C. Pooled (5 runs). All six pools, FOV-grouped validation 0.2 per slide, all eight mixed
+      slides. Seeds 840410, 1, 2, 3, 4. FOV groups rather than a random trace split, as in rounds
+      1-5: traces of one FOV share focus, laser and sample, and a trace-level split would leak them
+      into validation.
+
+   Readouts (round6_summary.py), on the single-dye traces of the mixed slides, per mixed slide
+   and per session:
+   - Per run: AUC of p_SNAP; within-FOV AUC (HT-SNAP pairs of the same FOV only); balanced
+     accuracy and recalls at the argmax (p_SNAP 0.5); balanced accuracy at the run's
+     equal-recall threshold (the p_SNAP cut at which HT and SNAP recall are equal on the run's own
+     validation set; new in round 6, because the transfer check found the operating point moving
+     between sessions); kept fraction and balanced accuracy of the kept traces at the Wasserstein
+     threshold; trained (training loss below 0.65 at some epoch, point 10).
+   - Per design cell (A: left-out session; B: session; C) and unit: mean and SD over all seeds and
+     over the trained seeds (as point 10; a run without a log is reported and counted as trained,
+     as in kfold_summary.py); ensemble (mean p_SNAP over the trained seeds): AUC and within-FOV AUC
+     with 95 % FOV-cluster bootstrap intervals (FOVs resampled within each slide; a FOV drawn twice
+     counts as two FOVs), balanced accuracy at 0.5 and at the median of the members' equal-recall
+     thresholds.
+   - Main table: session x {A, B, C, round-5b ensemble (old sessions in-session, new sessions
+     transferred)}; differences between designs per session as a paired FOV bootstrap of the
+     ensembles on the same mixed traces (test sampling only), with the trained-seed SD of both
+     cells on that unit next to it (the training variance) and the reading rule below applied
+     (paired.csv read_as_real).
+   - DFK785 slide 4 (at chance in every model so far) per slide, and pooled numbers with and
+     without it. A mixed slide with fewer than 50 traces of a class (DFK846: 32 SNAP) is reported
+     but not read on its own.
+
+   Reading, declared now. No recipe is chosen from these numbers. C is the paper-consistent
+   analysis (the user's description) and is the main result; A is the estimate for a session the
+   model never trained on that comes with single-protein controls; B says whether a session's own
+   controls are enough. All three are reported whatever they show. A difference between designs on
+   a session is read as real only if its paired interval excludes 0 and it exceeds twice the larger
+   seed SD of the two cells. Limits: A validates on the left-out session (no independent
+   validation set; its numbers are not free of selection on that session's single-protein
+   slides); B's pools are small; C's validation FOVs come from all sessions in proportion to their
+   FOVs, so its checkpoint can favor the larger sessions.
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,

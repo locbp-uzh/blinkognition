@@ -72,7 +72,10 @@ def auc_boot(g: pd.DataFrame, rng: np.random.Generator, n_boot: int) -> tuple[fl
     y = (g["true_class"] == "SNAP").to_numpy(int)
     p = g["p_SNAP"].to_numpy()
     point = roc_auc_score(y, p)
-    idx_by_slide = {s: [np.asarray(ix) for ix in gs.groupby("fov").indices.values()]
+    # .groups (labels of the reset index = row positions of g), not .indices (positions inside each
+    # slide): fixed 2026-11-17; before, units of several slides (the single-protein slides) resampled
+    # the wrong rows. Single-slide units (each new session's mixed slide) were unaffected.
+    idx_by_slide = {s: [np.asarray(ix) for ix in gs.groupby("fov").groups.values()]
                     for s, gs in g.reset_index(drop=True).groupby("slide")}
     boot = []
     for _ in range(n_boot):

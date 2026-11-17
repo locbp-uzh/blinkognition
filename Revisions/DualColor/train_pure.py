@@ -37,11 +37,27 @@ balanced, predicted like the mixed slides), fold (fold + 1) mod n_folds the vali
 the rest the training set. The fold of every pool trace is written to data_split.csv
 (kfold_fold).
 
+Validation by dataset (val_datasets: [<dataset>, ...]; replaces val_fov_fraction and kfold;
+TRAINING_NOTES.md point 11, leave-one-experiment-out): every training-pool trace of these
+datasets is validation (balanced as usual), every pool trace of the other train_datasets is
+training. The validation datasets must be listed in train_datasets (their pool is defined
+there) and none of their traces is trained on.
+
+Pool exclusions (pool_exclude: [{dataset, slide, fovs: [FOV01, ...] or all, reason}]): those
+single-protein-slide traces leave the training pool (and holdout_pure) before any split and before
+label scrambling; the column pool_excluded in data_split.csv marks them. An unknown dataset or
+slide, a mixed slide, or a FOV list of which no FOV has filtered traces raises (a wrong FOV id
+format); listed FOVs without filtered traces are reported. Not available with trace_source:
+background.
+
 Augmentation (training set only):
   aug_factor       the paper's sweep (ML/utils.apply_augmentation): N - 1 extra copies with time
                    warping (clipped to +-5 %), Gaussian noise and magnitude jitter (clipped to
                    +-5 %), parameters time_warp_sigma, noise_sigma, magnitude_jitter
   mirror           the paper's: one extra copy with the GMM active window reversed in place
+  mirror_n_jobs    with aug_factor 0 or 1 only: the mirror's per-trace GMM in that many processes
+                   (-1: every core this process may use), same output as apply_augmentation
+                   (mirror_augment; tests/test_mirror_parallel.py); unset: apply_augmentation
   time_invariance  per sample and epoch: a random circular shift (0 to T-1 frames) and a
                    time reversal with probability 0.5, so that absolute timing (where in the
                    movie the activity lies), which differed between slides for non-protein
@@ -239,6 +255,69 @@ def kfold_sets(folds: pd.Series, n_folds: int, fold: int) -> pd.Series:
                      index=folds.index)
 
 
+def pool_exclusions(meta: pd.DataFrame, entries: list[dict]) -> pd.Series:
+    """True for the single-protein-slide traces named by pool_exclude entries {dataset, slide, fovs}."""
+    out = pd.Series(False, index=meta.index)
+    for e in entries:
+        ds, slide, fovs = e["dataset"], e["slide"], e["fovs"]
+        on = (meta["dataset"] == ds) & (meta["slide"] == slide)
+        if not on.any() or (meta.loc[on, "slide_type"] != "pure").any():
+            raise ValueError(f"pool_exclude: {ds} {slide} is not a loaded single-protein slide")
+        if fovs != "all":
+            want = set(map(str, fovs))
+            found = want & set(meta.loc[on, "fov"])
+            if not found:              # a FOV id format that matches nothing (e.g. FOV1 for FOV01)
+                raise ValueError(f"pool_exclude: none of {sorted(want)} is a FOV of {ds} {slide}")
+            if len(found) < len(want):
+                print(f"pool_exclude: {ds} {slide}: {len(want) - len(found)} listed FOVs have no filtered traces")
+            on &= meta["fov"].isin(want)
+        out |= on
+        print(f"Pool exclusion {ds} {slide} {'all FOVs' if fovs == 'all' else f'{len(found)} of {len(want)} listed FOVs'}: "
+              f"{int(on.sum())} filtered traces ({e.get('reason', 'no reason given')})")
+    return out
+
+
+_EXT_UTILS = None
+
+
+def _mirror_windows(traces: np.ndarray) -> list:
+    """(first, last) ON frame of each (T,) trace by apply_augmentation's GMM, or None (no peaks)."""
+    global _EXT_UTILS
+    if _EXT_UTILS is None:
+        import importlib.util as ilu
+        spec = ilu.spec_from_file_location("extraction_utils", REPO_ROOT / "Extraction" / "utils.py")
+        _EXT_UTILS = ilu.module_from_spec(spec)
+        spec.loader.exec_module(_EXT_UTILS)
+    out = []
+    for tr in traces:
+        on = np.where(_EXT_UTILS.gmm_classify_frames(tr, proba_threshold=0.9, min_separation=0.0)[2])[0]
+        out.append(None if len(on) == 0 else (int(on[0]), int(on[-1])))
+    return out
+
+
+def mirror_augment(X: np.ndarray, y: np.ndarray, seed: int, n_jobs: int) -> tuple[np.ndarray, np.ndarray]:
+    """apply_augmentation(X, y, aug_factor=0, include_mirror=True, random_seed=seed) with the per-trace
+    GMM of the mirror spread over n_jobs processes: the originals, one copy with the active window
+    (first to last GMM ON frame of channel 0) reversed in place (no ON frame: the whole trace), then
+    the same permutation (default_rng(seed), whose first draw it is when aug_factor <= 1)."""
+    from joblib import Parallel, delayed
+    if n_jobs == -1:
+        n_jobs = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
+    chunks = np.array_split(np.arange(len(X)), max(1, min(len(X), 8 * n_jobs)))
+    wins = Parallel(n_jobs=n_jobs)(delayed(_mirror_windows)(X[c, 0, :]) for c in chunks if len(c))
+    wins = [w for part in wins for w in part]
+    Xm = X.copy()
+    for i, w in enumerate(wins):
+        if w is None:
+            Xm[i] = X[i, :, ::-1]
+        else:
+            Xm[i, :, w[0]:w[1] + 1] = X[i, :, w[0]:w[1] + 1][:, ::-1]
+    Xa, ya = np.concatenate([X, Xm], axis=0), np.concatenate([y, y], axis=0)
+    perm = np.random.default_rng(seed=seed).permutation(len(ya))
+    print(f"  Mirror augmentation in {n_jobs} processes: {len(X)} + {len(Xm)} traces")
+    return Xa[perm], ya[perm]
+
+
 def background_sets(meta: pd.DataFrame, mc: dict, seed: int, datasets: list[str], holdout: set
                     ) -> tuple[pd.DataFrame, np.ndarray, list[dict]]:
     """Background traces in place of the protein sets of `meta` (trace_source: background).
@@ -330,6 +409,11 @@ def main() -> None:
         pure = (meta["slide_type"] == "pure") & in_ves
         if label_filter == "own_dye":
             pure &= meta["own_dye"]             # on a single-protein slide, a trace at an object of the slide's own dye
+    if mc.get("pool_exclude"):
+        if mc.get("trace_source", "protein") == "background":
+            raise ValueError("pool_exclude is not implemented for trace_source: background")
+        meta["pool_excluded"] = pool_exclusions(meta, mc["pool_exclude"])
+        pure &= ~meta["pool_excluded"]
     train_pool = pure & meta["dataset"].isin(mc["train_datasets"]) & ~meta["dataset"].isin(holdout)
     if mc.get("label_scramble", False):
         # the paper's control: permute the classes of the whole training pool before the split
@@ -341,7 +425,15 @@ def main() -> None:
         print(f"Labels scrambled: {len(tp)} training-pool traces, {same:.3f} keep their class by chance")
     meta["set"] = ""
     kf = mc.get("kfold")
-    if kf:
+    vds = mc.get("val_datasets")
+    if vds:
+        if kf or "val_fov_fraction" in mc:
+            raise ValueError("val_datasets replaces val_fov_fraction and kfold; set one of them")
+        if not set(vds) <= set(mc["train_datasets"]) or set(vds) & holdout:
+            raise ValueError("val_datasets must be train_datasets (their pool) and not holdout_datasets")
+        meta.loc[train_pool, "set"] = np.where(meta.loc[train_pool, "dataset"].isin(vds), "val", "train")
+        print(f"Validation: every pool trace of {vds}; training: the pool of the other train_datasets")
+    elif kf:
         if "val_fov_fraction" in mc:
             raise ValueError("kfold replaces val_fov_fraction; set one of them")
         if mc.get("trace_source", "protein") == "background":
@@ -382,7 +474,11 @@ def main() -> None:
     # warped / noisy / jittered copies, plus one mirrored copy with include_mirror; 0 or 1 = no copies.
     aug = mc.get("augmentation", {})
     aug_factor = int(aug.get("aug_factor", 0))
-    if aug.get("mirror", True) or aug_factor > 1:
+    if aug.get("mirror_n_jobs") is not None:
+        if aug_factor > 1 or not aug.get("mirror", True):
+            raise ValueError("mirror_n_jobs is the mirror alone (aug_factor 0 or 1, mirror: true)")
+        X_tr, y_tr = mirror_augment(X_tr, y_tr, seed, int(aug["mirror_n_jobs"]))
+    elif aug.get("mirror", True) or aug_factor > 1:
         X_tr, y_tr = apply_augmentation(X_tr, y_tr, aug_factor=aug_factor,
                                         time_warp_sigma=float(aug.get("time_warp_sigma", 0.03)),
                                         noise_sigma=float(aug.get("noise_sigma", 0.02)),

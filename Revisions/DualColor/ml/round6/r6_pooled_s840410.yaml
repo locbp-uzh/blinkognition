@@ -1,0 +1,102 @@
+# Round 6 (TRAINING_NOTES.md point 11), written by ml/round6/make_configs.py; fixed before any round-6 run.
+# Design C. Recipe: round 5b (ml/kfold_warmup/r5b_kfold_p840410_f0.yaml) without the k-fold.
+run_name: r6_pooled_s840410
+train_datasets:
+- DFK785
+- DFK788
+- DFK789
+- DFK842
+- DFK843
+- DFK846
+test_datasets:
+- DFK785
+- DFK788
+- DFK789
+- DFK842
+- DFK843
+- DFK846
+val_fov_fraction: 0.2
+seed: 840410
+trace_assignment_runs:
+  DFK785: run_002
+  DFK788: run_001
+  DFK789: run_001
+  DFK842: run_001
+  DFK843: run_001
+  DFK846: run_001
+paper_in_runs:
+  DFK785: run_001
+  DFK788: run_001
+  DFK789: run_002
+  DFK842: run_001
+  DFK843: run_001
+  DFK846: run_001
+pool_exclude:
+- dataset: DFK846
+  slide: slide1
+  fovs: all
+  reason: 'Slide1HT: background below the session''s level, ramping over its first
+    9 FOVs (first look 2026-11-16)'
+- dataset: DFK846
+  slide: slide3
+  fovs:
+  - FOV13
+  - FOV14
+  - FOV15
+  - FOV16
+  - FOV17
+  - FOV18
+  - FOV19
+  - FOV20
+  - FOV21
+  - FOV22
+  - FOV23
+  - FOV24
+  - FOV25
+  - FOV26
+  - FOV27
+  - FOV28
+  - FOV29
+  - FOV30
+  - FOV31
+  - FOV32
+  - FOV33
+  - FOV34
+  - FOV35
+  - FOV36
+  - FOV37
+  - FOV38
+  - FOV39
+  - FOV40
+  reason: 'Slide3SNAP FOVs 13-40: ATTO520 fades to 1-3 % of its start, 640 yield falls
+    70 % (first look 2026-11-16)'
+augmentation:
+  mirror: true
+  time_invariance: true
+  aug_factor: 0
+  time_warp_sigma: 0.5
+  noise_sigma: 0.5
+  magnitude_jitter: 0.5
+  mirror_n_jobs: -1
+train_label_filter: paper_in
+model:
+  name: orig_conv_gru
+precision: fp32
+optimization:
+  batch_size: 64
+  max_epochs: 500
+  patience_limit: 10
+  lr: 0.0004
+  weight_decay: 0.0004
+  label_smoothing: 0.001
+  early_stopping:
+    auc_min_delta: 0.005
+    loss_mode: relative
+    loss_tolerance: 1.1
+    auc_tolerance: 0.003
+    loss_min_delta: 0.005
+    warmup_epochs: 25
+mc_dropout:
+  n_mc: 100
+  trace_loss: 50.0
+balance_val: true

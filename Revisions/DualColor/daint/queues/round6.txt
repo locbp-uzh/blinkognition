@@ -1,0 +1,15 @@
+# Round 6 (TRAINING_NOTES.md point 11): C (5 runs), A (18), B (30), four runs per debug job.
+Revisions/DualColor/ml/round6/r6_pooled_s840410.yaml Revisions/DualColor/ml/round6/r6_pooled_s1.yaml Revisions/DualColor/ml/round6/r6_pooled_s2.yaml Revisions/DualColor/ml/round6/r6_pooled_s3.yaml
+Revisions/DualColor/ml/round6/r6_pooled_s4.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK785_s840410.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK788_s840410.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK789_s840410.yaml
+Revisions/DualColor/ml/round6/r6_loeo_DFK842_s840410.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK843_s840410.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK846_s840410.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK785_s1.yaml
+Revisions/DualColor/ml/round6/r6_loeo_DFK788_s1.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK789_s1.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK842_s1.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK843_s1.yaml
+Revisions/DualColor/ml/round6/r6_loeo_DFK846_s1.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK785_s2.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK788_s2.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK789_s2.yaml
+Revisions/DualColor/ml/round6/r6_loeo_DFK842_s2.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK843_s2.yaml Revisions/DualColor/ml/round6/r6_loeo_DFK846_s2.yaml Revisions/DualColor/ml/round6/r6_within_DFK785_s840410.yaml
+Revisions/DualColor/ml/round6/r6_within_DFK788_s840410.yaml Revisions/DualColor/ml/round6/r6_within_DFK789_s840410.yaml Revisions/DualColor/ml/round6/r6_within_DFK842_s840410.yaml Revisions/DualColor/ml/round6/r6_within_DFK843_s840410.yaml
+Revisions/DualColor/ml/round6/r6_within_DFK846_s840410.yaml Revisions/DualColor/ml/round6/r6_within_DFK785_s1.yaml Revisions/DualColor/ml/round6/r6_within_DFK788_s1.yaml Revisions/DualColor/ml/round6/r6_within_DFK789_s1.yaml
+Revisions/DualColor/ml/round6/r6_within_DFK842_s1.yaml Revisions/DualColor/ml/round6/r6_within_DFK843_s1.yaml Revisions/DualColor/ml/round6/r6_within_DFK846_s1.yaml Revisions/DualColor/ml/round6/r6_within_DFK785_s2.yaml
+Revisions/DualColor/ml/round6/r6_within_DFK788_s2.yaml Revisions/DualColor/ml/round6/r6_within_DFK789_s2.yaml Revisions/DualColor/ml/round6/r6_within_DFK842_s2.yaml Revisions/DualColor/ml/round6/r6_within_DFK843_s2.yaml
+Revisions/DualColor/ml/round6/r6_within_DFK846_s2.yaml Revisions/DualColor/ml/round6/r6_within_DFK785_s3.yaml Revisions/DualColor/ml/round6/r6_within_DFK788_s3.yaml Revisions/DualColor/ml/round6/r6_within_DFK789_s3.yaml
+Revisions/DualColor/ml/round6/r6_within_DFK842_s3.yaml Revisions/DualColor/ml/round6/r6_within_DFK843_s3.yaml Revisions/DualColor/ml/round6/r6_within_DFK846_s3.yaml Revisions/DualColor/ml/round6/r6_within_DFK785_s4.yaml
+Revisions/DualColor/ml/round6/r6_within_DFK788_s4.yaml Revisions/DualColor/ml/round6/r6_within_DFK789_s4.yaml Revisions/DualColor/ml/round6/r6_within_DFK842_s4.yaml Revisions/DualColor/ml/round6/r6_within_DFK843_s4.yaml
+Revisions/DualColor/ml/round6/r6_within_DFK846_s4.yaml
