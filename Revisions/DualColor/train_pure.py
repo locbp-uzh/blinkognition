@@ -43,6 +43,10 @@ datasets is validation (balanced as usual), every pool trace of the other train_
 training. The validation datasets must be listed in train_datasets (their pool is defined
 there) and none of their traces is trained on.
 
+Input channel (input_channel: minmax by default; TRAINING_NOTES.md point 12): the normalization read
+from ProteinTraces/Filtered/<key>_filtered_<channel>.pkl, one channel, e.g. clipmax (clipmax.py). The
+mirror augmentation runs its GMM on whatever channel is read, as before.
+
 Pool exclusions (pool_exclude: [{dataset, slide, fovs: [FOV01, ...] or all, reason}]): those
 single-protein-slide traces leave the training pool (and holdout_pure) before any split and before
 label scrambling; the column pool_excluded in data_split.csv marks them. An unknown dataset or
@@ -172,11 +176,12 @@ class TimeInvariant(Dataset):
         return x, self.y[i]
 
 
-def traces_of(cfg: dict, keys_ids: pd.DataFrame, ext_run: Path) -> np.ndarray:
-    """(N, 1, T) minmax traces for the rows of keys_ids (extraction_key, uniqueID), in order."""
+def traces_of(cfg: dict, keys_ids: pd.DataFrame, ext_run: Path, channel: str = "minmax") -> np.ndarray:
+    """(N, 1, T) traces of one normalization channel (<key>_filtered_<channel>.pkl; minmax unless
+    input_channel says otherwise) for the rows of keys_ids (extraction_key, uniqueID), in order."""
     parts = []
     for key, g in keys_ids.groupby("extraction_key", sort=False):
-        df = pd.read_pickle(ext_run / "ProteinTraces" / "Filtered" / f"{key}_filtered_minmax.pkl")
+        df = pd.read_pickle(ext_run / "ProteinTraces" / "Filtered" / f"{key}_filtered_{channel}.pkl")
         missing = set(g["uniqueID"]) - set(df.columns)
         if missing:
             raise ValueError(f"{cfg['dataset']} {key}: {len(missing)} uniqueIDs not in the filtered traces")
@@ -218,7 +223,9 @@ def load_dataset(ds: str, mc: dict) -> tuple[pd.DataFrame, np.ndarray, dict]:
         tr["paper_in"] = tr["paper_in"].fillna(False).astype(bool)
         info["paper_in_run"] = str(pr.relative_to(REPO_ROOT))
     tr = tr.reset_index(drop=True)
-    X = traces_of(cfg, tr[["extraction_key", "uniqueID"]], ext_run)
+    channel = mc.get("input_channel", "minmax")
+    X = traces_of(cfg, tr[["extraction_key", "uniqueID"]], ext_run, channel)
+    info["input_channel"] = channel
     return tr, X, info
 
 
@@ -415,6 +422,8 @@ def main() -> None:
         pure = (meta["slide_type"] == "pure") & in_ves
         if label_filter == "own_dye":
             pure &= meta["own_dye"]             # on a single-protein slide, a trace at an object of the slide's own dye
+    if mc.get("input_channel", "minmax") != "minmax" and mc.get("trace_source", "protein") == "background":
+        raise ValueError("input_channel other than minmax is not implemented for trace_source: background")
     if mc.get("pool_exclude"):
         if mc.get("trace_source", "protein") == "background":
             raise ValueError("pool_exclude is not implemented for trace_source: background")

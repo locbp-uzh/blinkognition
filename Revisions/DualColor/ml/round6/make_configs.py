@@ -91,6 +91,21 @@ def main() -> None:
             p = HERE / f"{c['run_name']}.yaml"
             p.write_text(head.format(d=d) + yaml.dump(c, Dumper=NoAliasDumper, sort_keys=False))
             paths.append(str(p.relative_to(DC.parents[1])))
+    # Point 12: design A again with input_channel clipmax, everything else identical (ml/round6_clipmax/)
+    cdir = HERE.parent / "round6_clipmax"
+    cdir.mkdir(exist_ok=True)
+    cpaths = []
+    for c in runs["A"]:
+        cc = {**c, "run_name": c["run_name"].replace("r6_loeo_", "r6c_loeo_"), "input_channel": "clipmax"}
+        q = cdir / f"{cc['run_name']}.yaml"
+        q.write_text("# Round 6 clipmax (TRAINING_NOTES.md point 12), written by ml/round6/make_configs.py; fixed before any run.\n"
+                     f"# Identical to ml/round6/{c['run_name']}.yaml except run_name and input_channel: clipmax.\n"
+                     + yaml.dump(cc, Dumper=NoAliasDumper, sort_keys=False))
+        cpaths.append(str(q.relative_to(DC.parents[1])))
+    (DC / "daint/queues/round6_clipmax.txt").write_text(
+        "# Round 6 clipmax (TRAINING_NOTES.md point 12): design A with input_channel clipmax, 18 runs.\n"
+        + "\n".join(" ".join(cpaths[i:i + 4]) for i in range(0, len(cpaths), 4)) + "\n")
+    print(f"{len(cpaths)} clipmax configs in {cdir}")
     lines = [" ".join(paths[i:i + 4]) for i in range(0, len(paths), 4)]
     q = DC / "daint/queues/round6.txt"
     q.write_text("# Round 6 (TRAINING_NOTES.md point 11): C (5 runs), A (18), B (30), four runs per debug job.\n"

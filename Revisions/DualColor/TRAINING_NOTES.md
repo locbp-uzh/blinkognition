@@ -346,9 +346,12 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    FOVs 13-40 (the ATTO520 label fades to 1-3 % of its start and the 640 yield falls by 70 %: the
    sample changes during the acquisition, and the paper-IN truth depends on that label).
    Everything else is kept, the dim-HT slides and DFK843 Slide4SNAP included. The first look also
-   suggested dropping DFK846 Slide2HT (39 traces, falling yield); kept (user, 2026-11-17): its
-   ATTO390 label does not fade, a falling yield alone has not been an exclusion reason, and the
-   sessions are to be used as fully as possible. Mixed-slide test sets unchanged (vesicle table,
+   suggested dropping DFK846 Slide2HT (39 traces, falling yield); kept (user, 2026-11-17): a falling
+   yield alone has not been an exclusion reason, and the sessions are to be used as fully as possible.
+   Correction (2026-11-17, after the runs): the reason also given then, that its ATTO390 label does not
+   fade, was wrong (late/early vesicle flux 0.51); its paper-IN chance share (0.037) is what separates it
+   from the excluded Slide3SNAP block (about 0.22). The experimenter's readme notes insufficient
+   immobilization for DFK846 slides 1-2 (checks/20261117_round6_results/acquisition_issues.md). Mixed-slide test sets unchanged (vesicle table,
    single-dye vesicle within 2 px): DFK785 slides 3 and 4, DFK788 slide 3, DFK789 slides 3 and 5,
    DFK842 slide 3, DFK843 slide 3, DFK846 slide 4.
 
@@ -420,6 +423,26 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    recipe's warm-up and patience count epochs and B has 4-28 optimizer steps per epoch (A and C
    107-136); not tested with a step-based warm-up. C equals the round-5b models per session (-0.037
    to +0.020) and beats them on the eight slides pooled (+0.029 [+0.012, +0.048]) by calibration.
+
+12. Round 6 design A with clipmax input (user request 2026-11-17; fixed before the runs; configs
+   ml/round6_clipmax/r6c_loeo_<DS>_s<seed>.yaml, made by ml/round6/make_configs.py; readout
+   round6_variant_compare.py). A quick check: design A of point 11 again, with the trace
+   normalization `clipmax` instead of `minmax`, everything else identical (sessions, pool, exclusions,
+   seeds 840410 / 1 / 2, splits, recipe, mixed test traces; the configs differ only in run_name and
+   input_channel; the mirror's GMM runs on the clipmax trace, the same code path).
+   clipmax (clipmax.py; ported from blinkognition2 clarissa-local 64f1a48, combine.py, identical output,
+   tests/test_clipmax_port.py): per background-removed trace, the GMM signal mask of
+   Extraction/utils.gmm_classify_frames at the pipeline's own peak picking (gmm_proba_threshold 0.9,
+   min_separation 2.0, the trace filter's settings; blinkognition2 used 0.6 / 2), non-signal and negative
+   frames set to 0, divided by the trace maximum: blinks in (0, 1], background exactly 0. In the
+   blinkognition2 investigation (LoD/HTvsCL_confound_investigation.md) clipmax beat minmax across
+   sessions (HTvSNAP leave-one-session-out 0.768 vs 0.702) and lost within sessions.
+   Readout, per session and pooled (all six; without DFK785 slide 4): ensemble AUC, within-FOV AUC,
+   balanced accuracy at 0.5 and at the session's own equal-recall cut, clipmax minus minmax on the same
+   resampled FOVs (95 % FOV-cluster bootstrap); per run AUC, balanced accuracy, MC-dropout kept fraction
+   and balanced accuracy of the kept. Reading, as point 11: a session's difference counts only if its
+   interval excludes 0 and it exceeds twice the larger seed SD; the pooled differences are read on
+   their intervals. No recipe change follows automatically; the user decides.
 
 ## Open
 

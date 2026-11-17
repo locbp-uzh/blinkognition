@@ -4,8 +4,8 @@
 #   Revisions/DualColor/daint/sync_inputs.sh <config.yaml> [--dry-run]
 # For every dataset the config loads (train, test and holdout datasets) it sends the pinned
 # trace_assignment run (trace_assignment_runs, else the latest), the pinned paper_in run (with
-# train_label_filter: paper_in) and the *_filtered_minmax.pkl traces of the extraction run that the
-# trace_assignment manifest names; nothing else (no movies, no localizations). AppleDouble files
+# train_label_filter: paper_in) and the *_filtered_<input_channel>.pkl traces (minmax by default) of the
+# extraction run that the trace_assignment manifest names; nothing else (no movies, no localizations). AppleDouble files
 # are skipped. Run from anywhere; paths are taken relative to the repository root.
 set -euo pipefail
 CFG=${1:?config}; shift || true
@@ -25,7 +25,7 @@ for ds in dss:
     ta = run_dir(c, "trace_assignment", (cfg.get("trace_assignment_runs") or {}).get(ds))
     print(ta.relative_to(repo))
     ext = repo / yaml.safe_load(open(ta / "manifest.yaml"))["extraction_run"]
-    for p in sorted((ext / "ProteinTraces" / "Filtered").glob("*_filtered_minmax.pkl")):
+    for p in sorted((ext / "ProteinTraces" / "Filtered").glob(f"*_filtered_{cfg.get('input_channel', 'minmax')}.pkl")):
         if not p.name.startswith("._"):
             print(p.relative_to(repo))
     if cfg.get("train_label_filter") == "paper_in":
