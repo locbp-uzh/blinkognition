@@ -613,6 +613,34 @@ independent five-agent check (the folder README has every number and caveat). In
   re-derive it per session before evaluating DFK842-846 with it.
 - No paper-IN runs exist yet for the new sessions (made for round 6, 2026-11-17).
 
+## Round 6: six sessions, three designs (Daint jobs 5377591-5378278; TRAINING_NOTES.md point 11)
+
+Paper-IN pool of all six sessions (4496 traces; checks/20261117_round6_paper_in), round-5b recipe,
+53 runs; readouts round6_summary.py (Results/Revisions/DualColor/round6/), independently recomputed
+and reviewed (checks/20261117_round6_results/README.md, which has the full tables and caveats).
+
+| Session | A, left out | B, alone | C, pooled | Round 5b |
+|---|---|---|---|---|
+| DFK785 | 0.658 | 0.524 | 0.655 | 0.635 |
+| DFK788 | 0.758 | 0.645 | 0.752 | 0.764 |
+| DFK789 | 0.750 | 0.588 | 0.723 | 0.760 |
+| DFK842 | 0.801 | 0.621 | 0.778 | 0.767 |
+| DFK843 | 0.747 | 0.618 | 0.743 | 0.740 |
+| DFK846 | 0.802 | none trained | 0.794 | 0.802 |
+
+Ensemble AUC on each session's own mixed slides. C on all eight mixed slides: 0.749 [0.722, 0.777],
+within-FOV 0.771 [0.727, 0.812], balanced accuracy 0.68 (0.759 without DFK785 slide 4).
+
+- A model that never saw a session classifies its mixed slide as well as the pooled model (C - A
+  -0.027 to -0.003 per session, no interval excludes 0).
+- Training on one session alone fails under this recipe (B - A -0.11 to -0.18, every interval
+  excludes 0; 10 of 30 runs never left the plateau): warm-up and patience count epochs, and B has
+  4-28 optimizer steps per epoch against 107-136.
+- The new sessions do not raise per-session AUC over round 5b; they put all sessions on one score
+  scale (pooled AUC +0.029 [+0.012, +0.048], balanced accuracy at 0.5 0.680 vs 0.634).
+- `best_val_auc` in config_full.json is the maximum over all epochs, warm-up included, not the
+  checkpoint's validation AUC.
+
 ## Paper code (checked 2026-10-10)
 
 The revisions run on the `revisions` branch, on top of `main` (6f93bb0, untouched). Outside

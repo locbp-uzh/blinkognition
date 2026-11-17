@@ -410,6 +410,17 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    slides); B's pools are small; C's validation FOVs come from all sessions in proportion to their
    FOVs, so its checkpoint can favor the larger sessions.
 
+   Result (2026-11-17; Daint jobs 5377591-5378278; README.md "Round 6"; checks/20261117_round6_results,
+   every number reproduced by an independent recomputation). C on all eight mixed slides: AUC 0.749
+   [0.722, 0.777], within-FOV 0.771, balanced accuracy 0.68; per run 0.733 (SD 0.017); DFK785 slide 4
+   at chance in every design. A equals C on every session (C - A -0.027 to -0.003, no interval
+   excludes 0; all six negative, mean -0.012 [-0.027, +0.004]): training on a session's own
+   single-protein slides does not help its mixed slide. B fails (B - A -0.11 to -0.18, all
+   intervals exclude 0; 10 of 30 runs never left the plateau, DFK846 0 of 5), largely because the
+   recipe's warm-up and patience count epochs and B has 4-28 optimizer steps per epoch (A and C
+   107-136); not tested with a step-based warm-up. C equals the round-5b models per session (-0.037
+   to +0.020) and beats them on the eight slides pooled (+0.029 [+0.012, +0.048]) by calibration.
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,
