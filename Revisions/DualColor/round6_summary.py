@@ -115,17 +115,46 @@ def boot_groups(df: pd.DataFrame) -> list[list[np.ndarray]]:
     return [[np.asarray(ix) for ix in g.groupby("fov").groups.values()] for _, g in d.groupby(["dataset", "slide"])]
 
 
-def resample(groups, rng) -> tuple[np.ndarray, np.ndarray]:
-    """One FOV-cluster bootstrap draw: FOVs with replacement within each slide. Returns the row
-    positions and a copy id per row, so that a FOV drawn k times counts as k separate FOVs in the
+def draw(groups, rng) -> list[np.ndarray]:
+    """One FOV-cluster bootstrap draw: per slide, FOV indices with replacement (as many as the slide has)."""
+    return [rng.integers(0, len(fovs), len(fovs)) for fovs in groups]
+
+
+def rows_of(groups, picks) -> tuple[np.ndarray, np.ndarray]:
+    """Row positions of a draw and a copy id per row: a FOV drawn k times counts as k separate FOVs in the
     within-FOV AUC (merged, its pairs would count k squared times)."""
     rows, ids, k = [], [], 0
-    for fovs in groups:
-        for i in rng.integers(0, len(fovs), len(fovs)):
+    for fovs, pk in zip(groups, picks):
+        for i in pk:
             rows.append(fovs[i])
             ids.append(np.full(len(fovs[i]), k))
             k += 1
     return np.concatenate(rows), np.concatenate(ids)
+
+
+def resample(groups, rng) -> tuple[np.ndarray, np.ndarray]:
+    return rows_of(groups, draw(groups, rng))
+
+
+def fov_pair_stats(groups, y: np.ndarray, p: np.ndarray) -> list[np.ndarray]:
+    """Per slide, (n_fovs, 2): each FOV's AUC and its HT x SNAP pair count (0, 0 with one class only)."""
+    out = []
+    for fovs in groups:
+        a = np.zeros((len(fovs), 2))
+        for i, ix in enumerate(fovs):
+            n1 = int(y[ix].sum())
+            n0 = len(ix) - n1
+            if n1 and n0:
+                a[i] = roc_auc_score(y[ix], p[ix]), n1 * n0
+        out.append(a)
+    return out
+
+
+def within_of_draw(stats: list[np.ndarray], picks) -> float:
+    """within_fov_auc of a draw from the per-FOV stats: sum of AUC x pairs over the drawn copies / sum of pairs."""
+    num = sum(float(s[pk, 0] @ s[pk, 1]) for s, pk in zip(stats, picks))
+    den = sum(float(s[pk, 1].sum()) for s, pk in zip(stats, picks))
+    return num / den if den else np.nan
 
 
 def load(models: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -201,10 +230,12 @@ def ensemble_table(ens: dict, n_boot: int, rng) -> pd.DataFrame:
             fov = (h["dataset"] + "/" + h["slide"] + "/" + h["fov"]).to_numpy()
             pt, pe = point(y, p, fov), point(y, p, fov, t)
             groups, bs = boot_groups(h), []
+            stats = fov_pair_stats(groups, y, p)
             for _ in range(n_boot):
-                ix, copy_id = resample(groups, rng)
+                picks = draw(groups, rng)
+                ix, _ = rows_of(groups, picks)
                 bs.append((roc_auc_score(y[ix], p[ix]) if len(np.unique(y[ix])) == 2 else np.nan,
-                           within_fov_auc(y[ix], p[ix], copy_id)))
+                           within_of_draw(stats, picks)))
             bs = np.array(bs)
             rows.append({"design": d, "cell": c, "n_models": n, "unit": u, "n_HT": int((y == 0).sum()),
                          "n_SNAP": int((y == 1).sum()), "auc": pt["auc"],

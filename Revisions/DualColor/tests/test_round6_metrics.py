@@ -29,7 +29,8 @@ from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd  # noqa: E402
-from round6_summary import boot_groups, eer_threshold, resample, within_fov_auc  # noqa: E402
+from round6_summary import (boot_groups, draw, eer_threshold, fov_pair_stats, resample, rows_of,  # noqa: E402
+                            within_fov_auc, within_of_draw)
 
 
 def main() -> None:
@@ -73,6 +74,22 @@ def main() -> None:
     y3, p3 = np.array([0, 1, 0, 1, 0, 1]), np.array([0.1, 0.9, 0.1, 0.9, 0.9, 0.1])
     assert abs(within_fov_auc(y3, p3, np.array([0, 0, 1, 1, 2, 2])) - 2 / 3) < 1e-12
     print("boot_groups / resample: whole FOVs per group, one id per drawn copy")
+
+    # 4. within_of_draw (per-FOV stats, the fast path) equals within_fov_auc on the drawn rows with copy ids
+    rng = np.random.default_rng(3)
+    big = pd.DataFrame({"dataset": "D", "slide": rng.choice(["s1", "s2", "s3"], 600),
+                        "fov": rng.choice([f"F{i}" for i in range(12)], 600)})
+    big = big.sort_values(["slide", "fov"]).reset_index(drop=True)
+    yb = rng.integers(0, 2, len(big))
+    pb = rng.normal(yb * 0.3, 1.0)
+    g = boot_groups(big)
+    st = fov_pair_stats(g, yb, pb)
+    for _ in range(50):
+        pk = draw(g, rng)
+        ix, ids = rows_of(g, pk)
+        slow, fast = within_fov_auc(yb[ix], pb[ix], ids), within_of_draw(st, pk)
+        assert abs(slow - fast) < 1e-12, (slow, fast)
+    print("within_of_draw: equals within_fov_auc on 50 draws")
     print("OK")
 
 
