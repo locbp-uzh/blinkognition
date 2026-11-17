@@ -641,6 +641,13 @@ within-FOV 0.771 [0.727, 0.812], balanced accuracy 0.68 (0.759 without DFK785 sl
 - `best_val_auc` in config_full.json is the maximum over all epochs, warm-up included, not the
   checkpoint's validation AUC.
 
+## Round 6, design A with clipmax input (TRAINING_NOTES.md point 12)
+
+Clipmax (clipmax.py, blinkognition2's flattening normalization at our 0.9 / 2.0 GMM settings) in place of
+minmax, everything else identical: per-session AUC -0.009 to +0.047 (none passing the rule), same-slide AUC
+0.755 vs 0.757, pooled AUC 0.752 vs 0.773 (a gain in pairs across sessions), balanced accuracy at each
+session's own cut 0.698 vs 0.699. Small and borderline at most; minmax stays (checks/20261117_round6_results).
+
 ## Paper code (checked 2026-10-10)
 
 The revisions run on the `revisions` branch, on top of `main` (6f93bb0, untouched). Outside

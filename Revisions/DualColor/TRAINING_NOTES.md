@@ -444,6 +444,16 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    interval excludes 0 and it exceeds twice the larger seed SD; the pooled differences are read on
    their intervals. No recipe change follows automatically; the user decides.
 
+   Result (2026-11-17; Daint jobs 5379420-5379829; checks/20261117_round6_results, recomputed
+   independently). Per-session AUC clipmax - minmax -0.009 to +0.047, none passing the rule (DFK785
+   +0.047 [+0.009, +0.085] < 2 x 0.029). Pooled, both declared differences exclude 0: AUC 0.752 ->
+   0.773 (+0.021 [+0.008, +0.034]) and balanced accuracy at 0.5 0.687 -> 0.719 (+0.032 [+0.014,
+   +0.051]); post hoc, the AUC gain sits in pairs across sessions (same-slide pairs +0.002 [-0.011,
+   +0.015]; +0.005 to +0.010 with session location removed or sessions weighted equally) and the
+   balanced-accuracy gain is an operating-point effect that is gone at the sessions' own cuts (0.698 vs
+   0.699). Per run a small borderline gain (+0.017, 13 of 18). Not a reason to replace minmax; reported
+   as a sensitivity analysis.
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,
