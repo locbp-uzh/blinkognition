@@ -49,7 +49,7 @@ def recipe() -> dict:
         r = yaml.safe_load(f)
     for k in ("run_name", "kfold", "seed", "train_datasets", "test_datasets", "trace_assignment_runs", "paper_in_runs"):
         r.pop(k)
-    r["augmentation"]["mirror_n_jobs"] = -1
+    r["augmentation"]["mirror_n_jobs"] = 32   # four runs per node; -1 (288 each) hit the open-file limit (job 5377506)
     return r
 
 

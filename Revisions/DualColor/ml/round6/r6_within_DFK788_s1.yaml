@@ -72,7 +72,7 @@ augmentation:
   time_warp_sigma: 0.5
   noise_sigma: 0.5
   magnitude_jitter: 0.5
-  mirror_n_jobs: -1
+  mirror_n_jobs: 32
 train_label_filter: paper_in
 model:
   name: orig_conv_gru

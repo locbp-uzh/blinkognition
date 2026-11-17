@@ -56,7 +56,8 @@ Augmentation (training set only):
                    +-5 %), parameters time_warp_sigma, noise_sigma, magnitude_jitter
   mirror           the paper's: one extra copy with the GMM active window reversed in place
   mirror_n_jobs    with aug_factor 0 or 1 only: the mirror's per-trace GMM in that many processes
-                   (-1: every core this process may use), same output as apply_augmentation
+                   (-1: every core this process may use; with four runs on a Daint node, 288 each
+                   exceeded the open-file limit, job 5377506: round 6 uses 32), same output as apply_augmentation
                    (mirror_augment; tests/test_mirror_parallel.py); unset: apply_augmentation
   time_invariance  per sample and epoch: a random circular shift (0 to T-1 frames) and a
                    time reversal with probability 0.5, so that absolute timing (where in the
@@ -314,7 +315,12 @@ def mirror_augment(X: np.ndarray, y: np.ndarray, seed: int, n_jobs: int) -> tupl
             Xm[i, :, w[0]:w[1] + 1] = X[i, :, w[0]:w[1] + 1][:, ::-1]
     Xa, ya = np.concatenate([X, Xm], axis=0), np.concatenate([y, y], axis=0)
     perm = np.random.default_rng(seed=seed).permutation(len(ya))
-    print(f"  Mirror augmentation in {n_jobs} processes: {len(X)} + {len(Xm)} traces")
+    try:
+        import resource
+        nofile = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
+    except Exception:
+        nofile = "?"
+    print(f"  Mirror augmentation in {n_jobs} processes (open-file limit {nofile}): {len(X)} + {len(Xm)} traces")
     return Xa[perm], ya[perm]
 
 
