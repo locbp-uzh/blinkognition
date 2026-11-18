@@ -29,6 +29,10 @@ mean certainty above a threshold, own_val = the mean of the five runs' own-valid
 paper's rule), on_test = the paper's rule applied to the mean certainty on the scored mixed-slide traces. BA on
 all and on kept traces with 95 % FOV-cluster bootstrap intervals (2000 draws, FOVs with replacement; thresholds
 fixed), B minus C on the same draws. (Until the user's rule: kept by at least 3 of the 5 runs at own_val.)
+Reading (balanced accuracy is a result, the user's decision of 2026-11-18, after the results): a B - C BA
+difference is read as real when its interval excludes 0 and it exceeds twice the larger seed SD of the matching
+per-run metric (BA all; BA kept at the run's own-validation threshold for own_val; BA kept at the paper's rule on
+the test traces for on_test); kept fractions are coverage, not read.
 
     python Revisions/DualColor/dfk851_ba_filter.py [--c-transfer <dir>] [--out <dir>] [--n-boot 2000]
 """
@@ -189,10 +193,19 @@ def main() -> None:
             lo, hi = np.nanpercentile(bs[:, col], [2.5, 97.5])
             t = next((thr[(c, r)] for r in ("own_val", "on_test") if nm.endswith(r)), None)
             erows.append({"cell": c, "metric": nm, "threshold": t, "value": pt[col], "lo": lo, "hi": hi})
+    sl3 = runs[runs["unit"] == "DFK851 slide3"]
+    sd_of = {"ba_all": ("own_val", "ba_all"), "ba_kept_own_val": ("own_val", "ba_kept"), "ba_kept_on_test": ("on_test", "ba_kept")}
     for i, nm in enumerate(names):
         d = bs[:, i] - bs[:, nn + i]
         lo, hi = np.nanpercentile(d, [2.5, 97.5])
-        erows.append({"cell": "B - C transfer", "metric": nm, "threshold": None, "value": pt[i] - pt[nn + i], "lo": lo, "hi": hi})
+        r = {"cell": "B - C transfer", "metric": nm, "threshold": None, "value": pt[i] - pt[nn + i], "lo": lo, "hi": hi}
+        if nm in sd_of:
+            rule, col = sd_of[nm]
+            sds = sl3[sl3["threshold_rule"] == rule].groupby("cell")[col].std()
+            big = float(max(sds["B"], sds["C transfer"]))
+            r.update({"seed_sd_B": float(sds["B"]), "seed_sd_C": float(sds["C transfer"]),
+                      "read_as_real": bool((lo > 0 or hi < 0) and abs(r["value"]) > 2 * big)})
+        erows.append(r)
     ens = pd.DataFrame(erows)
     ens.insert(0, "n_fovs", len(ufov))
     ens.to_csv(a.out / "ba_filter_ensemble.csv", index=False)

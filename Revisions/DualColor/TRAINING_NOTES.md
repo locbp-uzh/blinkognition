@@ -517,6 +517,12 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    (dfk851_ba_filter.py; post hoc). Ensemble filter, the user's rule (2026-11-18): the mean of the members'
    Wasserstein certainties against the mean of their thresholds (each the paper's 50 % rule on the member's
    validation set), so the ensemble keeps the paper's trace-retention rule; for future ensembles too.
+   Balanced accuracy is a result (user, 2026-11-18, decided after the DFK851 results were seen): B - C
+   differences in balanced accuracy (at 0.5, at the cut, and after the paper's filter) are read with point 11's
+   rule, each with that metric's own trained-seed SD; the within-FOV AUC stays reported. On DFK851 slide 3 this
+   reads BA at 0.5 as real (C higher, -0.028 [-0.047, -0.009] against 2 x 0.0135; margin 0.0007, on an SD from
+   five seeds), BA at the cut not (-0.031 against 2 x 0.0167), the filtered BA not (either threshold); early
+   half real at both cuts, late half not.
 
    Readouts on the single-dye traces of DFK851 slide 3 (dfk851_summary.py), as point 11:
    - Primary: the B ensemble (mean p_SNAP of the trained seeds): AUC and within-FOV AUC with 95 %

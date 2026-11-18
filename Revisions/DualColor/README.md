@@ -677,8 +677,9 @@ independently recomputed and reviewed (five agents; all point estimates reproduc
 
 - Design B trains on this session (all five seeds; 146-151 optimizer steps per epoch against round 6's 4-28),
   and comes close to the transferred C models, not above them: the AUC difference is not read as real under
-  the declared rule, but every point estimate favors C; balanced accuracy at 0.5 favors C beyond the rule's
-  threshold if it were applied to it (reported, not read). After the paper's uncertainty filter the two are
+  the declared rule, but every point estimate favors C; balanced accuracy at 0.5 is read as real in C's favor
+  (-0.028 [-0.047, -0.009]; BA read as a result by the user's decision after the results, margin 0.0007), at
+  the cut not (-0.031 [-0.054, -0.008]), on the early half at both. After the paper's uncertainty filter the two are
   level, C keeping more traces; at equal coverage (the paper's rule on the test traces, about 50 % kept) C is
   higher, 0.869 vs 0.840 (-0.028 [-0.055, -0.004]). Ensemble filter (user's rule): the mean of the five runs'
   certainties against the mean of their thresholds.

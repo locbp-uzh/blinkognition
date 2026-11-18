@@ -22,7 +22,8 @@ within-FOV AUC, balanced accuracy at 0.5 and at the cut, each with a 95 % FOV-cl
 for the AUC: interval excludes 0 and |difference| > 2 x the larger trained-seed SD of the two cells on
 that unit, point 11; a unit with fewer than 50 traces of a class is reported, not read, n_HT / n_SNAP beside it).
 seed_sd_B / seed_sd_C are each metric's own trained-seed SD and rule_met what the rule gives on that metric
-(read_as_real stays the AUC's; before the 2026-11-18 verification the AUC's SD stood on every row). Transfer
+(before the 2026-11-18 verification the AUC's SD stood on every row). read_as_real: the AUC, and since the
+user's decision of 2026-11-18 (after the results) the balanced accuracy at 0.5 and at the cut. Transfer
 row (transfer_B.csv): the B ensemble's AUC on each other session's mixed slides, with intervals; for a session
 with two mixed slides (DFK785) also per slide (point 11); the share of HT and of SNAP traces called SNAP at 0.5;
 and point 11's floor (reading).
@@ -54,6 +55,7 @@ DS = "DFK851"            # --ds: another session for testing against round 6 (ml
 COLS = ["dataset", "extraction_key", "uniqueID", "slide", "fov", "true_class"]
 DT = {"slide": str, "fov": str, "true_class": str, "uniqueID": str, "extraction_key": str}
 MODELS = REPO_ROOT / "Results/Revisions/DualColor/models"
+READ = ("auc", "ba_05", "ba_teer")   # metrics read with point 11's rule (BA added by the user 2026-11-18, after the results)
 
 
 def ba(y: np.ndarray, p: np.ndarray, t) -> float:
@@ -208,12 +210,13 @@ def main() -> None:
             lo, hi = np.nanpercentile(diff[:, j], [2.5, 97.5])
             big = max(sd["B"][j], sd["C transfer"][j])
             met = bool((lo > 0 or hi < 0) and abs(d0) > 2 * big) if np.isfinite(big) else None
-            # read_as_real: the rule on the AUC only (declared in this script before extraction); rule_met: what the
-            # same rule gives on each metric with that metric's own seed SD (reported, not read, for the others)
+            # read_as_real: the rule on the AUC (declared before extraction) and, by the user's decision of
+            # 2026-11-18 (made after the results), on the balanced accuracy at 0.5 and at the cut, each with its own
+            # seed SD; rule_met: the same rule on every metric (within-FOV AUC: reported, not read)
             prows.append({"unit": u, "metric": k, "n_HT": int((y == 0).sum()), "n_SNAP": int((y == 1).sum()),
                           "B": pt["B"][j], "C_transfer": pt["C transfer"][j], "diff": d0,
                           "lo": lo, "hi": hi, "seed_sd_B": sd["B"][j], "seed_sd_C": sd["C transfer"][j],
-                          "rule_met": met, "read_as_real": met if k == "auc" else None})
+                          "rule_met": met, "read_as_real": met if k in READ else None})
     ens, paired = pd.DataFrame(erows), pd.DataFrame(prows)
     ens.to_csv(a.out / "ensembles.csv", index=False)
     paired.to_csv(a.out / "paired.csv", index=False)
