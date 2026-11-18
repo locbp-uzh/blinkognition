@@ -734,6 +734,48 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    traces do not represent an all-HT sample: the deferred pure-HT-slide check) or FOV quality tracking the
    counts; the data cannot separate them.
 
+16. C fine-tuned on DFK851's single-protein slides (user request and decisions 2026-11-18; fixed before any
+   run; configs ml/dfk851/ft_*.yaml, written by ml/dfk851/make_ft_configs.py from B's configs; option
+   finetune in train_pure.py, tests/test_finetune.py).
+   Question: a model trained on many sessions (C, the "foundation model") and adjusted with the day's
+   single-protein controls, as a calibration on the day of the experiment: does it classify and count that
+   day's mixed slide better than C alone, and better than the same controls used from scratch (B)? The mixed
+   slide is a separate slide: none of its traces enters training, validation, stopping or the threshold.
+
+   Seen before deciding: on DFK851's mixed slide C (never saw DFK851) AUC 0.808, balanced accuracy 0.755; B
+   (DFK851's controls alone, from scratch) 0.793, 0.727, with a larger FOV variance (SNAP ICC 0.29 vs 0.03)
+   and worse limits of detection (point 15); round 6: adding a session's own controls to the pooled training
+   did not help its mixed slide (C - A -0.027 to -0.003). The gap these show is between single-protein and
+   mixed slides, not between days. Prediction, recorded before the runs: no real gain for the full
+   fine-tune (possibly a loss, with a larger FOV variance), at most a small gain for the last layer alone.
+
+   Decisions (user): both variants below; DFK851 only (not the older sessions through round 6's A models);
+   a default-off fine-tuning option in train_pure.py.
+
+   Runs (10). For seed s in 840410, 1, 2, 3, 4: start from r6_pooled_s<s>'s best_model.pth; data, FOV split,
+   augmentation, test sets and every other setting as B's r6_within_DFK851_s<s> (the split depends on the
+   seed, so data_split.csv is B's), so that a fine-tune differs from B only in its starting weights and the
+   optimization below.
+   - ft_head: only fc (the final linear layer) trains; convolutions, normalizations and GRUs frozen, their
+     batch-norm running statistics kept (momentum 0); learning rate 0.0004 (C's and B's).
+   - ft_full: every weight trains; learning rate 0.00004 (a tenth).
+   Both: no warm-up (the model starts past the plateau), patience 10 epochs on DFK851's single-protein
+   validation FOVs with B's early-stopping criteria, at most 500 epochs; weight decay, label smoothing,
+   batch size, MC dropout and the Wasserstein threshold rule as B. No other learning rate or layer choice is
+   tried: choosing among them would need a selection set other than the mixed slide.
+
+   Readouts on DFK851's mixed slide (as points 13-15): per run and for the ensemble of five, AUC, balanced
+   accuracy at 0.5 and at the equal-recall cut, balanced accuracy of the kept traces after the paper's
+   filter (the ensemble rule of point 13); the per-FOV ICC of p by class; point 15's limits of detection on
+   the diagonal (16/1 to 500/24) and quantitation. Paired with C and with B on the same traces, FOV-cluster
+   bootstrap (2000). Reading: point 11's rule (the paired interval excludes 0 and the difference exceeds
+   twice the larger seed SD) for AUC and balanced accuracy (a result, point 13); limits of detection:
+   paired bootstrap intervals, reported. Secondary, reported only: the older sessions' mixed slides (what the
+   fine-tune keeps of C elsewhere), epochs run and best epoch.
+
+   Compute: Daint (debug partition) once its host key is pinned again (DAINT.md), otherwise S3IT.
+   Limits: one session; one fine-tuning recipe per variant, not tuned.
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,

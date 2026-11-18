@@ -68,6 +68,15 @@ Augmentation (training set only):
                    movie the activity lies), which differed between slides for non-protein
                    reasons, cannot be learned
 
+Fine-tuning (finetune: {init_from, train_layers}; default off; TRAINING_NOTES.md point 16): the model
+starts from a trained run's best_model.pth instead of a random initialization (init_from: a run name,
+the latest Results/Revisions/DualColor/models/*_<name> with a best_model.pth, or a run folder path; its
+model and input_channel must equal this config's). train_layers: [<top-level module>, ...] trains only
+those modules (e.g. [fc], the final linear layer); every other parameter is frozen and their batch-norm
+running statistics are kept (momentum 0). Absent: every weight trains. Without finetune the run is the
+same as before the option. The source run folder and the md5 of its best_model.pth go to
+config_full.json (finetune_source).
+
 Model and optimization: the paper's (orig_conv_gru, AdamW, label smoothing, combined AUC +
 loss early stopping, class-balanced sampling), trained from scratch. optimization.early_stopping.
 warmup_epochs W (default 0, the paper's): the first W epochs only train and early stopping
@@ -372,6 +381,39 @@ def background_sets(meta: pd.DataFrame, mc: dict, seed: int, datasets: list[str]
     return bg, X, [x[2] for x in loaded]
 
 
+def finetune_init(model: nn.Module, ft: dict, mc: dict, device) -> dict:
+    """finetune: {init_from, train_layers} (point 16): load a trained run's weights into `model`; with
+    train_layers, freeze every other top-level module (requires_grad False, batch-norm momentum 0)."""
+    import hashlib
+    src = Path(ft["init_from"])
+    if not (src / "best_model.pth").exists():
+        runs = sorted(p for p in (REPO_ROOT / "Results/Revisions/DualColor/models").glob(f"*_{ft['init_from']}")
+                      if (p / "best_model.pth").exists())
+        if not runs:
+            raise SystemExit(f"finetune: no trained run {ft['init_from']}")
+        src = runs[-1]
+    with open(src / "config_full.json") as f:
+        scfg = json.load(f)["config"]
+    for key, default in (("model", {"name": "orig_conv_gru"}), ("input_channel", "minmax")):
+        if scfg.get(key, default) != mc.get(key, default):
+            raise SystemExit(f"finetune: {key} of {src.name} ({scfg.get(key, default)}) differs from this config's")
+    model.load_state_dict(torch.load(src / "best_model.pth", map_location=device, weights_only=True))
+    layers = ft.get("train_layers")
+    if layers:
+        top = {n.split(".")[0] for n, _ in model.named_parameters()}
+        if set(layers) - top:
+            raise SystemExit(f"finetune: unknown train_layers {sorted(set(layers) - top)}; modules {sorted(top)}")
+        for n, p in model.named_parameters():
+            p.requires_grad = n.split(".")[0] in layers
+        for n, m in model.named_modules():
+            if isinstance(m, nn.modules.batchnorm._BatchNorm) and n.split(".")[0] not in layers:
+                m.momentum = 0.0   # frozen: the running statistics stay the source run's
+    return {"init_from": str(src), "best_model_md5": hashlib.md5((src / "best_model.pth").read_bytes()).hexdigest(),
+            "train_layers": layers or "all",
+            "trainable_parameters": int(sum(p.numel() for p in model.parameters() if p.requires_grad)),
+            "parameters": int(sum(p.numel() for p in model.parameters()))}
+
+
 def predict(model, X: np.ndarray, n_mc: int, device, autocast_ctx, thr: float | None) -> pd.DataFrame:
     from scipy.stats import wasserstein_distance
     probs = mc_dropout_predict(model, torch.from_numpy(X).float(), n_mc=n_mc, batch_size=256, device=device,
@@ -532,7 +574,13 @@ def main() -> None:
     mcfg = mc.get("model", {"name": "orig_conv_gru"})
     model = build_model_from_config(model_name=mcfg["name"], in_channels=1, num_classes=len(CLASSES),
                                     dropout=mcfg.get("dropout"), model_kwargs=mcfg.get("kwargs", {}), device=device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=float(opt["lr"]), weight_decay=float(opt["weight_decay"]))
+    ft = mc.get("finetune")
+    ft_info = finetune_init(model, ft, mc, device) if ft else None
+    if ft_info:
+        print(f"Fine-tuning from {ft_info['init_from']} (md5 {ft_info['best_model_md5']}), train_layers "
+              f"{ft_info['train_layers']}: {ft_info['trainable_parameters']} of {ft_info['parameters']} parameters train")
+    params = [p for p in model.parameters() if p.requires_grad] if ft else model.parameters()
+    optimizer = torch.optim.AdamW(params, lr=float(opt["lr"]), weight_decay=float(opt["weight_decay"]))
     criterion = nn.CrossEntropyLoss(label_smoothing=float(opt.get("label_smoothing", 0.0)))
     es = opt.get("early_stopping", {})
     model_path, ckpt_path = out / "best_model.pth", out / "checkpoint.pth"
@@ -576,7 +624,8 @@ def main() -> None:
                    "classes": CLASSES, "n_frames": int(T), "device": str(accel["name"]), "precision": precision,
                    "torch": torch.__version__, "wasserstein_threshold": thr, "epochs_run": len(tl),
                    "best_val_auc": float(max(va)) if va else None,
-                   **({"background_inputs": bg_inputs} if background else {})}, f, indent=2)
+                   **({"background_inputs": bg_inputs} if background else {}),
+                   **({"finetune_source": ft_info} if ft_info else {})}, f, indent=2)
 
     if mc.get("background_inference", False) and not background:
         from classify_background import classify_run

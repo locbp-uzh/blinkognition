@@ -1,0 +1,5 @@
+# Point 16 (TRAINING_NOTES.md): C fine-tuned on DFK851, 10 runs, four per Daint debug job
+#   nohup Revisions/DualColor/daint/run_train_queue.sh Revisions/DualColor/daint/queues/dfk851_ft.txt > <log> 2>&1 &
+Revisions/DualColor/ml/dfk851/ft_full_DFK851_s840410.yaml Revisions/DualColor/ml/dfk851/ft_full_DFK851_s1.yaml Revisions/DualColor/ml/dfk851/ft_full_DFK851_s2.yaml Revisions/DualColor/ml/dfk851/ft_full_DFK851_s3.yaml
+Revisions/DualColor/ml/dfk851/ft_full_DFK851_s4.yaml Revisions/DualColor/ml/dfk851/ft_head_DFK851_s840410.yaml Revisions/DualColor/ml/dfk851/ft_head_DFK851_s1.yaml Revisions/DualColor/ml/dfk851/ft_head_DFK851_s2.yaml
+Revisions/DualColor/ml/dfk851/ft_head_DFK851_s3.yaml Revisions/DualColor/ml/dfk851/ft_head_DFK851_s4.yaml
