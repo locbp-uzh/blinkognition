@@ -507,6 +507,14 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    difference is the GPU type (S3IT's, recorded in each run's config_full.json; round 6 ran on GH200),
    with fp32 and TF32 off as before. The sets are checked to be identical to the local dry run's
    (checks/20261118_dfk851/dryrun_check.py) before training.
+   Outcome (2026-11-18; README "DFK851 in design B", checks/20261118_dfk851/README.md). Deviations found by
+   the independent verification and corrected before reporting: the C-reference prediction first ran with
+   cuDNN TF32 on (apply_models.py had not set the flags; rerun with TF32 off, job 8519664; the numbers moved by
+   at most 0.003); paired.csv printed the AUC's seed SD on every metric row (now each metric's own; the rule
+   stays on the AUC, as declared); transfer_B.csv lacked point 11's per-slide rows and 50-per-class floor
+   (added); the readout folder dfk851 is the DFK851 data folder on a case-insensitive disk (now dfk851_b).
+   Added on request after the results: balanced accuracy before and after the paper's MC-dropout filter
+   (dfk851_ba_filter.py; post hoc).
 
    Readouts on the single-dye traces of DFK851 slide 3 (dfk851_summary.py), as point 11:
    - Primary: the B ensemble (mean p_SNAP of the trained seeds): AUC and within-FOV AUC with 95 %

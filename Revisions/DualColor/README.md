@@ -62,7 +62,7 @@ DFK842 slide 1 was not saved.
 
 A seventh session, DFK851 (16-18 Nov 2026, copied 2026-11-18, `dual_color/SOURCES.md`), same
 acquisition settings, but vesicles loaded with 8 uM protein instead of 2 uM; design B only
-(TRAINING_NOTES.md point 13; section "DFK851" below). Slides mapped by ND2 acquisition time:
+(TRAINING_NOTES.md point 13; section "DFK851 in design B" below). Slides mapped by ND2 acquisition time:
 
 | Dataset | Slide | Folder | Content | FOVs |
 |---|---|---|---|---|
@@ -658,6 +658,35 @@ Clipmax (clipmax.py, blinkognition2's flattening normalization at our 0.9 / 2.0 
 minmax, everything else identical: per-session AUC -0.009 to +0.047 (none passing the rule), same-slide AUC
 0.755 vs 0.757, pooled AUC 0.752 vs 0.773 (a gain in pairs across sessions), balanced accuracy at each
 session's own cut 0.698 vs 0.699. Small and borderline at most; minmax stays (checks/20261117_round6_results).
+
+## DFK851 in design B (2026-11-18; TRAINING_NOTES.md point 13; checks/20261118_dfk851)
+
+A seventh session (8 uM protein loading) through the whole chain: 640-only and ground-truth extraction on
+S3IT (picasso088, equivalence-checked against the Mac), vesicles / unmixing / trace assignment / paper-IN on
+the Mac, no point-13 exclusion applied (fading and focus rules), point 7's gradient kept at 1000. Pool 5911
+paper-IN traces (round 6's six sessions: 4496). Design B trained on S3IT (Daint in maintenance; job 8517125,
+H100), sets byte-identical to the local dry run; the round-6 C models applied unchanged as the reference
+(job 8519664). Readouts dfk851_summary.py and dfk851_ba_filter.py (Results/Revisions/DualColor/dfk851_b/),
+independently recomputed and reviewed (five agents; all point estimates reproduced, no leakage).
+
+| DFK851 mixed slide (1023 HT / 854 SNAP) | AUC | BA at 0.5 | BA kept (paper filter, own validation threshold) |
+|---|---|---|---|
+| B, DFK851 alone (ensemble) | 0.793 [0.773, 0.811] | 0.727 [0.706, 0.747] | 0.839 [0.814, 0.863] at 0.48 kept |
+| C, six other sessions (ensemble) | 0.808 [0.790, 0.827] | 0.755 [0.736, 0.773] | 0.848 [0.828, 0.866] at 0.59 kept |
+| B - C | -0.016 [-0.033, +0.001] | -0.028 [-0.047, -0.009] | -0.008 [-0.033, +0.016] |
+
+- Design B trains on this session (all five seeds; 146-151 optimizer steps per epoch against round 6's 4-28),
+  and comes close to the transferred C models, not above them: the AUC difference is not read as real under
+  the declared rule, but every point estimate favors C; balanced accuracy at 0.5 favors C beyond the rule's
+  threshold if it were applied to it (reported, not read). After the paper's uncertainty filter the two are
+  level, C keeping more traces.
+- Per run, mean (SD) over seeds: BA all B 0.723 (0.013), C 0.738 (0.013); BA kept 0.825 (0.033) at 0.50 kept
+  vs 0.821 (0.011) at 0.60; with the threshold picked on the test traces as the paper's train.py does, 0.822
+  vs 0.840 at 0.52 / 0.52 kept.
+- No late-FOV drop of round 6's size on the mixed slide. The DFK851-only models call 96-100 % of the old
+  sessions' traces HT (their scale and ranking do not carry over; DFK851 was extracted at the 640 gradient
+  20000, the others at 10000).
+- One session: pool size and session quality are not separable here.
 
 ## Paper code (checked 2026-10-10)
 
