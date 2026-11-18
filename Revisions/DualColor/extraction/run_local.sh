@@ -21,7 +21,7 @@
 set -euo pipefail
 DS=${1:?dataset}; STAGE=${2:?stage root}; NW=${3:-8}; MODE=${4:-}
 REPO=$(cd "$(dirname "$0")/../../.." && pwd)
-PY=/Users/privera/opt/anaconda3/envs/picasso-env/bin/python
+PY=${PY:-/Users/privera/opt/anaconda3/envs/picasso-env/bin/python}   # PY=... overrides (s3it/extract.sbatch)
 STAGE=$(mkdir -p "$STAGE" && cd "$STAGE" && pwd)
 mkdir -p "$STAGE/runs"
 case $MODE in
