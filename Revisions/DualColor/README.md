@@ -752,6 +752,28 @@ a tenth of the learning rate (FT full). Daint debug, 3-7 min per job. Outputs Re
 - Counting with the day's own constants still over-reads SNAP by 0.09-0.18: calibration on a mixed control
   remains necessary for the ratio (point 15).
 
+## Seven-session pool (2026-11-18; TRAINING_NOTES.md point 17; Revisions/DualColor/dfk851_pool7_summary.py)
+
+Models trained from scratch on the single-protein slides of all seven sessions (DFK851 included), selected
+either on held-out single-protein FOVs (P, as C) or on the six older sessions' mixed slides (M: checkpoint,
+threshold, cut and counting constants from mixed slides; DFK785 slide 4 excluded), tested on DFK851's mixed
+slide. Six seeds each, Daint debug, three four-GPU jobs of about 11 min. Outputs Results/Revisions/DualColor/dfk851_b/pool7/.
+
+| DFK851 mixed slide, ensembles | AUC | BA at 0.5 | BA kept | LoD SNAP in HT, 100/6 and 500/24 | All-HT sample reads / slope |
+|---|---|---|---|---|---|
+| C, six other sessions | 0.808 | 0.755 | 0.843 | 0.348, 0.163 | 0.03 / 1.10 |
+| FT full (point 16) | 0.840 | 0.778 | 0.874 | 0.284, 0.127 | 0.09 / 1.03 |
+| P, seven sessions, single-protein validation | 0.851 [0.834, 0.867] | 0.786 | 0.884 | 0.285, 0.131 | 0.00 / 1.18 |
+| M, seven sessions, mixed-slide validation | 0.853 [0.835, 0.869] | 0.788 | 0.876 | 0.290, 0.134 | -0.22 / 1.42 |
+
+- Selecting on mixed slides adds nothing: M - P +0.002 AUC, no metric real (M also trains on 25 % more traces).
+- Adding DFK851's large single-protein pool helps, and generically: P beats C by +0.042 on DFK851 and by +0.047
+  on the six older sessions, where C already had their controls. Pool size and DFK851's quality are not separable.
+  P is level with the fine-tune on DFK851 and better on the older sessions (+0.031).
+- Counting constants do not transfer between sessions: taken from the older mixed slides they misread DFK851
+  for every model (all-HT reads -0.17 to -0.25); P's 0.00 is two biases cancelling. The ratio needs the same
+  session's mixed control (point 15).
+
 ## Paper code (checked 2026-10-10)
 
 The revisions run on the `revisions` branch, on top of `main` (6f93bb0, untouched). Outside

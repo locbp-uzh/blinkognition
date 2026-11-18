@@ -64,6 +64,10 @@ LABELS = {"C": "C, six other sessions", "B": "B, DFK851 alone", "FT head": "C fi
           "FT full": "C fine-tuned, all weights", "P": "7 sessions, single-protein validation",
           "M": "7 sessions, mixed-slide validation"}
 COLOR_KEYS = ("orange", "blue", "green", "vermillion", "pink", "sky_blue")   # Okabe-Ito, in the order of CELLS
+FIG_NAME = "finetune"
+CAPTION_LEAD = ("C fine-tuned on DFK851's single-protein slides, compared with C (trained on six other sessions) "
+                "and B (DFK851's single-protein slides alone, from scratch) on DFK851's mixed slide; five models per "
+                "ensemble.")
 PATTERN = {"B": "r6_within_DFK851_s*.yaml", "FT head": "ft_head_DFK851_s*.yaml", "FT full": "ft_full_DFK851_s*.yaml"}
 PAIRS = (("FT head", "C"), ("FT full", "C"), ("FT head", "B"), ("FT full", "B"), ("B", "C"))
 METRICS = ("auc", "auc_within_fov", "ba_05", "ba_teer", "kept_frac", "ba_kept")
@@ -214,7 +218,7 @@ def figures(ens: pd.DataFrame, lod: pd.DataFrame, out: Path) -> None:
     ax.set_ylabel("Ensemble value on DFK851's mixed slide")
     ax.text(-0.16, 1.04, "a", transform=ax.transAxes, fontsize=8, fontweight="bold")
     apply_axis_standards(ax)
-    save_source_data(ens[ens["metric"].isin([m for m, _ in shown])], fdir, "finetune_panel_a.csv")
+    save_source_data(ens[ens["metric"].isin([m for m, _ in shown])], fdir, f"{FIG_NAME}_panel_a.csv")
     ax = axes[1]
     rows = []
     for j, cell in enumerate(CELLS):
@@ -236,14 +240,12 @@ def figures(ens: pd.DataFrame, lod: pd.DataFrame, out: Path) -> None:
     ax.set_ylabel("Limit of detection, SNAP in HT (share)")
     ax.text(-0.2, 1.04, "b", transform=ax.transAxes, fontsize=8, fontweight="bold")
     apply_axis_standards(ax)
-    save_source_data(pd.concat(rows), fdir, "finetune_panel_b.csv")
+    save_source_data(pd.concat(rows), fdir, f"{FIG_NAME}_panel_b.csv")
     fig.legend(frameon=False, loc="lower center", ncol=4, fontsize=6, bbox_to_anchor=(0.5, -0.08))
-    save_figure(fig, fdir, "finetune.png")
+    save_figure(fig, fdir, f"{FIG_NAME}.png")
     plt.close(fig)
     (fdir / "caption.txt").write_text(
-        "C fine-tuned on DFK851's single-protein slides, compared with C (trained on six other sessions) and B "
-        "(DFK851's single-protein slides alone, from scratch) on DFK851's mixed slide. (a) Ensemble (five models "
-        "each) AUC and balanced accuracy (BA) at a p_SNAP cut of 0.5, at the equal-recall cut of the members' "
+        CAPTION_LEAD + " (a) Ensemble AUC and balanced accuracy (BA) at a p_SNAP cut of 0.5, at the equal-recall cut of the members' "
         "validation sets, and of the traces kept by the uncertainty filter; points, values on all single-dye "
         "traces of the slide (n = 1023 HT, 854 SNAP); bars, 95 % FOV-cluster bootstrap intervals (2000 draws). "
         "(b) Limit of detection of SNAP in HT (5 % false positives and negatives; CLSI EP17) for designs with about "

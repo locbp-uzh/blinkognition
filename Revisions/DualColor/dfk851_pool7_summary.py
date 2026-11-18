@@ -27,6 +27,7 @@ older mixed traces are its validation set, not a test.
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from pathlib import Path
 
@@ -43,6 +44,12 @@ F.CELLS = ("C", "FT full", "P", "M")
 F.PATTERN.update({"P": "pool7_valfov_s*.yaml", "M": "pool7_valmix_s*.yaml"})
 F.PAIRS = (("M", "P"), ("P", "C"), ("M", "C"), ("M", "FT full"), ("P", "FT full"))
 F.COLOR_KEYS = ("orange", "vermillion", "pink", "sky_blue")   # C and FT full as in point 16's figure
+F.FIG_NAME = "pool7"
+F.CAPTION_LEAD = ("Models trained on the single-protein slides of seven sessions (DFK851 included) and validated on "
+                  "held-out single-protein FOVs (P) or on the six older sessions' mixed slides (M), compared with C "
+                  "(six other sessions) and C fine-tuned on DFK851's single-protein slides (all weights), on DFK851's "
+                  "mixed slide; five models per ensemble for C and FT full, six for P and M (five-seed ensembles of P "
+                  "and M: five_seeds/).")
 
 
 def model_check(e: pd.DataFrame, rng) -> pd.DataFrame:
@@ -65,6 +72,8 @@ def main() -> None:
     res = F.main(["--out", str(a.out), "--n-boot", str(a.n_boot)] + (["--no-figures"] if a.no_figures else []))
     ret = pd.read_csv(a.out / "retention.csv")
     ret.drop(columns=[c for c in ("M",) if c in ret]).to_csv(a.out / "retention.csv", index=False)
+    if not a.no_figures:   # F.figures copies dfk851_ft_summary.py; this script's cells and pairs are set here
+        shutil.copy(__file__, a.out / "figures")
     chk = model_check(res["e"], np.random.default_rng([F.SEED, 17]))
     chk.to_csv(a.out / "model_check.csv", index=False)
     with pd.option_context("display.width", 200, "display.float_format", "{:.3f}".format):
@@ -74,6 +83,8 @@ def main() -> None:
     F.PATTERN.update({"P": "pool7_valfov_s[1-48]*.yaml", "M": "pool7_valmix_s[1-48]*.yaml"})
     print("\nFive-seed ensembles of M and P:")
     F.main(["--out", str(a.out / "five_seeds"), "--n-boot", str(a.n_boot), "--no-figures"])
+    r5 = pd.read_csv(a.out / "five_seeds" / "retention.csv")   # as above: M's older mixed traces are its validation
+    r5.drop(columns=[c for c in ("M",) if c in r5]).to_csv(a.out / "five_seeds" / "retention.csv", index=False)
 
 
 if __name__ == "__main__":

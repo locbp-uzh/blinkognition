@@ -858,6 +858,41 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    reading rule rest on six runs. Seed 5's configs are seed 840410's with only seed and run_name changed (round 6
    has no seed 5). M - P stays matched (six each); against C and FT full (five each) M and P have a six-member
    ensemble, so the five-seed ensembles of M and P (seeds 840410, 1-4) are reported beside them.
+   Result (2026-11-18; Daint jobs 5387973, 5387974, 5388234, four runs each on four GPUs, about 11 min per job;
+   readout dfk851_pool7_summary.py, outputs Results/Revisions/DualColor/dfk851_b/pool7/; README.md "Seven-session
+   pool"). Ensembles on DFK851's mixed slide, C / FT full / P / M: AUC 0.808 / 0.840 / 0.851 / 0.853; balanced
+   accuracy at 0.5 0.755 / 0.778 / 0.786 / 0.788, at the cut 0.759 / 0.774 / 0.787 / 0.789, of the kept 0.843 /
+   0.874 / 0.884 / 0.876. M - P: nothing real (AUC +0.002 [-0.002, 0.006]). P - C and M - C: real on every read
+   metric (AUC +0.042 [0.030, 0.055] and +0.045). P - FT full: not real (AUC +0.010). Limits of detection: P and M
+   below C at every diagonal design (SNAP in HT at 500/24 0.131 and 0.134 vs 0.163). Counting line (what an all-HT
+   sample reads / slope): C 0.03 / 1.10, FT full 0.09 / 1.03, P 0.00 / 1.18, M -0.22 / 1.42. Five-seed ensembles:
+   the same verdicts. Predictions recorded above: M - P within +-0.01 held; M better at the cut and on counting
+   failed; P - C no real gain failed.
+   Outcome and corrections (2026-11-18; independent verification, three agents, checks/20261118_dfk851/
+   verify_pool7). Every number reproduced blind (to 2e-16; all 40 read_as_real verdicts agree). Integrity: no
+   DFK851 slide-3 trace in any training or validation set, no mixed trace in training; M's validation exactly
+   the 1095 planned traces (1012 balanced); P's split C-style with C's validation FOVs on the older sessions;
+   configs as designed; the Daint splits byte-identical to the local dry runs; every job used its four GPUs.
+   Corrections to the reading: (1) P's gain over C is generic, not DFK851's own: P beats C by as much on the six
+   older sessions' mixed slides (+0.047 [0.025, 0.070], where C already had their controls) as on DFK851 (excess
+   -0.004 [-0.030, 0.020]); adding DFK851's large pool helps every session, consistent with round 6 (A = C). Pool
+   size (2.3 x) and DFK851's control quality cannot be separated here (a size-matched control would). On the older
+   sessions P also beats FT full (+0.031 [0.012, 0.051]), so point 16's gain may be largely generic as well.
+   (2) M's counting is bad because of where its constants come from, not because of its model: with the same
+   constants from the older mixed slides every cell misreads DFK851 (C -0.17 / 1.37, P -0.23 / 1.47, FT full -0.25 /
+   1.81); P's 0.00 is two biases cancelling (its DFK851 validation traces give +0.095, its older-session ones
+   -0.174). Neither single-protein nor other sessions' mixed-slide constants transfer to a new session: counting
+   needs the same session's mixed control (point 15). The offset interval of M with the constants resampled too
+   is [-0.36, -0.11]. (3) M - P also differs in training size (M trains on all 10407 pool traces, P on about 8300),
+   so it measures mixed-slide selection plus 25 % more data; the selection had little room (both stop 13-22 epochs
+   after the warm-up). (4) M - FT full AUC (+0.013) clears its margin by 0.0002, fails Bonferroni and Holm and holds
+   in 4 of 11 leave-one-seed-out variants: not established (P - FT full, which differs from it by the noise of
+   M - P, is not real). M - FT full BA at the cut is real with five seeds only. (5) The HT-in-SNAP limits are not
+   better than FT full's (no interval excludes 0). (6) Point 15's model check at one FOV is noise (a model true by
+   construction passes it in 19-56 % of replicates; C passes in 65 % of reruns, so point 15's pass and this fail
+   are both draws; C's exact k = 1 fractions, 8/112, pass); P and M fail at three FOVs beyond noise, on the upper
+   tail of all-SNAP samples, which no limit uses. (7) DFK851 is 54-56 % of P's validation traces (33 % of its
+   validation FOVs); a new session with few controls would get M-like counting constants, not P's.
 
 ## Open
 
