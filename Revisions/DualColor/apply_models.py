@@ -14,6 +14,9 @@ trace, the class where a single-dye vesicle lies within 2 px). transfer_check.py
 deterministic pass, no threshold. Torch is seeded with the run's seed before each run's pass.
 
 Output: <out>/<run_name>.csv with the columns of predictions.csv (set = test_mixed) and the run folder.
+--save-passes also writes <out>/<run_name>_passes.npz: p_snap (n_mc x traces, float32, the MC passes in the
+order of the CSV) and the trace keys (dataset, extraction_key, uniqueID), for analyses that need the passes
+(TRAINING_NOTES.md point 14).
 
     python Revisions/DualColor/apply_models.py --runs r6_pooled_s840410 r6_pooled_s1 ... \
         --datasets DFK851 --ta-runs DFK851=run_001 --out Results/Revisions/DualColor/dfk851_b/c_transfer
@@ -59,6 +62,7 @@ def main() -> None:
     ap.add_argument("--ta-runs", nargs="*", default=[], help="DS=run_NNN for datasets the run configs do not pin")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--compare", action="store_true", help="compare with the runs' own test_mixed predictions")
+    ap.add_argument("--save-passes", action="store_true", help="also save the MC passes of p_SNAP (<run>_passes.npz)")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
     extra_ta = dict(s.split("=", 1) for s in a.ta_runs)
@@ -82,16 +86,21 @@ def main() -> None:
                                         dropout=mcfg.get("dropout"), model_kwargs=mcfg.get("kwargs", {}), device=device)
         model.load_state_dict(torch.load(run / "best_model.pth", map_location=device, weights_only=True))
         n_mc = int(mc.get("mc_dropout", {}).get("n_mc", 100))
-        parts = []
+        parts, passes = [], []
         for ds in a.datasets:
             meta, X, info = load_dataset(ds, {k: mc[k] for k in ("trace_assignment_runs", "input_channel") if k in mc})
             idx = meta.index[meta["slide_type"] == "mixed"].to_numpy()
             torch.manual_seed(int(mc.get("seed", 840410)))
-            p, _ = predict(model, X[idx], n_mc, device, lambda: nullcontext(), thr)
+            p, probs = predict(model, X[idx], n_mc, device, lambda: nullcontext(), thr)
             parts.append(meta.loc[idx].reset_index(drop=True).assign(set="test_mixed").join(p))
+            passes.append(probs[:, :, CLASSES.index("SNAP")].astype(np.float32))
             print(f"{name} on {ds}: {len(idx)} mixed traces ({info['trace_assignment_run']})", flush=True)
         df = pd.concat(parts, ignore_index=True).assign(run=run.name)
         df.to_csv(a.out / f"{name}.csv", index=False)
+        if a.save_passes:
+            np.savez_compressed(a.out / f"{name}_passes.npz", p_snap=np.concatenate(passes, axis=1),
+                                dataset=df["dataset"].astype(str).to_numpy(), extraction_key=df["extraction_key"].astype(str).to_numpy(),
+                                uniqueID=df["uniqueID"].astype(str).to_numpy())
         if a.compare:
             own = pd.read_csv(run / "predictions.csv", dtype={"slide": str, "fov": str, "uniqueID": str,
                                                              "extraction_key": str, "true_class": str}, low_memory=False)

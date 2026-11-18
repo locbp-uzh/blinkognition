@@ -541,6 +541,58 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    - Slide 3 counts per class are reported; fewer than 50 traces of a class make it a reported, not a
      read, result (as point 11).
 
+14. Per-FOV HT:SNAP ratio on DFK851's mixed slide, with the per-trace uncertainty (user request and
+   decisions 2026-11-18; fixed before any per-FOV estimate was computed; script dfk851_fov_ratio.py, outputs
+   Results/Revisions/DualColor/dfk851_b/fov_ratio/). Question: for each FOV of the mixed slide, does the
+   model recover the share of HT and SNAP traces?
+
+   Seen before deciding (design facts only, no model output on the mixed slide): 118 FOVs with single-dye
+   traces, median 16 (IQR 13-19); the true SNAP share per FOV (0.23-0.64, SD 0.130) varies no more than
+   binomial sampling from one mix would (pooled 0.455; binomial SD at n = 16 0.124; homogeneity chi2 113 on
+   117 df, p = 0.58), so a FOV is a small sample of one composition; the vesicle-label share correlates 0.30
+   with the trace share across FOVs (not a usable truth); on B's validation sets the paper's filter keeps
+   53-59 % of HT and 43-50 % of SNAP traces, and B over-calls SNAP on the mixed slide (point 13).
+
+   Decisions (user): truth = the SNAP share among the FOV's single-dye traces (class IN_ATTO390 -> HT,
+   IN_ATTO520 -> SNAP); FOVs with at least 10 single-dye vesicles carrying a filtered trace (112 of 118; the
+   same set as at least 10 traces); primary estimator = probabilistic counting; designed mixtures added.
+
+   Models: the B ensemble (five r6_within_DFK851 runs, primary) and the C ensemble (five round-6 r6_pooled
+   runs, reference). The saved predictions keep only each trace's MC mean and SD, so the 100 MC-dropout passes
+   are regenerated for slide 3 (apply_models.py --save-passes; seeded with the run's seed, TF32 off, as the
+   recorded predictions; checked against them). A pass is one dropout-sampled model applied to every trace,
+   so drawing passes keeps the model uncertainty correlated across the traces of a FOV; drawing each trace
+   independently would make the per-trace spread irrelevant (a Bernoulli draw with a random p is a Bernoulli
+   draw with its mean).
+
+   Estimators per FOV (labeled traces; ensemble = the user's averaging over models, point 13):
+   - Primary, adjusted probabilistic count (PACC): (mean over the FOV's traces of the ensemble MC-mean p_SNAP
+     - a) / (b - a), clipped to [0, 1]; a, b = means over the five runs of each run's mean p_SNAP over its own
+     validation traces of true class HT (a) and SNAP (b) (B: DFK851 held-out FOVs; C: its six sessions).
+     Never fitted on mixed-slide labels.
+   - Its 95 % interval, simulated (4000 draws per FOV): draw a run and an MC pass (shared by all traces of the
+     FOV), draw each trace's class from that pass's p_SNAP, share -> (share - a_run) / (b_run - a_run),
+     clipped; 2.5 / 97.5 percentiles. By construction at least as wide as PACC's own sampling error (it adds
+     the vote randomness), so expected conservative if the validation constants transfer.
+   - Comparison, the paper's filter: ensemble kept = mean certainty > mean threshold (point 13), call = mean
+     p_SNAP >= 0.5; the kept calls corrected for class-dependent retention and confusion (validation rates of
+     each run's own kept / calls, averaged over runs; 2 x 2 inversion), clipped. Point estimate only.
+   - Naive classify and count (share called SNAP at 0.5), uncorrected.
+   - Baselines: the slide-level PACC (all included FOVs pooled) predicted for every FOV (no per-FOV
+     information); the true slide share 0.455 (an oracle constant).
+   Readouts: per estimator, bias, mean absolute error (MAE), RMSE, Pearson r and OLS slope of estimate on
+   truth across FOVs, for PACC interval coverage and mean width; MAE of each estimator minus each baseline with
+   95 % FOV-cluster bootstrap intervals (2000 draws); B and C side by side. Reported, no truth: PACC on all
+   filtered traces of each FOV (dual, no-label and outside traces included).
+
+   Designed mixtures: traces of the included FOVs pooled by class; SNAP shares 0.1 ... 0.9 (step 0.1) at
+   sizes 16, 50 and 200 traces, 500 mixtures each, drawn without replacement; the same estimators (PACC
+   interval with 400 draws). Readouts per size: mean estimate per designed share (calibration curve), OLS
+   slope and intercept of estimate on designed share (1 and 0 = follows the ratio faithfully), RMSE, PACC
+   coverage. Limits: the pool mixes FOVs (a mixture has no single-FOV background); the validation constants
+   come from slides where the model separates the classes better than on the mixed slide (BA 0.79 vs 0.72),
+   so PACC is expected to under-correct (slope below 1). Not read with a significance rule; reported.
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,

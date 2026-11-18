@@ -4,7 +4,8 @@
 # 2026-11-18). The S3IT counterpart of daint/train.sbatch, with the same task syntax:
 #   cd <clone> && sbatch Revisions/DualColor/s3it/train.sbatch <config.yaml> [...] [apply:<out>:<DS>=<ta run>:<run,run,...>]
 # A config runs train_pure.py -c <config>; an apply: token runs apply_models.py (trained runs applied
-# unchanged to that dataset's mixed traces). Conda env blink2-cuda (torch 2.5.1, as the Daint container).
+# unchanged to that dataset's mixed traces); an optional fifth field, comma-separated, adds options:
+# passes (--save-passes), compare (--compare), e.g. apply:<out>:<DS>=<ta run>:<runs>:passes,compare. Conda env blink2-cuda (torch 2.5.1, as the Daint container).
 # Needs Results/ with the inputs that daint/sync_inputs.sh sends (SYNC_DEST=cluster:<clone>/) and, for
 # apply:, the model run folders it names (Results/Revisions/DualColor/models/*_<run>).
 # Logs: Revisions/DualColor/s3it/logs/train_<name>_<jobid>.log, one per task.
@@ -31,8 +32,10 @@ mkdir -p Revisions/DualColor/s3it/logs
 pids=(); rc=0
 for cfg in "$@"; do
   if [[ $cfg == apply:* ]]; then   # apply:<out>:<DS>=<ta run>:<run,run,...>: apply_models.py
-    IFS=: read -r _ out dsr runs <<< "$cfg"; name=apply_$(basename "$out")
+    IFS=: read -r _ out dsr runs flags <<< "$cfg"; name=apply_$(basename "$out")
     cmd=(python Revisions/DualColor/apply_models.py --runs ${runs//,/ } --datasets "${dsr%%=*}" --ta-runs "$dsr" --out "$out")
+    [[ ,$flags, == *,passes,* ]] && cmd+=(--save-passes)
+    [[ ,$flags, == *,compare,* ]] && cmd+=(--compare)
   else
     name=$(basename "$cfg" .yaml); cmd=(python Revisions/DualColor/train_pure.py -c "$cfg")
   fi
