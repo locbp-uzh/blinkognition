@@ -20,8 +20,12 @@ slide 3, its early half and its late half (split at the median FOV in acquisitio
 within-FOV AUC, balanced accuracy at 0.5 and at the cut, each with a 95 % FOV-cluster bootstrap interval
 (FOVs with replacement, 2000 draws), and B minus reference on the same draws (paired.csv; read_as_real
 for the AUC: interval excludes 0 and |difference| > 2 x the larger trained-seed SD of the two cells on
-that unit, point 11; a unit with fewer than 50 traces of a class is reported, not read, n_HT / n_SNAP beside it). Transfer
-row (transfer_B.csv): the B ensemble's AUC on each other session's mixed slides, with intervals.
+that unit, point 11; a unit with fewer than 50 traces of a class is reported, not read, n_HT / n_SNAP beside it).
+seed_sd_B / seed_sd_C are each metric's own trained-seed SD and rule_met what the rule gives on that metric
+(read_as_real stays the AUC's; before the 2026-11-18 verification the AUC's SD stood on every row). Transfer
+row (transfer_B.csv): the B ensemble's AUC on each other session's mixed slides, with intervals; for a session
+with two mixed slides (DFK785) also per slide (point 11); the share of HT and of SNAP traces called SNAP at 0.5;
+and point 11's floor (reading).
 
     python Revisions/DualColor/dfk851_summary.py [--c-transfer <dir>] [--n-boot 2000] [--out <dir>]
     # test on a round-6 session: B = round 6 B, reference = the C runs' own predictions
@@ -172,9 +176,13 @@ def main() -> None:
         y, fov = h["y"].to_numpy(), (h["slide"] + "/" + h["fov"]).to_numpy()
         pv = {"B": (h["p_SNAP_B"].to_numpy(), tb), "C transfer": (h["p_SNAP_C"].to_numpy(), tc)}
         pt = {c: stats_of(y, p, t, fov) for c, (p, t) in pv.items()}
-        # trained-seed SD of the per-run AUC on this unit (point 11: "the trained-seed SD of both cells on that unit")
-        sd = {c: per_run_preds[c].merge(h[COLS], on=COLS).groupby("run_name")
-              .apply(lambda g: roc_auc_score(g["true_class"] == "SNAP", g["p_SNAP"]), include_groups=False).std()
+        # trained-seed SD of each metric over the cell's runs on this unit (point 11: "the trained-seed SD of both
+        # cells on that unit"); each run's balanced accuracy at its own t_eer. Until 2026-11-18 (verification of
+        # that day) the AUC's SD was printed on every metric row.
+        tcut = {c: runs.loc[runs["cell"] == c].set_index("run_name")["t_eer"] for c in pv}
+        sd = {c: pd.DataFrame([stats_of((g["true_class"] == "SNAP").to_numpy(int), g["p_SNAP"].to_numpy(), tcut[c][rn],
+                                         (g["slide"] + "/" + g["fov"]).to_numpy())
+                               for rn, g in per_run_preds[c].merge(h[COLS], on=COLS).groupby("run_name")]).std().to_numpy()
               for c in pv}
         groups = boot_groups(h)
         fs = {c: fov_pair_stats(groups, y, p) for c, (p, _) in pv.items()}
@@ -195,14 +203,17 @@ def main() -> None:
                 r[f"{k}_lo"], r[f"{k}_hi"] = np.nanpercentile(bs[c][:, j], [2.5, 97.5])
             erows.append(r)
         diff = bs["B"] - bs["C transfer"]
-        big = max(sd["B"], sd["C transfer"])
         for j, k in enumerate(names):
             d0 = pt["B"][j] - pt["C transfer"][j]
             lo, hi = np.nanpercentile(diff[:, j], [2.5, 97.5])
+            big = max(sd["B"][j], sd["C transfer"][j])
+            met = bool((lo > 0 or hi < 0) and abs(d0) > 2 * big) if np.isfinite(big) else None
+            # read_as_real: the rule on the AUC only (declared in this script before extraction); rule_met: what the
+            # same rule gives on each metric with that metric's own seed SD (reported, not read, for the others)
             prows.append({"unit": u, "metric": k, "n_HT": int((y == 0).sum()), "n_SNAP": int((y == 1).sum()),
                           "B": pt["B"][j], "C_transfer": pt["C transfer"][j], "diff": d0,
-                          "lo": lo, "hi": hi, "seed_sd_B": sd["B"], "seed_sd_C": sd["C transfer"],
-                          "read_as_real": bool((lo > 0 or hi < 0) and abs(d0) > 2 * big) if k == "auc" and np.isfinite(big) else None})
+                          "lo": lo, "hi": hi, "seed_sd_B": sd["B"][j], "seed_sd_C": sd["C transfer"][j],
+                          "rule_met": met, "read_as_real": met if k == "auc" else None})
     ens, paired = pd.DataFrame(erows), pd.DataFrame(prows)
     ens.to_csv(a.out / "ensembles.csv", index=False)
     paired.to_csv(a.out / "paired.csv", index=False)
@@ -220,15 +231,46 @@ def main() -> None:
             ix, _ = rows_of(groups, draw(groups, rng))
             if len(np.unique(y[ix])) == 2:
                 bo.append(roc_auc_score(y[ix], p[ix]))
-        tro.append({"session": ds, "n_HT": int((y == 0).sum()), "n_SNAP": int((y == 1).sum()), "auc": roc_auc_score(y, p),
-                    "auc_lo": np.percentile(bo, 2.5), "auc_hi": np.percentile(bo, 97.5), "ba_05": ba(y, p, 0.5)})
-    pd.DataFrame(tro).to_csv(a.out / "transfer_B.csv", index=False)
+        tro.append({"session": ds, "unit": "mixed slides", "n_HT": int((y == 0).sum()), "n_SNAP": int((y == 1).sum()),
+                    "auc": roc_auc_score(y, p), "auc_lo": np.percentile(bo, 2.5), "auc_hi": np.percentile(bo, 97.5),
+                    "ba_05": ba(y, p, 0.5)})
+    # added 2026-11-18 after the verification: point 11's per-slide rows for a session with two mixed slides (DFK785:
+    # slide 4 at chance in every model so far), on a separate RNG so that the rows above keep their draws; the share
+    # of each class called SNAP at 0.5; and point 11's floor (fewer than 50 traces of a class: reported, not read)
+    rng2 = np.random.default_rng(20261119)
+    for ds in [d for d in SESSIONS if d != DS]:
+        h0 = eall[eall["dataset"] == ds]
+        if h0["slide"].nunique() < 2:
+            continue
+        for sl, h in h0.groupby("slide"):
+            h = h.reset_index(drop=True)
+            y, p = (h["true_class"] == "SNAP").to_numpy(int), h["p_SNAP"].to_numpy()
+            groups = boot_groups(h)
+            bo = []
+            for _ in range(a.n_boot):
+                ix, _ = rows_of(groups, draw(groups, rng2))
+                if len(np.unique(y[ix])) == 2:
+                    bo.append(roc_auc_score(y[ix], p[ix]))
+            tro.append({"session": ds, "unit": sl, "n_HT": int((y == 0).sum()), "n_SNAP": int((y == 1).sum()),
+                        "auc": roc_auc_score(y, p), "auc_lo": np.percentile(bo, 2.5), "auc_hi": np.percentile(bo, 97.5),
+                        "ba_05": ba(y, p, 0.5)})
+    tr_df = pd.DataFrame(tro)
+    called = {}
+    for r in tr_df.itertuples():
+        h = eall[(eall["dataset"] == r.session) & ((eall["slide"] == r.unit) if r.unit != "mixed slides" else True)]
+        called[r.Index] = ((h.loc[h["true_class"] == "HT", "p_SNAP"] >= 0.5).mean(),
+                           (h.loc[h["true_class"] == "SNAP", "p_SNAP"] >= 0.5).mean())
+    tr_df["HT_called_SNAP"] = [called[i][0] for i in tr_df.index]
+    tr_df["SNAP_called_SNAP"] = [called[i][1] for i in tr_df.index]
+    tr_df["reading"] = np.where((tr_df["n_HT"] >= 50) & (tr_df["n_SNAP"] >= 50), "read", "reported, not read (< 50 of a class)")
+    tr_df.to_csv(a.out / "transfer_B.csv", index=False)
+    tro = tr_df
     with pd.option_context("display.width", 250, "display.max_columns", 40, "display.max_rows", 200,
                            "display.float_format", "{:.3f}".format):
         print(runs.drop(columns=["run"]).to_string(index=False))
         print("\n" + ens.to_string(index=False))
         print("\n" + paired.to_string(index=False))
-        print("\n" + pd.DataFrame(tro).to_string(index=False))
+        print("\n" + tro.to_string(index=False))
     print(f"\nOutputs: {a.out}")
 
 
