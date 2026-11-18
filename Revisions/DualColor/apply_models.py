@@ -16,7 +16,7 @@ deterministic pass, no threshold. Torch is seeded with the run's seed before eac
 Output: <out>/<run_name>.csv with the columns of predictions.csv (set = test_mixed) and the run folder.
 
     python Revisions/DualColor/apply_models.py --runs r6_pooled_s840410 r6_pooled_s1 ... \
-        --datasets DFK851 --ta-runs DFK851=run_001 --out Results/Revisions/DualColor/dfk851/c_transfer
+        --datasets DFK851 --ta-runs DFK851=run_001 --out Results/Revisions/DualColor/dfk851_b/c_transfer
     # check: on a dataset the runs did predict, compare with their own predictions.csv
     python Revisions/DualColor/apply_models.py --runs ... --datasets DFK846 --out <dir> --compare
 """

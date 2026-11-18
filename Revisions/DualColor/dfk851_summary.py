@@ -128,11 +128,11 @@ def stats_of(y, p, t, fov) -> tuple:
 def main() -> None:
     global DS
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--c-transfer", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/dfk851/c_transfer")
+    ap.add_argument("--c-transfer", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/dfk851_b/c_transfer")
     ap.add_argument("--ds", default=DS)
     ap.add_argument("--b-configs", type=Path, default=HERE / "ml/dfk851")
     ap.add_argument("--n-boot", type=int, default=2000)
-    ap.add_argument("--out", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/dfk851")
+    ap.add_argument("--out", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/dfk851_b")  # not dfk851: the same folder as DFK851 on a case-insensitive disk
     a = ap.parse_args()
     DS = a.ds
     a.out.mkdir(parents=True, exist_ok=True)

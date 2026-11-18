@@ -71,7 +71,7 @@ def main() -> None:
         p.write_text(head + yaml.dump(c, Dumper=r6.NoAliasDumper, sort_keys=False))
         paths.append(str(p.relative_to(DC.parents[1])))
     # the reference of point 13: the five round-6 C models applied unchanged, as a task of the same job
-    apply = (f"apply:Results/Revisions/DualColor/dfk851/c_transfer:{DS}={TA_RUN}:"
+    apply = (f"apply:Results/Revisions/DualColor/dfk851_b/c_transfer:{DS}={TA_RUN}:"
              + ",".join(f"r6_pooled_s{s}" for s in r6.SEEDS_BC))
     q = DC / "s3it/queues/dfk851.txt"
     q.parent.mkdir(exist_ok=True)
