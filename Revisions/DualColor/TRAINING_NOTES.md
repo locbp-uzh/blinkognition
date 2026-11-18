@@ -810,6 +810,50 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    validation AUC (0.85-0.90 vs FT 0.80-0.87) with a lower mixed AUC reads as "B's validation does not transfer
    to the mixed slide"; over-fitting and a slide-identity shortcut explain it equally.
 
+17. Seven-session pool, validated on the older sessions' mixed slides (user request and decisions 2026-11-18;
+   fixed before any run; configs ml/dfk851/pool7_*.yaml, written by ml/dfk851/make_pool7_configs.py from the
+   round-6 C configs; option val_mixed in train_pure.py; readout dfk851_pool7_summary.py). Question: if the
+   model is trained on every single-protein slide of all seven sessions and selected on mixed slides (the
+   older sessions'), does it generalize better to a new mixed slide (DFK851's)? Validation does not train:
+   the weights still learn from single-protein slides only; the mixed slides choose the checkpoint (early
+   stopping), the Wasserstein threshold, the equal-recall cut and the counting constants a, b. DFK851's mixed
+   slide is used for nothing but the test. The C control of point 16 (C continued at the lower learning rate)
+   waits (user).
+
+   Seen before deciding: the older sessions' mixed slides hold 551 HT and 618 SNAP labeled traces (1-3 per
+   FOV, 8 slides; DFK785 slide 4: 45 / 29, at chance in every model so far); the seven single-protein pools
+   10407 traces (DFK851 5911). An AUC on about 1000 balanced traces has an SE of about 0.015, close to its
+   epoch-to-epoch changes, so early stopping on it is partly noise (C's single-protein validation, 830 traces,
+   likewise). Point 16: C fine-tuned on DFK851's controls 0.840 vs C 0.808.
+
+   Decisions (user): arm P added as the control; DFK785 slide 4 excluded from the validation (at chance in
+   every model, so it adds only noise to the stopping signal; its traces stay in the test predictions); the
+   more aggressive variant (older mixed slides in training) kept for later; a default-off val_mixed option.
+
+   Runs (10), seeds 840410, 1, 2, 3, 4, everything else as round 6's C (r6_pooled_s<seed>: recipe 5b, warm-up
+   25, patience 10, lr 0.0004, pins, pool exclusions) with DFK851 added to train_datasets and test_datasets
+   (trace_assignment and paper_in run_001, no DFK851 exclusion):
+   - pool7_valmix_s<seed> (M): training = the whole paper-IN pool of the seven sessions; validation = the
+     labeled traces (single-dye vesicle within 2 px) of the mixed slides of DFK785 (slide 3), DFK788, DFK789,
+     DFK842, DFK843, DFK846, balanced as usual (balance_val).
+   - pool7_valfov_s<seed> (P): as C, 20 % of each single-protein slide's FOVs as validation.
+   Prediction, recorded before the runs: M - P on AUC within +-0.01 (not real); M better on balanced accuracy at
+   the cut and on the counting offset (both depend on mixed-slide calibration); P - C no real AUC gain (round 6:
+   a session's own controls in the pool did not help its mixed slide).
+
+   Readouts on DFK851's mixed slide, as point 16 (AUC, within-FOV AUC, balanced accuracy at 0.5 and at the cut,
+   kept fraction and balanced accuracy of the kept, per-FOV ICC, point 15's limits of detection on the
+   diagonal), plus the counting line: the uncalibrated share reads offset + slope x s, with offset =
+   (a' - a) / (b - a) and slope = (b' - a') / (b - a) (a, b = each cell's validation class means; a', b' = DFK851
+   mixed-slide class means), with bootstrap intervals. Cells M, P, C and FT full (point 16). Paired: M - P (the
+   effect of validating on mixed slides), P - C (DFK851's controls in a from-scratch pool), M - C, M - FT full,
+   P - FT full; point 11's rule for AUC and the balanced accuracies. Point 15's model check is reported for each
+   cell (the point-16 readout skipped it).
+
+   Compute: Daint debug (4 runs per job; M's training set is about 2.2 x B's, estimated 20-25 min per run). If a
+   run reaches the 30-min limit, the user decides about the normal partition. Limits: one test session; the
+   validation slides are small and sparse; the selection set's DFK785 slide 4 exclusion is a choice made now.
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,

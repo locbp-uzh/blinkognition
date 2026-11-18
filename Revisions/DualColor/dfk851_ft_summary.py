@@ -60,6 +60,10 @@ from round6_summary import (PLATEAU_LOSS, boot_groups, draw, eer_threshold, fov_
                             rows_of, within_fov_auc, within_of_draw)
 
 CELLS = ("C", "B", "FT head", "FT full")
+LABELS = {"C": "C, six other sessions", "B": "B, DFK851 alone", "FT head": "C fine-tuned, last layer",
+          "FT full": "C fine-tuned, all weights", "P": "7 sessions, single-protein validation",
+          "M": "7 sessions, mixed-slide validation"}
+COLOR_KEYS = ("orange", "blue", "green", "vermillion", "pink", "sky_blue")   # Okabe-Ito, in the order of CELLS
 PATTERN = {"B": "r6_within_DFK851_s*.yaml", "FT head": "ft_head_DFK851_s*.yaml", "FT full": "ft_full_DFK851_s*.yaml"}
 PAIRS = (("FT head", "C"), ("FT full", "C"), ("FT head", "B"), ("FT full", "B"), ("B", "C"))
 METRICS = ("auc", "auc_within_fov", "ba_05", "ba_teer", "kept_frac", "ba_kept")
@@ -126,8 +130,8 @@ def ens_metrics(y, p, t, w, thr, fov) -> np.ndarray:
                      ba(y[k], p[k], 0.5) if k.any() and len(np.unique(y[k])) == 2 else np.nan])
 
 
-def lod_tables(e: pd.DataFrame, ab: dict, n_boot: int, rng) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Point 15's model on each cell's ensemble p over point 15's molecules; paired FOV bootstrap."""
+def molecules(e: pd.DataFrame) -> tuple[pd.DataFrame, list, np.ndarray, np.ndarray]:
+    """Point 15's molecules (labeled traces of the FOVs with >= MIN_VESICLES single-dye vesicles) with each cell's p."""
     truth = truth_table()
     lab = truth[truth["y"].notna()]
     ves = lab.groupby("fov")["vesicle_id"].nunique()
@@ -135,9 +139,14 @@ def lod_tables(e: pd.DataFrame, ab: dict, n_boot: int, rng) -> tuple[pd.DataFram
     mol = lab[lab["fov"].isin(inc)].merge(e, on=KEY, how="left", validate="one_to_one", suffixes=("", "_e"))
     if mol[[f"p_{c}" for c in CELLS]].isna().any().any() or len(mol) != 1828:
         raise ValueError("point 15's molecules are not all predicted by every cell")
+    return mol, inc, pd.Categorical(mol["fov"], categories=inc).codes.astype(int), mol["y"].to_numpy().astype(int)
+
+
+def lod_tables(e: pd.DataFrame, ab: dict, n_boot: int, rng) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Point 15's model on each cell's ensemble p over point 15's molecules; paired FOV bootstrap. Also the
+    counting line of point 17: the uncalibrated share reads offset + slope x s on DFK851's mixed slide."""
+    mol, inc, fov, cls = molecules(e)
     J = len(inc)
-    fov = pd.Categorical(mol["fov"], categories=inc).codes
-    cls = mol["y"].to_numpy().astype(int)
     cnt, S, Q = np.zeros((J, 2)), np.zeros((J, 2, len(CELLS))), np.zeros((J, 2, len(CELLS)))
     for c in (0, 1):
         sel = cls == c
@@ -154,6 +163,9 @@ def lod_tables(e: pd.DataFrame, ab: dict, n_boot: int, rng) -> tuple[pd.DataFram
             cp = L.components(cnt[idx], S[idx], Q[idx], mi)
             r = L.comp_row(cp)
             out[(cell, "icc_HT")], out[(cell, "icc_SNAP")], out[(cell, "separation")] = r["icc_HT"], r["icc_SNAP"], r["separation"]
+            a0, b0 = ab[cell]
+            out[(cell, "count_offset")] = (r["a_mixed"] - a0) / (b0 - a0)   # what an all-HT sample reads
+            out[(cell, "count_slope")] = r["separation"] / (b0 - a0)        # 1 = no compression
             for n, k in L.DIAG:
                 c = L.cell(cp, ab[cell], n, k)
                 for key in keys:
@@ -185,9 +197,8 @@ def figures(ens: pd.DataFrame, lod: pd.DataFrame, out: Path) -> None:
     import matplotlib.pyplot as plt
     from scripts.plot_standards import COLORS, apply_axis_standards, apply_rcparams, save_figure, save_source_data
     apply_rcparams()
-    col = dict(zip(CELLS, (COLORS["orange"], COLORS["blue"], COLORS["green"], COLORS["vermillion"])))
-    lab = {"C": "C, six other sessions", "B": "B, DFK851 alone", "FT head": "C fine-tuned, last layer",
-           "FT full": "C fine-tuned, all weights"}
+    col = {c: COLORS[k] for c, k in zip(CELLS, COLOR_KEYS)}
+    lab = LABELS
     fdir = out / "figures"
     shown = (("auc", "AUC"), ("ba_05", "BA at 0.5"), ("ba_teer", "BA at the cut"), ("ba_kept", "BA of kept traces"))
     fig, axes = plt.subplots(1, 2, figsize=(7.0, 3.0), gridspec_kw={"width_ratios": [1.2, 1]})
@@ -242,13 +253,13 @@ def figures(ens: pd.DataFrame, lod: pd.DataFrame, out: Path) -> None:
     shutil.copy(__file__, fdir)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> dict:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--c-transfer", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/dfk851_b/c_transfer")
     ap.add_argument("--n-boot", type=int, default=2000)
     ap.add_argument("--out", type=Path, default=REPO_ROOT / "Results/Revisions/DualColor/dfk851_b/finetune")
     ap.add_argument("--no-figures", action="store_true")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     a.out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(SEED)
     loaded = {c: load_cell(c, a.c_transfer) for c in CELLS}
@@ -332,11 +343,12 @@ def main() -> None:
                     "ba_kept", "ft_source_md5"]].to_string(index=False))
         print(ens.to_string(index=False))
         print(paired[paired["metric"].isin(READ)].to_string(index=False))
-        print(lod[lod["metric"].str.match(r"(lod_snap|lod_ht|mdd_0.50)@|icc")].to_string(index=False))
-        print(lodp[lodp["metric"].str.match(r"(lod_snap|lod_ht)@|icc")].to_string(index=False))
+        print(lod[lod["metric"].str.match(r"(lod_snap|lod_ht|mdd_0.50)@|icc|count")].to_string(index=False))
+        print(lodp[lodp["metric"].str.match(r"(lod_snap|lod_ht)@|icc|count")].to_string(index=False))
         print(pd.read_csv(a.out / "retention.csv").to_string(index=False))
     if not a.no_figures:
         figures(ens, lod, a.out)
+    return {"e": e, "ab": ab, "runs": runs, "out": a.out, "rng": rng}
 
 
 if __name__ == "__main__":

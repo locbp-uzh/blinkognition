@@ -43,6 +43,14 @@ datasets is validation (balanced as usual), every pool trace of the other train_
 training. The validation datasets must be listed in train_datasets (their pool is defined
 there) and none of their traces is trained on.
 
+Validation on mixed slides (val_mixed: {datasets: [...], exclude_slides: [{dataset, slide, reason}]}; default
+off; replaces val_fov_fraction, kfold and val_datasets; TRAINING_NOTES.md point 17): every training-pool trace
+is trained on; the validation set is the labeled traces (true_class HT / SNAP: single-dye vesicle within the
+radius) of the mixed slides of these datasets, minus the excluded slides, balanced as usual. Early stopping, the
+checkpoint and the Wasserstein threshold then come from mixed slides. The other mixed traces (unlabeled ones,
+excluded slides, and all mixed traces of datasets not listed) keep set test_mixed if their dataset is in
+test_datasets. A listed dataset must be loaded (in train_ or test_datasets) and not a holdout dataset.
+
 Input channel (input_channel: minmax by default; TRAINING_NOTES.md point 12): the normalization read
 from ProteinTraces/Filtered/<key>_filtered_<channel>.pkl, one channel, e.g. clipmax (clipmax.py). The
 mirror augmentation runs its GMM on whatever channel is read, as before.
@@ -483,7 +491,15 @@ def main() -> None:
     meta["set"] = ""
     kf = mc.get("kfold")
     vds = mc.get("val_datasets")
-    if vds:
+    vm = mc.get("val_mixed")
+    if vm:
+        if kf or vds or "val_fov_fraction" in mc:
+            raise ValueError("val_mixed replaces val_fov_fraction, kfold and val_datasets; set one of them")
+        if mc.get("trace_source", "protein") == "background":
+            raise ValueError("val_mixed is not implemented for trace_source: background")
+        meta.loc[train_pool, "set"] = "train"
+        print("Validation: the labeled mixed-slide traces of", vm["datasets"], "; training: the whole pool")
+    elif vds:
         if kf or "val_fov_fraction" in mc:
             raise ValueError("val_datasets replaces val_fov_fraction and kfold; set one of them")
         if not set(vds) <= set(mc["train_datasets"]) or set(vds) & holdout:
@@ -505,6 +521,21 @@ def main() -> None:
         meta.loc[train_pool, "set"] = split_fovs(meta[train_pool], float(mc["val_fov_fraction"]), seed)
     test = (meta["slide_type"] == "mixed") & meta["dataset"].isin(mc["test_datasets"]) & ~meta["dataset"].isin(holdout)
     meta.loc[test, "set"] = "test_mixed"
+    if vm:
+        vdat = list(vm["datasets"])
+        if not set(vdat) <= set(datasets) or set(vdat) & holdout:
+            raise ValueError("val_mixed datasets must be loaded (train_ or test_datasets) and not holdout_datasets")
+        mixed = meta["slide_type"] == "mixed"
+        excl = pd.Series(False, index=meta.index)
+        for e in vm.get("exclude_slides") or []:
+            hit = (meta["dataset"] == e["dataset"]) & (meta["slide"] == e["slide"])
+            if not (hit & mixed).any():
+                raise ValueError(f"val_mixed exclude_slides: {e['dataset']} {e['slide']} is not a mixed slide with traces")
+            excl |= hit
+        vmask = mixed & meta["dataset"].isin(vdat) & meta["true_class"].isin(CLASSES) & ~excl
+        meta.loc[vmask, "set"] = "val"
+        print(f"  {int(vmask.sum())} labeled mixed traces as validation; excluded slides: "
+              f"{[(e['dataset'], e['slide']) for e in vm.get('exclude_slides') or []]}")
     meta.loc[pure & meta["dataset"].isin(holdout), "set"] = "holdout_pure"
     meta["y_class"] = meta["true_class"].map({c: k for k, c in enumerate(CLASSES)})
     if mc.get("balance_val", False):
@@ -606,7 +637,9 @@ def main() -> None:
     thr = float(sel["selected_threshold"])
     val_pred["kept"] = val_pred["wasserstein"] > thr
     with open(out / "threshold.json", "w") as f:
-        json.dump({"wasserstein_threshold": thr, "selected_on": "validation (held-out FOVs of the single-protein slides)",
+        json.dump({"wasserstein_threshold": thr,
+                   "selected_on": ("validation (labeled traces of the mixed slides of " + ", ".join(vm["datasets"]) + ")"
+                                   if vm else "validation (held-out FOVs of the single-protein slides)"),
                    "trace_loss_max_pct": trace_loss, "val_initial_accuracy": sel["initial_accuracy"],
                    "val_filtered_accuracy": sel["filtered_accuracy"], "val_removed_pct": sel["removed_percent"]},
                   f, indent=2)
