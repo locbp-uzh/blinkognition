@@ -2,4 +2,4 @@
 #   nohup Revisions/DualColor/daint/run_train_queue.sh Revisions/DualColor/daint/queues/pool7.txt > <log> 2>&1 &
 Revisions/DualColor/ml/dfk851/pool7_valmix_s840410.yaml Revisions/DualColor/ml/dfk851/pool7_valfov_s840410.yaml Revisions/DualColor/ml/dfk851/pool7_valmix_s1.yaml Revisions/DualColor/ml/dfk851/pool7_valfov_s1.yaml
 Revisions/DualColor/ml/dfk851/pool7_valmix_s2.yaml Revisions/DualColor/ml/dfk851/pool7_valfov_s2.yaml Revisions/DualColor/ml/dfk851/pool7_valmix_s3.yaml Revisions/DualColor/ml/dfk851/pool7_valfov_s3.yaml
-Revisions/DualColor/ml/dfk851/pool7_valmix_s4.yaml Revisions/DualColor/ml/dfk851/pool7_valfov_s4.yaml
+Revisions/DualColor/ml/dfk851/pool7_valmix_s4.yaml Revisions/DualColor/ml/dfk851/pool7_valfov_s4.yaml Revisions/DualColor/ml/dfk851/pool7_valmix_s5.yaml Revisions/DualColor/ml/dfk851/pool7_valfov_s5.yaml

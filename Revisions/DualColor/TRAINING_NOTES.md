@@ -853,6 +853,11 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    Compute: Daint debug (4 runs per job; M's training set is about 2.2 x B's, estimated 20-25 min per run). If a
    run reaches the 30-min limit, the user decides about the normal partition. Limits: one test session; the
    validation slides are small and sparse; the selection set's DFK785 slide 4 exclusion is a choice made now.
+   Amendment (user, 2026-11-18 20:10, before any point-17 run had started): a sixth seed, 5, for M and P, so that
+   the 12 runs fill three Daint nodes (four GPUs each; 10 runs would leave two idle) and the seed SDs behind the
+   reading rule rest on six runs. Seed 5's configs are seed 840410's with only seed and run_name changed (round 6
+   has no seed 5). M - P stays matched (six each); against C and FT full (five each) M and P have a six-member
+   ensemble, so the five-seed ensembles of M and P (seeds 840410, 1-4) are reported beside them.
 
 ## Open
 

@@ -9,7 +9,8 @@ single-dye traces of DFK851's mixed slide (slide 3): dfk851_ft_summary.py's read
 
   C        r6_pooled_s<seed>, applied unchanged (point 13)
   FT full  ft_full_DFK851_s<seed>, C fine-tuned on DFK851's single-protein slides (point 16)
-  P        pool7_valfov_s<seed>: seven sessions' single-protein pools, validation 20 % of their FOVs (as C)
+  P        pool7_valfov_s<seed>: seven sessions' single-protein pools, validation 20 % of their FOVs (as C);
+           M and P have six seeds (840410, 1-5; the amendment of point 17), their five-seed readouts in five_seeds/
   M        pool7_valmix_s<seed>: the same pools, all trained on; validation = the older sessions' labeled mixed
            traces (DFK785 slide 4 excluded): checkpoint, Wasserstein threshold, equal-recall cut and the counting
            constants a, b come from mixed slides
@@ -68,6 +69,11 @@ def main() -> None:
     chk.to_csv(a.out / "model_check.csv", index=False)
     with pd.option_context("display.width", 200, "display.float_format", "{:.3f}".format):
         print(chk.groupby(["model", "k"])["pass"].all().unstack().to_string())
+    # the amendment of point 17: M and P have six seeds, C and FT full five; the same readouts with M's and P's
+    # five pre-registered seeds (840410, 1-4; the glob [1-48] skips seed 5) in <out>/five_seeds
+    F.PATTERN.update({"P": "pool7_valfov_s[1-48]*.yaml", "M": "pool7_valmix_s[1-48]*.yaml"})
+    print("\nFive-seed ensembles of M and P:")
+    F.main(["--out", str(a.out / "five_seeds"), "--n-boot", str(a.n_boot), "--no-figures"])
 
 
 if __name__ == "__main__":

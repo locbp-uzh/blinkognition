@@ -25,7 +25,8 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 DC = HERE.parents[1]
-SEEDS = (840410, 1, 2, 3, 4)
+SEEDS = (840410, 1, 2, 3, 4, 5)   # 5 added by the user's amendment (point 17): 12 runs fill three 4-GPU nodes
+BASE_SEED = 840410                 # round 6 has no seed 5: its configs are seed 840410's with seed and run_name changed
 DS = "DFK851"
 OLD = ["DFK785", "DFK788", "DFK789", "DFK842", "DFK843", "DFK846"]
 VAL_MIXED = {"datasets": OLD,
@@ -44,8 +45,11 @@ def main() -> None:
             "# C config of the same seed; fixed before any run.\n")
     paths = {"valmix": [], "valfov": []}
     for s in SEEDS:
-        c6 = yaml.safe_load(open(DC / "ml/round6" / f"r6_pooled_s{s}.yaml"))
-        b = yaml.safe_load(open(HERE / f"r6_within_{DS}_s{s}.yaml"))
+        src = s if (DC / "ml/round6" / f"r6_pooled_s{s}.yaml").exists() else BASE_SEED
+        c6 = yaml.safe_load(open(DC / "ml/round6" / f"r6_pooled_s{src}.yaml"))
+        b = yaml.safe_load(open(HERE / f"r6_within_{DS}_s{src}.yaml"))
+        if src != s:
+            c6["seed"], c6["run_name"] = s, f"r6_pooled_s{s}"
         assert c6["train_datasets"] == OLD and c6["test_datasets"] == OLD and c6["val_fov_fraction"] == 0.2
         for arm in ("valfov", "valmix"):
             c = copy.deepcopy(c6)
