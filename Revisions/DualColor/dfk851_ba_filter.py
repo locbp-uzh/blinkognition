@@ -22,10 +22,13 @@ Units: the single-dye traces of DFK851's mixed slide (slide 3; true_class HT / S
 validation set (balanced, own_val only, where the threshold was picked: optimistic too).
 
 Per run (ba_filter_runs.csv) and mean (SD) over the five seeds per cell (ba_filter_summary.csv): BA and the
-two recalls on all traces, kept fraction, BA and recalls of the kept traces. Ensemble (ba_filter_ensemble.csv):
-mean p_SNAP over the five runs of a cell, argmax; kept = kept at own_val by at least 3 of the 5 runs (the
-saved predictions hold no MC passes, so no ensemble Wasserstein); BA on all and on kept traces with 95 %
-FOV-cluster bootstrap intervals (2000 draws, FOVs with replacement), B minus C on the same draws.
+two recalls on all traces, kept fraction, BA and recalls of the kept traces. Ensemble (ba_filter_ensemble.csv;
+the user's rule, 2026-11-18): mean p_SNAP over the five runs of a cell, argmax; certainty = the mean of the five
+runs' Wasserstein certainties (two classes: a run's certainty does not depend on its predicted class); kept =
+mean certainty above a threshold, own_val = the mean of the five runs' own-validation thresholds (each the
+paper's rule), on_test = the paper's rule applied to the mean certainty on the scored mixed-slide traces. BA on
+all and on kept traces with 95 % FOV-cluster bootstrap intervals (2000 draws, FOVs with replacement; thresholds
+fixed), B minus C on the same draws. (Until the user's rule: kept by at least 3 of the 5 runs at own_val.)
 
     python Revisions/DualColor/dfk851_ba_filter.py [--c-transfer <dir>] [--out <dir>] [--n-boot 2000]
 """
@@ -138,17 +141,22 @@ def main() -> None:
     summ = summ.reset_index()
     summ.to_csv(a.out / "ba_filter_summary.csv", index=False)
 
-    # ensemble: mean p_SNAP, argmax; kept by >= 3 of 5 runs at their own validation thresholds
+    # ensemble (the user's rule): mean p_SNAP, argmax; mean certainty against the mean of the runs' thresholds
     p = pd.concat(preds, ignore_index=True)
-    p["kept_b"] = p["kept"].astype(str).eq("True")
     e = (p.groupby(["cell"] + s.COLS, as_index=False)
-          .agg(p_SNAP=("p_SNAP", "mean"), n_kept=("kept_b", "sum"), n_runs=("run_name", "nunique")))
+          .agg(p_SNAP=("p_SNAP", "mean"), wd=("wasserstein", "mean"), n_runs=("run_name", "nunique")))
     if (e["n_runs"] != 5).any():
         raise ValueError("a trace is not predicted by all five runs of its cell")
     e["pred"] = (e["p_SNAP"] >= 0.5).astype(int)
-    e["kept"] = e["n_kept"] >= 3
     e["y"] = e["true_class"].map(CLS)
-    w = e.pivot_table(index=s.COLS, columns="cell", values=["pred", "kept"], aggfunc="first")
+    own = runs[(runs["unit"] == "DFK851 slide3") & (runs["threshold_rule"] == "own_val")]
+    thr = {}
+    for c, g in e.groupby("cell"):
+        thr[(c, "own_val")] = float(own.loc[own["cell"] == c, "threshold"].mean())
+        thr[(c, "on_test")] = paper_threshold(g["wd"].to_numpy(), g["y"].to_numpy(int), g["pred"].to_numpy(int))
+        e.loc[g.index, "kept"] = g["wd"] > thr[(c, "own_val")]
+        e.loc[g.index, "kept_test"] = g["wd"] > thr[(c, "on_test")]
+    w = e.pivot_table(index=s.COLS, columns="cell", values=["pred", "kept", "kept_test"], aggfunc="first")
     w.columns = [f"{v}_{c}" for v, c in w.columns]
     w = w.reset_index()
     w["y"] = w["true_class"].map(CLS)
@@ -162,24 +170,29 @@ def main() -> None:
     def stats(ix: np.ndarray) -> np.ndarray:
         out = []
         for c in ("B", "C transfer"):
-            pr_, k = w[f"pred_{c}"].to_numpy(int)[ix], w[f"kept_{c}"].to_numpy(bool)[ix]
-            out += [recalls(y[ix], pr_)[0], recalls(y[ix][k], pr_[k])[0] if k.any() else np.nan, k.mean()]
+            pr_ = w[f"pred_{c}"].to_numpy(int)[ix]
+            out.append(recalls(y[ix], pr_)[0])
+            for kc in ("kept", "kept_test"):
+                k = w[f"{kc}_{c}"].to_numpy(bool)[ix]
+                out += [recalls(y[ix][k], pr_[k])[0] if k.any() else np.nan, k.mean()]
         return np.array(out)
 
     pt = stats(np.arange(len(w)))
     rng = np.random.default_rng(20261118)
     bs = np.array([stats(np.concatenate([idx[f] for f in rng.choice(ufov, len(ufov))])) for _ in range(a.n_boot)])
-    names = ["ba_all", "ba_kept", "kept_frac"]
+    names = ["ba_all", "ba_kept_own_val", "kept_frac_own_val", "ba_kept_on_test", "kept_frac_on_test"]
+    nn = len(names)
     erows = []
     for j, c in enumerate(("B", "C transfer")):
         for i, nm in enumerate(names):
-            col = 3 * j + i
+            col = nn * j + i
             lo, hi = np.nanpercentile(bs[:, col], [2.5, 97.5])
-            erows.append({"cell": c, "metric": nm, "value": pt[col], "lo": lo, "hi": hi})
+            t = next((thr[(c, r)] for r in ("own_val", "on_test") if nm.endswith(r)), None)
+            erows.append({"cell": c, "metric": nm, "threshold": t, "value": pt[col], "lo": lo, "hi": hi})
     for i, nm in enumerate(names):
-        d = bs[:, i] - bs[:, 3 + i]
+        d = bs[:, i] - bs[:, nn + i]
         lo, hi = np.nanpercentile(d, [2.5, 97.5])
-        erows.append({"cell": "B - C transfer", "metric": nm, "value": pt[i] - pt[3 + i], "lo": lo, "hi": hi})
+        erows.append({"cell": "B - C transfer", "metric": nm, "threshold": None, "value": pt[i] - pt[nn + i], "lo": lo, "hi": hi})
     ens = pd.DataFrame(erows)
     ens.insert(0, "n_fovs", len(ufov))
     ens.to_csv(a.out / "ba_filter_ensemble.csv", index=False)
@@ -187,7 +200,7 @@ def main() -> None:
     with pd.option_context("display.width", 250, "display.max_columns", 40, "display.float_format", "{:.3f}".format):
         print(runs.drop(columns=["n"]).to_string(index=False))
         print("\nMean (SD) over the five seeds:\n" + summ.to_string(index=False))
-        print(f"\nEnsemble (mean p_SNAP of 5 runs; kept by >= 3 of 5 at own_val), {len(ufov)} FOVs, "
+        print(f"\nEnsemble (mean p_SNAP of 5 runs; mean certainty > mean of the runs' thresholds), {len(ufov)} FOVs, "
               f"{int((y == 0).sum())} HT, {int((y == 1).sum())} SNAP:\n" + ens.to_string(index=False))
     print(f"\nOutputs: {a.out}")
 

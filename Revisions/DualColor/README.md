@@ -669,17 +669,19 @@ H100), sets byte-identical to the local dry run; the round-6 C models applied un
 (job 8519664). Readouts dfk851_summary.py and dfk851_ba_filter.py (Results/Revisions/DualColor/dfk851_b/),
 independently recomputed and reviewed (five agents; all point estimates reproduced, no leakage).
 
-| DFK851 mixed slide (1023 HT / 854 SNAP) | AUC | BA at 0.5 | BA kept (paper filter, own validation threshold) |
+| DFK851 mixed slide (1023 HT / 854 SNAP) | AUC | BA at 0.5 | BA kept (paper filter; mean certainty > mean of the runs' validation thresholds) |
 |---|---|---|---|
-| B, DFK851 alone (ensemble) | 0.793 [0.773, 0.811] | 0.727 [0.706, 0.747] | 0.839 [0.814, 0.863] at 0.48 kept |
-| C, six other sessions (ensemble) | 0.808 [0.790, 0.827] | 0.755 [0.736, 0.773] | 0.848 [0.828, 0.866] at 0.59 kept |
-| B - C | -0.016 [-0.033, +0.001] | -0.028 [-0.047, -0.009] | -0.008 [-0.033, +0.016] |
+| B, DFK851 alone (ensemble) | 0.793 [0.773, 0.811] | 0.727 [0.706, 0.747] | 0.849 [0.827, 0.870] at 0.46 kept |
+| C, six other sessions (ensemble) | 0.808 [0.790, 0.827] | 0.755 [0.736, 0.773] | 0.843 [0.821, 0.863] at 0.58 kept |
+| B - C | -0.016 [-0.033, +0.001] | -0.028 [-0.047, -0.009] | +0.006 [-0.019, +0.029] |
 
 - Design B trains on this session (all five seeds; 146-151 optimizer steps per epoch against round 6's 4-28),
   and comes close to the transferred C models, not above them: the AUC difference is not read as real under
   the declared rule, but every point estimate favors C; balanced accuracy at 0.5 favors C beyond the rule's
   threshold if it were applied to it (reported, not read). After the paper's uncertainty filter the two are
-  level, C keeping more traces.
+  level, C keeping more traces; at equal coverage (the paper's rule on the test traces, about 50 % kept) C is
+  higher, 0.869 vs 0.840 (-0.028 [-0.055, -0.004]). Ensemble filter (user's rule): the mean of the five runs'
+  certainties against the mean of their thresholds.
 - Per run, mean (SD) over seeds: BA all B 0.723 (0.013), C 0.738 (0.013); BA kept 0.825 (0.033) at 0.50 kept
   vs 0.821 (0.011) at 0.60; with the threshold picked on the test traces as the paper's train.py does, 0.822
   vs 0.840 at 0.52 / 0.52 kept.

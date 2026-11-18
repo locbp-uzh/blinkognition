@@ -514,7 +514,9 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    stays on the AUC, as declared); transfer_B.csv lacked point 11's per-slide rows and 50-per-class floor
    (added); the readout folder dfk851 is the DFK851 data folder on a case-insensitive disk (now dfk851_b).
    Added on request after the results: balanced accuracy before and after the paper's MC-dropout filter
-   (dfk851_ba_filter.py; post hoc).
+   (dfk851_ba_filter.py; post hoc). Ensemble filter, the user's rule (2026-11-18): the mean of the members'
+   Wasserstein certainties against the mean of their thresholds (each the paper's 50 % rule on the member's
+   validation set), so the ensemble keeps the paper's trace-retention rule; for future ensembles too.
 
    Readouts on the single-dye traces of DFK851 slide 3 (dfk851_summary.py), as point 11:
    - Primary: the B ensemble (mean p_SNAP of the trained seeds): AUC and within-FOV AUC with 95 %
