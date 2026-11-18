@@ -7,6 +7,8 @@
 # train_label_filter: paper_in) and the *_filtered_<input_channel>.pkl traces (minmax by default) of the
 # extraction run that the trace_assignment manifest names; nothing else (no movies, no localizations). AppleDouble files
 # are skipped. Run from anywhere; paths are taken relative to the repository root.
+# SYNC_DEST overrides the destination (default daint:blinkognition_revisions/), e.g.
+# SYNC_DEST=cluster:/shares/locbp.chem.uzh/pabriv/blinkognition_revisions/ for the S3IT clone.
 set -euo pipefail
 CFG=${1:?config}; shift || true
 REPO=$(cd "$(dirname "$0")/../../.." && pwd)
@@ -33,5 +35,5 @@ for ds in dss:
 EOF
 echo "$(wc -l < "$LIST") paths:"; cat "$LIST"
 # -R keeps the paths, -K follows the Results link on Daint as a directory
-cd "$REPO" && rsync -aRK --exclude '._*' --exclude '.DS_Store' "$@" --files-from="$LIST" -r . daint:blinkognition_revisions/
+cd "$REPO" && rsync -aRK --exclude '._*' --exclude '.DS_Store' "$@" --files-from="$LIST" -r . "${SYNC_DEST:-daint:blinkognition_revisions/}"
 rm -f "$LIST"

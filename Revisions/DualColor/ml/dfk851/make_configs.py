@@ -13,7 +13,8 @@ seventh session, nothing else changed.
 The recipe, seeds, pins of the six round-6 sessions and their pool exclusions are read from
 ml/round6/make_configs.py, so a config here differs from a round-6 B config only in run_name,
 train_datasets, test_datasets (+ DFK851), the DFK851 pins and the DFK851 exclusions (point 13's rules).
-Also writes daint/queues/dfk851.txt (four runs per debug job).
+Also writes s3it/queues/dfk851.txt: the five runs and the C-model reference as the tasks of one S3IT GPU job
+(s3it/train.sbatch; Daint was in maintenance on 2026-11-18).
 
     python Revisions/DualColor/ml/dfk851/make_configs.py
 """
@@ -69,10 +70,15 @@ def main() -> None:
         p = HERE / f"{c['run_name']}.yaml"
         p.write_text(head + yaml.dump(c, Dumper=r6.NoAliasDumper, sort_keys=False))
         paths.append(str(p.relative_to(DC.parents[1])))
-    lines = [" ".join(paths[i:i + 4]) for i in range(0, len(paths), 4)]
-    q = DC / "daint/queues/dfk851.txt"
-    q.write_text("# DFK851 design B (TRAINING_NOTES.md point 13): 5 runs, four per debug job.\n" + "\n".join(lines) + "\n")
-    print(f"{len(paths)} configs in {HERE}, {len(lines)} jobs in {q}")
+    # the reference of point 13: the five round-6 C models applied unchanged, as a task of the same job
+    apply = (f"apply:Results/Revisions/DualColor/dfk851/c_transfer:{DS}={TA_RUN}:"
+             + ",".join(f"r6_pooled_s{s}" for s in r6.SEEDS_BC))
+    q = DC / "s3it/queues/dfk851.txt"
+    q.parent.mkdir(exist_ok=True)
+    q.write_text("# DFK851 design B (TRAINING_NOTES.md point 13): 5 runs and the C-model reference, one S3IT GPU job\n"
+                 "#   sbatch Revisions/DualColor/s3it/train.sbatch $(grep -v '^#' Revisions/DualColor/s3it/queues/dfk851.txt)\n"
+                 + " ".join(paths + [apply]) + "\n")
+    print(f"{len(paths)} configs in {HERE}, one job in {q}")
 
 
 if __name__ == "__main__":

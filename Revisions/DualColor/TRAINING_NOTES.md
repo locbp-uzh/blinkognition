@@ -500,6 +500,13 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    840410, 1, 2, 3, 4; every run predicts the mixed slides of all seven sessions). Known limit (point
    11): the warm-up and patience count epochs, and B failed in round 6 where the pool gave 4-28
    optimizer steps per epoch; DFK851's steps per epoch are reported. No recipe change.
+   Changed before any training (user, 2026-11-18; Daint in scheduled maintenance that day): the five runs
+   and the C-model reference run on UZH S3IT instead of Daint, as the tasks of one GPU job
+   (s3it/train.sbatch; conda env blink2-cuda, torch 2.5.1 as the Daint container; inputs sent with
+   daint/sync_inputs.sh, SYNC_DEST=cluster:<clone>/, the five C model folders copied from local). The only
+   difference is the GPU type (S3IT's, recorded in each run's config_full.json; round 6 ran on GH200),
+   with fp32 and TF32 off as before. The sets are checked to be identical to the local dry run's
+   (checks/20261118_dfk851/dryrun_check.py) before training.
 
    Readouts on the single-dye traces of DFK851 slide 3 (dfk851_summary.py), as point 11:
    - Primary: the B ensemble (mean p_SNAP of the trained seeds): AUC and within-FOV AUC with 95 %

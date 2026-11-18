@@ -3,7 +3,9 @@
 # container, one config per GPU, up to four at a time:
 #   cd ~/blinkognition_revisions && sbatch Revisions/DualColor/daint/train.sbatch Revisions/DualColor/ml/<a>.yaml [<b>.yaml ...]
 # An argument that is a model run folder (Results/Revisions/DualColor/models/<run>, optionally
-# <run>:<n_mc>) runs classify_background.py on it instead (the background-inference control).
+# <run>:<n_mc>) runs classify_background.py on it instead (the background-inference control). An
+# argument apply:<out dir>:<dataset>=<trace_assignment run>:<run name>[,<run name>...] runs apply_models.py
+# (trained runs applied unchanged to that dataset's mixed traces; TRAINING_NOTES.md point 13).
 # Needs Results/ (a symlink to $SCRATCH/dualcolor/results, made by extract.sbatch) with the
 # extraction runs and, rsynced from local, the trace_assignment runs and (for background
 # traces) the vesicles runs they name (fovs.csv, manifest.yaml).
@@ -23,7 +25,10 @@ srun --environment=blink2-cuda bash -c '
   i=0; pids=(); rc=0
   for cfg in '"$*"'; do
     [ ${#pids[@]} -ge 4 ] && { wait "${pids[0]}" || rc=1; pids=("${pids[@]:1}"); }
-    if [ -d "${cfg%:*}" ]; then      # a trained model run[:n_mc]: the background-inference control on it
+    if [[ $cfg == apply:* ]]; then   # apply:<out>:<DS>=<ta run>:<run,run,...>: apply_models.py
+      IFS=: read -r _ out dsr runs <<< "$cfg"; name=apply_$(basename "$out")
+      cmd=(python Revisions/DualColor/apply_models.py --runs ${runs//,/ } --datasets "${dsr%%=*}" --ta-runs "$dsr" --out "$out")
+    elif [ -d "${cfg%:*}" ]; then    # a trained model run[:n_mc]: the background-inference control on it
       run=${cfg%:*}; name=bginf_$(basename "$run"); cmd=(python Revisions/DualColor/classify_background.py "$run" --n-boot 0)
       [ "$run" != "$cfg" ] && cmd+=(--n-mc "${cfg##*:}")
     else

@@ -1,0 +1,3 @@
+# DFK851 design B (TRAINING_NOTES.md point 13): 5 runs and the C-model reference, one S3IT GPU job
+#   sbatch Revisions/DualColor/s3it/train.sbatch $(grep -v '^#' Revisions/DualColor/s3it/queues/dfk851.txt)
+Revisions/DualColor/ml/dfk851/r6_within_DFK851_s840410.yaml Revisions/DualColor/ml/dfk851/r6_within_DFK851_s1.yaml Revisions/DualColor/ml/dfk851/r6_within_DFK851_s2.yaml Revisions/DualColor/ml/dfk851/r6_within_DFK851_s3.yaml Revisions/DualColor/ml/dfk851/r6_within_DFK851_s4.yaml apply:Results/Revisions/DualColor/dfk851/c_transfer:DFK851=run_001:r6_pooled_s840410,r6_pooled_s1,r6_pooled_s2,r6_pooled_s3,r6_pooled_s4
