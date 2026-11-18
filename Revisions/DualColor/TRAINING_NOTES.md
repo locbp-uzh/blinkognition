@@ -609,6 +609,131 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    (full range 0.09-0.73 over the included FOVs), and the mixture slope is fitted on the realized share
    (round(s x n) / n; differs from the designed share at 16 traces only).
 
+15. Sensitivity, limits of detection and quantitation of the HT:SNAP ratio on DFK851's mixed slide (user
+   request and decisions 2026-11-18; fixed before any limit was computed; script dfk851_lod.py, outputs
+   Results/Revisions/DualColor/dfk851_b/lod/). Question: point 14 found the slide-wide ratio good and a single
+   FOV (~16 traces) poor; how many molecules (traces), read from how many FOVs, does a ratio measurement need,
+   and how small a minority does it detect and quantify? Framework: CLSI EP17 (limits of blank, detection and
+   quantitation), with the composition as the analyte.
+
+   Seen before deciding (design facts only, no limit computed): the 112 included FOVs of point 14 hold 10-26
+   single-dye traces (mean 16.3; HT 3-17, SNAP 1-16; 989 HT, 839 SNAP in all). Class means of the ensemble
+   p_SNAP on the mixed slide vs the pure-slide validation constants of point 14: B HT 0.358 vs 0.305, SNAP
+   0.691 vs 0.741 (separation 0.332 vs 0.436); C HT 0.343 vs 0.334, SNAP 0.650 vs 0.613 (0.306 vs 0.279).
+   With the pure-slide constants a true share s reads as 0.123 + 0.762 s (B) and 0.033 + 1.098 s (C).
+
+   Decisions (user): EP17's error rates, 5 % false positives and 5 % false negatives, one-sided (1.645 SD);
+   design grid n = 16, 50, 100, 200, 500 molecules x k = 1, 3, 6, 12, 24 FOVs (realistic for an experiment);
+   B primary, C reference; quantitation goal: total error at most 0.10 in absolute share; two optional checks
+   later (B's false positives against a blank from a pure-HT slide; constants from early FOVs applied to late
+   ones). A correction to the proposal discussed with the user: the scale compression does not raise the
+   limit of detection (below); calibration matters for quantitation and for where the blank comes from.
+
+   Response and estimators. Per molecule p = the ensemble MC-mean p_SNAP of point 14 (mean of the five runs);
+   a sample's response T = mean p over its n molecules. Uncalibrated share = (T - a) / (b - a), a and b the
+   pure-slide validation constants of point 14. Calibrated share = (T - a') / (b' - a'), a' and b' the mean p
+   of the HT and SNAP traces of the slide's other included FOVs (best case: calibrator and sample on one
+   slide). Reported shares are clipped to [0, 1]. Detection decisions use the unclipped T: any fixed pair of
+   constants is a monotone map of T, so detection limits in true-share units do not depend on the
+   constants, and clipping would discard information at the edges.
+
+   Variance model, two components per class. p = mu_c + u_jc + e: FOV effects (u_HT, u_SNAP) with variances
+   s2F_HT, s2F_SNAP and covariance cF across FOVs, within-FOV variances s2w_HT, s2w_SNAP. Estimated by the
+   method of moments (one-way random-effects ANOVA, unbalanced, Searle's n0); the covariance from the
+   unweighted covariance of the FOVs' two class means (unbiased: the within-FOV errors of different molecules
+   are independent); mu_c = the class mean over molecules (a', b'). A sample: k FOVs, n/k molecules each,
+   each molecule SNAP with probability s, the material share (the slide's composition is binomial across
+   FOVs, point 14). Then E[T] = a' + s (b' - a') and
+     Var[T] = [(1 - s) s2w_HT + s s2w_SNAP + s (1 - s) (b' - a')^2] / n
+            + [(1 - s)^2 s2F_HT + s^2 s2F_SNAP + 2 s (1 - s) cF] / k
+            + s (1 - s) (s2F_HT + s2F_SNAP - 2 cF) / n.
+   The first line is the molecule term (shrinks with n; includes the binomial composition), the second the
+   FOV term (shrinks only with k), the third a small cross term. Normal theory for T (EP17's parametric
+   route).
+
+   Detection, both directions. SNAP in HT: limit of blank LoB = E[T | 0] + 1.645 SD[T | 0] (95th percentile of
+   all-HT samples; reported in share units with both sets of constants); limit of detection LoD = smallest s
+   with E[T | s] - 1.645 SD[T | s] >= LoB (5 % false negatives at the LoD). HT in SNAP: mirrored, blank s = 1,
+   reported as an HT share. Minimum detectable difference between two samples of the same design: smallest
+   d with power 0.80 in a two-sided test at alpha 0.05, d (b' - a') = 2.80 sqrt(Var[T | s0] + Var[T | s0 + d]),
+   at s0 = 0.10 and 0.50.
+   Quantitation: per true share s (step 0.005), bias and SD of the reported (clipped) share, from the clipped
+   normal; the calibrated SD adds the calibrator's sampling error (delta method, calibrator = the counts of all
+   112 FOVs). Total error TE = |bias| + 2 SD; quantifiable range = the shares with TE <= 0.10 that lie between
+   the SNAP LoD and 1 - the HT LoD; its lower end is the limit of quantitation (LoQ). Uncalibrated and
+   calibrated.
+   Grid cells with n < k are skipped. Cells whose molecules per FOV (n / k) lie outside the slide's 10-26 are
+   reported but flagged as density extrapolation (the model assumes FOV effects do not depend on density).
+
+   Uncertainty: FOV-cluster bootstrap, 2000 draws (the 112 FOVs resampled with replacement, duplicates kept
+   as separate FOVs; means and components re-estimated; negative variance estimates set to 0, correlation
+   clipped to [-1, 1]); 95 % percentile intervals for every limit. The pure-slide constants are held fixed.
+   B vs C: paired bootstrap differences on the realistic diagonal (n / k about 16), reported, not read with a
+   decision rule.
+
+   Model check, before any limit is read, with the pass criterion fixed here. Real whole-FOV samples, no
+   model: k FOVs drawn with replacement (k = 1, 3, 6, 12, 24; 5000 samples per k; with replacement so the
+   drawn FOVs are independent, as the model assumes, and no finite-population correction is needed: the unit
+   drawn is a whole FOV with its traces, so a correction would apply to the whole variance and, for the
+   thinned types, only in part; a FOV drawn twice is thinned independently), five types: all HT
+   traces (blank), all SNAP traces (the other blank), all labeled traces (the natural mix, about 0.46), all HT
+   + each SNAP trace kept with probability 0.25 (low SNAP share), all SNAP + each HT trace kept with 0.25 (low
+   HT share). Per sample z = (T - model mean given its per-FOV class counts) / (model SD given those
+   counts). Pass: for each type and k, the
+   fractions of z above 1.645 and below -1.645 each within 0.025-0.075 (the model's one-sided 95 % bounds
+   hold to within half their nominal rate). A k that fails flags its grid cells "model not validated"; no
+   other estimator is substituted. Reported, not criteria: the same check with the model fitted on a random
+   half of the FOVs and samples drawn from the other half (k <= 12, 50 splits); a brute-force simulation from
+   the fitted model at a few cells against the formula (a check of the algebra).
+   Constants check (promised to the user): on the k = 6 whole-FOV samples, the empirical LoB and detection
+   rates with the pure-slide constants, the mixed-slide constants, and a calibration per sample from the
+   slide's other FOVs (expected: identical for the first two, slightly worse for the third).
+
+   Limits: one session and one mixed slide; the molecules are the slide's 1828 labeled traces; within-slide
+   only (blanks, samples and calibrator share the slide), so slide-to-slide variation, of which the shift
+   between pure and mixed slides is one example, is in no limit here, and comparisons between slides will be
+   worse than the minimum detectable difference; the traces are those near a single-dye vesicle (an unknown
+   sample would use every filtered trace); the trace length (the true re-read analog) is fixed.
+   Result (2026-11-18; Revisions/DualColor/README.md "DFK851 limits of detection"): on the designs with about 16
+   molecules per FOV (16/1, 50/3, 100/6, 200/12, 500/24 molecules / FOVs) the LoD of SNAP in HT is B not
+   detectable, 0.64, 0.45, 0.31, 0.21 and C 0.79, 0.48, 0.35, 0.25, 0.16; of HT in SNAP B not detectable,
+   0.68, 0.49, 0.35, 0.24 and C 0.71, 0.38, 0.26, 0.18, 0.11. Model check: C passes at every k, B fails at
+   k = 1, 3, 6. Total error <= 0.10 is reached only by C calibrated with 500 molecules (SNAP 0.545-0.885 at 24
+   FOVs, 0.76-0.87 at 12). At these densities the FOV term is 47-90 % of Var[T] for B and 23-38 % for C.
+   Outcome and corrections (2026-11-18; independent verification, three agents, checks/20261118_dfk851/
+   verify_lod; README there). Every number reproduced: a blind recomputation from this text alone (components
+   identical, all grid cells to 2e-8; ML and REML FOV variances inside the bootstrap intervals, limits within
+   0.015 on the diagonal), an independent reimplementation (Var[T] against exact binomial enumeration to 2e-14),
+   and a model-free test of detection power on real whole-FOV samples (C's 0.95 crossing within 0.002 of the
+   model at k = 6, 12, 24; B's 0.009-0.018 share higher: B's model is slightly optimistic). Clarifications of
+   the text above: the MDD multiplier is 1.960 + 0.842 = 2.8016, with both samples' variances, searched upward
+   from s0 only (downward differs, e.g. C 100/6 at 0.50: 0.413 vs 0.363); te_min (descriptive) is the minimum
+   TE between the two LoDs (beyond them the clip at 0 or 1 fakes a small TE). Corrections to the reading:
+   (1) B's model check fails at k = 1 through heavy lower tails (SNAP blanks below the bound 0.117, natural mix
+   0.101), at k = 3 and 6 through too light upper tails (SNAP blanks 0.009, 0.018), which lie on the
+   conservative side for the limits; near 95 % power B's model is 0.01-0.02 share optimistic at every k; at
+   k = 12 B passes by the rule's 5000 samples (0.0252 above the bound) but not by 10^6 draws (0.0237), on a tail
+   no limit uses. (2) The limits are oracle limits: the blank's mean and SD are taken as known. Estimating the
+   blank mean from a calibrator raises the false-positive rate (112 FOVs: 0.063-0.065 at 200/12, about 0.08 at
+   500/24; 24 FOVs: 0.16 at 500/24); most of the split-half check's excess tails (about 1.5 x nominal at k = 12)
+   is that. A blank or calibrator needs many more FOVs than the sample. (3) B's deficit against C is its FOV
+   variance alone (component swap: B with C's FOV components reaches C's limits), not the within-FOV variance.
+   (4) The FOV effects of the two classes are strongly correlated for B but not a common shift (SD of the SNAP
+   effect 1.6 x the HT effect's, 95 % CI 1.16-3.26); for C the correlation is undetermined. The raw correlation
+   above 1 comes from mixing count-weighted variance estimates with an unweighted covariance; clipping it at 1
+   lowers the limits by 0.001-0.011; with unweighted variances C's limits rise by up to 0.09 (16/1), with REML
+   by at most 0.015 on the diagonal (0.044 at 500/1): C's small FOV variance is poorly determined (intervals
+   reach 0). (5) More FOVs beat more molecules: confirmed on real traces at fixed n (1-3 molecules per FOV,
+   within 0.02 of the model; the gain is small for C); the plateau at one FOV rests only on density-extrapolated
+   cells. (6) Quantitation within 0.10 is at the edge at 500 molecules: C calibrated reaches it (LoQ 95 %
+   interval 0.13 to not reached), B with the pure-slide constants misses by 0.007 at 500/24 (TE 0.107; within
+   the goal in 25 % of bootstrap draws), so "never without calibration" is not robust. (7) Post hoc, one
+   checker: within the slide's range C's per-FOV SNAP mean rises with the FOV's HT count (Spearman 0.26,
+   p = 0.006 unadjusted, about 0.07 over 12 tests); extrapolated to no HT it points the way, and roughly the
+   size, of the pure vs mixed shift. Either a composition effect (then blanks built from a mixed slide's HT
+   traces do not represent an all-HT sample: the deferred pure-HT-slide check) or FOV quality tracking the
+   counts; the data cannot separate them.
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,

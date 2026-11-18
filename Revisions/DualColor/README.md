@@ -691,6 +691,43 @@ independently recomputed and reviewed (five agents; all point estimates reproduc
   20000, the others at 10000).
 - One session: pool size and session quality are not separable here.
 
+## DFK851 limits of detection (2026-11-18; TRAINING_NOTES.md point 15; Revisions/DualColor/dfk851_lod.py)
+
+How many molecules (single-dye traces), from how many FOVs, does an HT:SNAP ratio measurement need? CLSI EP17
+(5 % false positives, 5 % false negatives, one-sided) on DFK851's mixed slide, 112 FOVs, 1828 labeled traces.
+A sample's response is the mean ensemble p_SNAP of its molecules; a two-component variance model (FOV and
+within-FOV, per class) fitted by the method of moments gives the limits for any number of molecules n and FOVs
+k. Outputs Results/Revisions/DualColor/dfk851_b/lod/ (figures: lod_grid, quantitation, model_check).
+
+Limit of detection (share of the minority), designs with about 16 molecules per FOV as on the slide; 95 %
+FOV-cluster bootstrap intervals; "none": not detectable at any share:
+
+| Molecules / FOVs | 16 / 1 | 50 / 3 | 100 / 6 | 200 / 12 | 500 / 24 |
+|---|---|---|---|---|---|
+| SNAP in HT, B | none | 0.64 [0.52, 0.76] | 0.45 [0.36, 0.53] | 0.31 [0.25, 0.37] | 0.21 [0.16, 0.25] |
+| SNAP in HT, C | 0.79 [0.69, 0.88] | 0.48 [0.41, 0.55] | 0.35 [0.29, 0.40] | 0.25 [0.20, 0.29] | 0.16 [0.13, 0.20] |
+| HT in SNAP, B | none | 0.68 [0.54, 0.79] | 0.49 [0.38, 0.57] | 0.35 [0.27, 0.41] | 0.24 [0.18, 0.29] |
+| HT in SNAP, C | 0.71 [0.60, 0.82] | 0.38 [0.32, 0.45] | 0.26 [0.21, 0.31] | 0.18 [0.14, 0.21] | 0.11 [0.09, 0.14] |
+| Min. detectable difference from 0.10, B / C | none / 0.89 | 0.79 / 0.56 | 0.56 / 0.41 | 0.39 / 0.30 | 0.26 / 0.20 |
+
+- The sequencing analogy holds for the molecules and breaks at the FOVs: the model's p shifts from FOV to FOV
+  for molecules of the same class (SNAP ICC B 0.29, C 0.03), so at about 16 molecules per FOV the FOV term is
+  47-90 % of the variance for B and 23-38 % for C, and from one FOV the limit plateaus however many molecules
+  are read (model extrapolation: B about 0.91, C about 0.47 at 500 molecules).
+- B (trained on DFK851 alone) is worse than C at every design, and only through its FOV variance.
+- The scale compression of point 14 does not change detection (any fixed constants are a monotone map of the
+  mean p); it decides quantitation. Total error (|bias| + 2 SD) within 0.10 is reached only by C calibrated on
+  the slide's own labeled traces with 500 molecules (SNAP share 0.545-0.885 at 24 FOVs, 0.76-0.87 at 12; the
+  interval of the lower end reaches 0.13); B with the pure-slide constants misses it by 0.007 at 500 / 24.
+- Checks: the variance model reproduces the tails of real whole-FOV samples for C at every k and for B from
+  12 FOVs (B fails at 1, 3, 6); on a model-free test of detection power C's limits hold within 0.002, B's are
+  0.01-0.02 optimistic. Independent recomputation reproduced every number (checks/20261118_dfk851/verify_lod).
+- Best case, within one slide: the blank is taken as known (estimated from 112 FOVs it raises false positives
+  to 0.06-0.08 at 200-500 molecules, from 24 FOVs to 0.16) and blanks, samples and calibrator share the slide.
+  The response may depend on a FOV's composition (C, post hoc, p = 0.006 unadjusted): then a true all-HT
+  sample could read differently from the slide's HT traces. Two deferred checks address this: a blank from a
+  pure-HT slide, and constants from early FOVs applied to late ones.
+
 ## Paper code (checked 2026-10-10)
 
 The revisions run on the `revisions` branch, on top of `main` (6f93bb0, untouched). Outside
