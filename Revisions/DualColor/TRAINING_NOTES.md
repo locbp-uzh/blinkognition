@@ -468,6 +468,17 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    unmixing run_001, trace_assignment run_001, ground-truth-mode gt405 / gt488 runs, paper_in with point
    7's gradient rule on the pool FOVs (round-6 amendment), so that the compliant run is pinned. A movie
    that Picasso fails on is rerun unpatched with the same command (as round 6).
+   Changed before any extraction output was used (user, 2026-11-18): the 640-only run, the slow step, runs
+   on S3IT (s3it/extract.sbatch: run_local.sh unchanged in conda env picasso088, Picasso 0.8.8 with the Mac
+   package versions; S3IT's picasso-env has 0.9.3), reading the raw data in place; the download continues
+   for the local steps. Equivalence check on two DFK846 movies (gradient 10000): every converged
+   localization bit-identical to the Mac's; 1-4 per movie differ, all collapsed fits (sigma 0.01-0.06 px,
+   architecture-dependent end points of non-converged MLE iterations). DFK851's paramfinder chose the 640
+   gradient 20000 (32.6 vs 26.5 at 10000; every other session got the search's floor, 10000); not
+   overridden. The gt configs fix the 640 gradient at the 640-only run's, so at 20000 for DFK851. The gt runs
+   also run on S3IT, staged from a vesicles run made there for the FOV pairing only (VESICLES_RUN); the
+   canonical vesicles and unmixing runs are made on the Mac (blink2env, as DFK842-846) and their fovs.csv
+   is checked against the S3IT one.
 
    Pool exclusions, rules fixed now and applied mechanically after the extraction; anything else seen in
    the first look is reported and kept:

@@ -1,7 +1,8 @@
 # Extraction Pipeline Configuration: DFK851 (acquired after the 640 nm laser re-alignment), single-protein ATTO390 slides in the paper's ground-truth mode
 # (vesicle channel 405 nm), for the paper's IN rule on the training slides (TRAINING_NOTES.md point 7).
 # Copy of config_640only_DFK851.yaml except: has_ground_truth, ground_truth_channel, input/output folders,
-# the slide list, and the 640 gradient fixed at the 640-only run's 10000 (paramfinder searches the
+# the slide list, and the 640 gradient fixed at the 640-only run's 20000 (DFK851's paramfinder chose 20000,
+# the other sessions' 10000; the paramfinder searches the
 # ground-truth gradient only), so the protein ROIs equal those of the 640-only run.
 # Staging: python Revisions/DualColor/stage_inputs.py DFK851 --stage-root Inputs/DualColor_gt405 --gt 405
 # Run (Daint): sbatch Revisions/DualColor/daint/extract_step.sbatch DFK851 <paramfinder|localize> gt405
@@ -35,8 +36,8 @@ optimization:
   aggregation: "mean"
   n_trials: 20
   search_space:
-    gradient_protein_min: 10000
-    gradient_protein_max: 10000
+    gradient_protein_min: 20000
+    gradient_protein_max: 20000
     gradient_protein_step: 10000
     gradient_ground_truth_min: 1000        # Ignored if has_ground_truth: false
     gradient_ground_truth_max: 10000       # Ignored if has_ground_truth: false
