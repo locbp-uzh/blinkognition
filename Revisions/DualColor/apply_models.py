@@ -64,7 +64,10 @@ def main() -> None:
     extra_ta = dict(s.split("=", 1) for s in a.ta_runs)
     accel = detect_accelerator()
     device = accel["device"]
-    print(f"Device {accel['name']} ({accel['type']})")
+    # fp32 as train_pure.py: TF32 off (torch's default leaves cuDNN TF32 on; the first DFK851 apply, S3IT job
+    # 8518491, ran with it on; the verification of 2026-11-18 found the gap)
+    torch.backends.cuda.matmul.allow_tf32 = torch.backends.cudnn.allow_tf32 = False
+    print(f"Device {accel['name']} ({accel['type']}), TF32 off")
     rows = []
     for name in a.runs:
         run = latest(name)
