@@ -775,6 +775,40 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
 
    Compute: Daint (debug partition) once its host key is pinned again (DAINT.md), otherwise S3IT.
    Limits: one session; one fine-tuning recipe per variant, not tuned.
+   Result (2026-11-18; Daint jobs 5387086, 5387087, 5387169, 3-7 min each; readout dfk851_ft_summary.py, outputs
+   Results/Revisions/DualColor/dfk851_b/finetune/; README.md "C fine-tuned on DFK851"). Ensembles on DFK851's
+   mixed slide, C / FT head / FT full (B): AUC 0.808 / 0.828 / 0.840 (0.793); balanced accuracy at 0.5 0.755 /
+   0.762 / 0.778 (0.727); of the kept traces 0.843 / 0.865 / 0.874 (0.849). Read as real against C: FT full AUC
+   +0.032 [0.020, 0.045] and BA kept +0.030 [0.010, 0.050]; FT head AUC +0.020 [0.007, 0.032]; BA at 0.5 and at
+   the cut not. Against B every AUC and BA at 0.5 real. Limits of detection (point 15's model, the runs' own
+   predictions) lower than C's at every diagonal design, e.g. SNAP in HT at 500/24 0.127 (FT full), 0.139 (FT
+   head), 0.163 (C); ensemble per-FOV ICC stays at C's level (FT full 0.005 / 0.027). The prediction recorded
+   above was wrong for the full fine-tune and held for the last layer.
+   Outcome and corrections (2026-11-18; independent verification, three agents, checks/20261118_dfk851/verify_ft).
+   Every number reproduced blind (to 1e-16; all 20 read_as_real verdicts agree). Integrity: no DFK851 slide-3
+   trace in any training or validation set; each fine-tune starts from its seed's C (md5); data_split.csv
+   byte-identical to B's per seed; in every FT head run all non-fc tensors, batch-norm statistics included, are
+   bit-identical to C in best_model.pth and checkpoint.pth; the configs differ from B's only as designed.
+   Clarification of the recipe: in FT head the frozen batch-norm layers keep C's running statistics but, in
+   training mode, normalize each training batch with its own statistics (not a strict linear probe; validation,
+   threshold and prediction use C's statistics). Corrections to the reading: (1) only the FT full AUC gain is
+   robust (all 5 FT full runs above all 5 C runs; paired by seed +0.024 to +0.042; within-FOV AUC real; every
+   leave-one-seed-out ensemble and Bonferroni over the 20 comparisons); FT head's AUC gain passes the rule but
+   fails within FOV and in the early half, and its seed 2 gains nothing; FT full's BA-kept verdict fails when
+   seed 1 is left out and under Bonferroni (survives Holm). The margins rest on 5-run SDs (95 % range 0.6-2.9 x).
+   (2) The gain sits in the slide's late half: C falls from 0.818 (early) to 0.800 (late), FT full holds 0.839 /
+   0.843; early half +0.021 not real. (3) One of five FT full runs (seed 1, the longest) has B's FOV variance
+   (SNAP ICC 0.21), hidden in the ensemble; per run the HT-in-SNAP limit improves in 4 of 5 seeds; point 15's
+   model check, run by the reviewer, fails for both fine-tunes at 1 FOV, so their 16/1 limits are not validated.
+   (4) With the day's own validation constants the fine-tunes over-read the SNAP share by 0.09-0.18 (C 0.03-0.13):
+   they carry B's offset between single-protein and mixed slides, not its compression; counting still needs
+   calibration. (5) The older sessions show neither a generic gain nor forgetting (FT full +0.014 [-0.009,
+   0.036] over six sessions, no session interval excludes 0; FT head lower on 5 of 6): whether the gain is
+   day-specific or generic (more good data) remains open. (6) FT full is confounded with a learning-rate drop
+   (no scheduler; a tenth of C's constant rate): the control is C continued at 0.00004 on its own pool with the
+   same stopping rule. FT head's gain cannot come from feature training (only fc trains). (7) B's higher
+   validation AUC (0.85-0.90 vs FT 0.80-0.87) with a lower mixed AUC reads as "B's validation does not transfer
+   to the mixed slide"; over-fitting and a slide-identity shortcut explain it equally.
 
 ## Open
 

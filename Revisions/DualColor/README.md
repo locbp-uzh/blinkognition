@@ -728,6 +728,30 @@ FOV-cluster bootstrap intervals; "none": not detectable at any share:
   sample could read differently from the slide's HT traces. Two deferred checks address this: a blank from a
   pure-HT slide, and constants from early FOVs applied to late ones.
 
+## C fine-tuned on DFK851 (2026-11-18; TRAINING_NOTES.md point 16; Revisions/DualColor/dfk851_ft_summary.py)
+
+A model trained on six sessions (C, never saw DFK851), adjusted with DFK851's single-protein slides as an
+on-day calibration, then applied to DFK851's mixed slide (never used in training, validation, stopping or
+thresholds). Two variants, five seeds each, B's data and split: last layer only (FT head) and every weight at
+a tenth of the learning rate (FT full). Daint debug, 3-7 min per job. Outputs Results/Revisions/DualColor/dfk851_b/finetune/.
+
+| DFK851 mixed slide (1023 HT / 854 SNAP), ensembles | AUC | BA at 0.5 | BA kept (paper filter) | LoD SNAP in HT, 100/6 and 500/24 |
+|---|---|---|---|---|
+| C, six other sessions | 0.808 [0.790, 0.827] | 0.755 | 0.843 at 0.58 kept | 0.348, 0.163 |
+| FT head (last layer) | 0.828 [0.810, 0.845] | 0.762 | 0.865 at 0.58 kept | 0.304, 0.139 |
+| FT full (all weights) | 0.840 [0.823, 0.857] | 0.778 | 0.874 at 0.57 kept | 0.284, 0.127 |
+| B, DFK851 alone | 0.793 [0.773, 0.811] | 0.727 | 0.849 at 0.46 kept | 0.447, 0.206 |
+
+- Fine-tuning every weight helps: AUC +0.032 [0.020, 0.045] over C, all five fine-tuned runs above all five C
+  runs, within FOV too; limits of detection lower at every design; the FOV variance stays at C's level in the
+  ensemble (one of five runs picked up B's). The last layer alone gives +0.020, fragile (not within FOV).
+- The gain sits in the slide's late half, where C drops (0.818 to 0.800) and the fine-tune does not.
+- Not separable yet: a day-specific calibration vs a generic gain from more good data (the older sessions'
+  slides are too small to tell: +0.014 [-0.009, 0.036]), and the fine-tune vs a learning-rate drop (control:
+  C continued at the lower rate on its own data). One session.
+- Counting with the day's own constants still over-reads SNAP by 0.09-0.18: calibration on a mixed control
+  remains necessary for the ratio (point 15).
+
 ## Paper code (checked 2026-10-10)
 
 The revisions run on the `revisions` branch, on top of `main` (6f93bb0, untouched). Outside
