@@ -592,6 +592,22 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    coverage. Limits: the pool mixes FOVs (a mixture has no single-FOV background); the validation constants
    come from slides where the model separates the classes better than on the mixed slide (BA 0.79 vs 0.72),
    so PACC is expected to under-correct (slope below 1). Not read with a significance rule; reported.
+   Outcome and corrections (2026-11-18; independent verification, checks/20261118_dfk851/verify_fov; README there).
+   Every number reproduced from the raw passes (two recomputations). Corrections to the text above: (1) the
+   premise that a pass is one dropout-sampled model applied to every trace is false: mc_dropout_predict draws a
+   dropout mask per trace (ML/utils.py, ML/models.py LockedDropout), passes are uncorrelated across traces, so the
+   per-trace MC spread adds nothing at the FOV level; the interval is the simulated class votes (85 % / 94 % of the
+   variance, B / C) plus the choice of run, not a sampling interval of PACC; (2) it is not wider "by construction"
+   (only while a class's variance of p is below E[p(1 - p)]) and not conservative in practice: PACC's analytic
+   sampling interval covers 75 % (B) / 88 % (C) of FOVs, because the model's p varies between FOVs within a class
+   (B SNAP ICC 0.29, variance ratio 2.76); B's 97 % coverage is coincidence, C's 100 % comes from 72 of 112
+   intervals being [0, 1]; (3) the regenerated passes are an independent MC draw, statistically consistent with
+   the recorded predictions (mean |diff| 0.0045-0.0061, as expected for independent masks), not a reproduction;
+   (4) the expected under-correction holds for B (slope 0.76, predicted 0.762 from the slide's class means of p)
+   but not for C (slope 1.05-1.08; C over-reads SNAP because SNAP traces score higher on the mixed slide than on
+   its validation sets); (5) the oracle used is 0.459 (the 112 included FOVs), "0.23-0.64" is the 5-95 % range
+   (full range 0.09-0.73 over the included FOVs), and the mixture slope is fitted on the realized share
+   (round(s x n) / n; differs from the designed share at 16 traces only).
 
 ## Open
 

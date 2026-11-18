@@ -20,7 +20,10 @@ Wasserstein certainties, threshold = mean of theirs; a, b and the filter's rates
 Estimators of a sample's SNAP share (a FOV, or a designed mixture):
   pacc  primary, adjusted probabilistic count: clip((mean p - a) / (b - a), 0, 1)
         interval: draws of (run, MC pass) shared by all traces of the sample; each trace's class drawn from that
-        pass's p; share -> clip((share - a_run) / (b_run - a_run)); 2.5 / 97.5 percentiles
+        pass's p; share -> clip((share - a_run) / (b_run - a_run)); 2.5 / 97.5 percentiles. The verification of
+        2026-11-18 found that mc_dropout_predict draws a dropout mask per trace (a pass is not one model for the
+        whole sample), so the passes add nothing: the width is the simulated class votes (B 85 %, C 94 % of the
+        variance) plus the choice of run. It is not a sampling interval of pacc and is not calibrated (point 14).
   hf    the paper's filter: kept = certainty > threshold, call = p >= 0.5; kept SNAP / HT call counts corrected
         for class-dependent retention and confusion by inverting the 2 x 2 matrix of validation rates; clipped
   cc    naive classify and count (share of p >= 0.5)
@@ -217,7 +220,7 @@ def figures(fov: pd.DataFrame, curve: pd.DataFrame, summ: pd.DataFrame, msumm: p
         save_source_data(fov[["fov", "n_labeled", "truth", f"pacc_{cell}", f"pacc_lo_{cell}", f"pacc_hi_{cell}"]],
                          fdir, f"fov_ratio_panel_{letter}.csv")
     handles = [Line2D([], [], ls="none", marker="o", ms=3, color=COLORS["black"], label="field of view (ensemble estimate)"),
-               Line2D([], [], ls="-", lw=0.6, color=COLORS["black"], alpha=0.4, label="95 % interval (MC-dropout simulation)"),
+               Line2D([], [], ls="-", lw=0.6, color=COLORS["black"], alpha=0.4, label="95 % interval (simulated class votes, model draw)"),
                Line2D([], [], color=COLORS["black"], lw=1.2, label="least-squares fit (95 % CI band)"),
                Line2D([], [], ls="--", color=COLORS["black"], lw=0.8, label="identity")]
     fig.legend(handles=handles, frameon=False, loc="lower center", ncol=4, fontsize=6, bbox_to_anchor=(0.5, -0.06))
@@ -257,12 +260,14 @@ def figures(fov: pd.DataFrame, curve: pd.DataFrame, summ: pd.DataFrame, msumm: p
         "slide. (a, b) Estimated versus true SNAP share of single-dye traces per field of view for models trained "
         f"on DFK851 alone (a) or on six other sessions (b); n = {n_f} distinct fields of view with at least "
         f"{MIN_VESICLES} single-dye vesicles carrying a trace; points, ensemble estimates (adjusted probabilistic "
-        "count of five models); bars, 95 % intervals simulated from the Monte Carlo dropout passes; line and band, "
+        "count of five models); bars, 95 % intervals simulated by drawing each trace's class from its predicted "
+        "probability and one of the five models; line and band, "
         "least-squares fit with 95 % bootstrap confidence band; dashed, identity. Pearson correlation with Fisher "
         "95 % confidence interval.\n\n"
         "Composition estimates for designed mixtures of single-dye traces drawn from the same slide. (a-c) Mean "
         f"(line) and SD (band) of the estimate over {N_MIX} mixtures per designed share at {SIZES[0]}, {SIZES[1]} "
-        f"and {SIZES[2]} traces per mixture; dashed, identity. No statistical comparisons were performed.\n")
+        f"and {SIZES[2]} traces per mixture, plotted at the designed share (at {SIZES[0]} traces the realized share "
+        f"is the designed share rounded to whole traces); dashed, identity. No statistical comparisons were performed.\n")
     shutil.copy(__file__, fdir)
 
 
