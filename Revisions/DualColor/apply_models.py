@@ -99,8 +99,8 @@ def main() -> None:
         df.to_csv(a.out / f"{name}.csv", index=False)
         if a.save_passes:
             np.savez_compressed(a.out / f"{name}_passes.npz", p_snap=np.concatenate(passes, axis=1),
-                                dataset=df["dataset"].astype(str).to_numpy(), extraction_key=df["extraction_key"].astype(str).to_numpy(),
-                                uniqueID=df["uniqueID"].astype(str).to_numpy())
+                                dataset=df["dataset"].to_numpy(dtype=str), extraction_key=df["extraction_key"].to_numpy(dtype=str),
+                                uniqueID=df["uniqueID"].to_numpy(dtype=str))   # unicode arrays: loadable without pickle
         if a.compare:
             own = pd.read_csv(run / "predictions.csv", dtype={"slide": str, "fov": str, "uniqueID": str,
                                                              "extraction_key": str, "true_class": str}, low_memory=False)
