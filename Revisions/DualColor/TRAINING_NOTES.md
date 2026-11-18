@@ -894,6 +894,40 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    tail of all-SNAP samples, which no limit uses. (7) DFK851 is 54-56 % of P's validation traces (33 % of its
    validation FOVs); a new session with few controls would get M-like counting constants, not P's.
 
+18. Two controls for points 16 and 17 (user request "run the controls" 2026-11-18, after the two were proposed;
+   fixed before any run; configs ml/dfk851/ccont_*.yaml and size_*.yaml, written by
+   ml/dfk851/make_controls_configs.py; readout dfk851_controls_summary.py).
+   CC, the control of point 16: is FT full's gain the DFK851 controls or just more training at a lower learning
+   rate? Each C model continued exactly as FT full, all weights at 0.00004, no warm-up, patience 10, but on C's
+   own data and split (its config r6_pooled_s<seed>; seeds 840410, 1-4; DFK851 added to test_datasets only, with
+   its pins, so that its mixed slide is predicted; the split does not depend on test_datasets).
+   S, the control of point 17: is P's gain the size of the pool (2.3 x C's) or DFK851's controls themselves? P's
+   design (seven sessions, 20 % of FOVs per slide as validation) with DFK851's pool cut to the size of a typical
+   older session, the median of the six older pools (841 traces): whole FOVs, stratified by slide in proportion to
+   the slide's traces (slide 1 SNAP 194, slide 2 HT 493, slide 4 SNAP 154 targets), drawn at random with the run's
+   seed (each FOV, in a random order, is kept if it brings the slide's count closer to its target), the rest excluded
+   through pool_exclude. Each seed draws its own subsample, so the ensemble spans subsample variation.
+   Seeds: CC 5 (C's); S 7 (840410, 1-6), so that the 12 runs fill three four-GPU Daint nodes (user rule); S's
+   six-seed ensemble (840410, 1-5, P's seeds) is reported beside the seven-seed one.
+
+   Seen before deciding: DFK851's pool 5911 traces in 375 FOVs (slide 1 SNAP 1362 / 98 FOVs, slide 2 HT 3468 / 128,
+   slide 4 SNAP 1081 / 149); older pools 148-1102 (median 841). Points 16-17: C 0.808, FT full 0.840, P 0.851 on
+   DFK851's mixed slide; on the older sessions' mixed slides P - C +0.047 [0.025, 0.070], P - FT full +0.031.
+
+   Readouts. On DFK851's mixed slide as point 17 (dfk851_ft_summary.py), cells C, CC, FT full, S, P; pairs CC - C
+   (continued training at the lower rate), FT full - CC (DFK851's controls in a fine-tune, net of that), S - C (a
+   session's worth of DFK851 added), P - S (the rest of DFK851's pool). On the six older sessions' mixed slides
+   (the generic test of point 17): per session the ensemble AUC on all its labeled mixed traces (as round 6), and
+   the mean over the six sessions, for C, CC, FT full, S, P, with paired FOV-cluster bootstrap intervals (FOVs
+   resampled within each slide, 2000 draws), pairs as above. Point 11's rule for the AUC and balanced accuracies on
+   DFK851 and for the six-session mean AUC; per-session values reported.
+   Prediction, recorded before the runs: CC - C no real gain on either test (C had converged), so FT full's gain
+   is DFK851's controls; S - C positive but less than half of P - C on the older sessions (the pool size carries
+   most of the generic gain).
+   Compute: Daint debug, three jobs of four runs. Limits: one subsample size; the older mixed slides are small
+   (their per-session intervals are wide); C, CC, S and P all train on the older sessions' controls, so the older
+   slides test "more data elsewhere", not "a new session".
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,

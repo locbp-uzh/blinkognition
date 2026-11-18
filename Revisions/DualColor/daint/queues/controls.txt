@@ -1,0 +1,5 @@
+# Point 18 (TRAINING_NOTES.md): controls S (7) and CC (5), four runs per Daint debug job
+#   nohup Revisions/DualColor/daint/run_train_queue.sh Revisions/DualColor/daint/queues/controls.txt > <log> 2>&1 &
+Revisions/DualColor/ml/dfk851/size_s840410.yaml Revisions/DualColor/ml/dfk851/size_s1.yaml Revisions/DualColor/ml/dfk851/size_s2.yaml Revisions/DualColor/ml/dfk851/size_s3.yaml
+Revisions/DualColor/ml/dfk851/size_s4.yaml Revisions/DualColor/ml/dfk851/size_s5.yaml Revisions/DualColor/ml/dfk851/size_s6.yaml Revisions/DualColor/ml/dfk851/ccont_s840410.yaml
+Revisions/DualColor/ml/dfk851/ccont_s1.yaml Revisions/DualColor/ml/dfk851/ccont_s2.yaml Revisions/DualColor/ml/dfk851/ccont_s3.yaml Revisions/DualColor/ml/dfk851/ccont_s4.yaml
