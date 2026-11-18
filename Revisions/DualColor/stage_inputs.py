@@ -52,11 +52,16 @@ def link(path: Path, target: Path) -> None:
         path.symlink_to(target)
 
 
-def stage_gt(cfg: dict, root: Path, base: Path, gt: str) -> list[str]:
-    """640 + vesicle-channel links of the single-protein slides whose dye's home channel is gt."""
+def stage_gt(cfg: dict, root: Path, base: Path, gt: str, vesicles_run: str | None = None) -> list[str]:
+    """640 + vesicle-channel links of the single-protein slides whose dye's home channel is gt. The FOV
+    pairing comes from the vesicles run named in the latest trace_assignment manifest, or from the vesicles
+    run given (vesicles_run, e.g. run_001), so that the staging need not wait for the trace assignment."""
     ds, tags = cfg["dataset"], cfg["channel_tags"]
-    with open(run_dir(cfg, "trace_assignment") / "manifest.yaml") as f:
-        fovs = pd.read_csv(REPO_ROOT / yaml.safe_load(f)["vesicles_run"] / "fovs.csv", dtype=str)
+    if vesicles_run:
+        fovs = pd.read_csv(run_dir(cfg, "vesicles", vesicles_run) / "fovs.csv", dtype=str)
+    else:
+        with open(run_dir(cfg, "trace_assignment") / "manifest.yaml") as f:
+            fovs = pd.read_csv(REPO_ROOT / yaml.safe_load(f)["vesicles_run"] / "fovs.csv", dtype=str)
     rows = []
     for slide, s in cfg["slides"].items():
         dye = s["dye"]
@@ -87,6 +92,8 @@ def main() -> None:
     ap.add_argument("--stage-root", type=Path, required=True)
     ap.add_argument("--data-root", default=None)
     ap.add_argument("--gt", choices=["405", "488"], default=None, help="ground-truth mode: 640 + this vesicle channel")
+    ap.add_argument("--vesicles-run", default=None,
+                    help="gt mode: pair FOVs with this vesicles run (default: the latest trace_assignment's)")
     a = ap.parse_args()
     cfg = load_config(a.dataset, a.data_root)
     ds, root = cfg["dataset"], Path(cfg["input_root"])
@@ -94,7 +101,7 @@ def main() -> None:
         sys.exit(f"input_root {root} does not exist")
     base = a.stage_root / ds
     if a.gt:
-        rows = stage_gt(cfg, root, base, a.gt)
+        rows = stage_gt(cfg, root, base, a.gt, a.vesicles_run)
         (base / "link_map.tsv").write_text("\n".join(rows) + "\n")
         print(f"{len(rows)} links, map {base / 'link_map.tsv'}")
         return

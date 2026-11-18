@@ -454,6 +454,59 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    0.699). Per run a small borderline gain (+0.017, 13 of 18). Not a reason to replace minmax; reported
    as a sensitivity analysis.
 
+13. DFK851, a seventh session, in design B (user request 2026-11-18; fixed before any DFK851 trace
+   was extracted; configs ml/dfk851/r6_within_DFK851_s<seed>.yaml, made by ml/dfk851/make_configs.py;
+   readout dfk851_summary.py). "Full extraction, training and testing as before for a single session (B)."
+
+   Data (datasets/DFK851.yaml; raw data dual_color/20261116_DFK851, dual_color/SOURCES.md): slide 1
+   SNAP (100 FOVs), slide 2 HT (130), slide 3 mix (120; 15 uL HT + 5 uL SNAP fractions), slide 4 SNAP
+   (150), 16-18 Nov, the DFK842-846 acquisition settings. New: vesicles loaded with 8 uM protein
+   (DFK842-846 2 uM), so more proteins per vesicle; traces per vesicle are reported.
+
+   Extraction as DFK842/843/846, on this Mac (extraction/run_local.sh; Picasso 0.8.8 with the MLE patch,
+   the version of every other session; S3IT's picasso-env has 0.9.3): 640-only run, vesicles and
+   unmixing run_001, trace_assignment run_001, ground-truth-mode gt405 / gt488 runs, paper_in with point
+   7's gradient rule on the pool FOVs (round-6 amendment), so that the compliant run is pinned. A movie
+   that Picasso fails on is rerun unpatched with the same command (as round 6).
+
+   Pool exclusions, rules fixed now and applied mechanically after the extraction; anything else seen in
+   the first look is reported and kept:
+   - Fading label: on a single-protein slide, a run of at least 5 consecutive FOVs (acquisition order)
+     whose median home-channel vesicle flux (vesicles.csv, all detected vesicles of the FOV) is below
+     10 % of the median of the slide's first five FOVs excludes every FOV from the first of that run to
+     the end of the slide (the paper-IN truth depends on the label). Applied to the six sessions this
+     rule gives DFK846 Slide3SNAP FOVs 12-40 (round 6 excluded 13-40) and nothing else.
+   - Focus: a single-protein slide whose median single-frame spot sigma (sf_sigma_med: Gaussian fits on
+     the raw frames of each own-dye trace's 10 brightest frames, the first look's
+     checks/20261116_new_sessions_first_look/verify/c4c5_ht_brightness/s7_psf_frames.py; in focus
+     1.25-1.27 px, DFK846 Slide1HT 1.43, DFK842 Slide2HT 1.65) exceeds 1.40 px is excluded
+     (acquisition_issues.md's proposed QC threshold).
+   - Chance share: point 7's rule (gradient raised until the slide's chance share is at most 0.15).
+   - A FOV missing its 640 movie or a snapshot stops vesicles.py (fov_qc.fov_groups), so the copy is
+     verified against S3IT (sizes, a dry-run rsync, sampled MD5) before anything runs.
+
+   Training: design B of point 11 unchanged (round 5b recipe; val_fov_fraction 0.2 per slide; seeds
+   840410, 1, 2, 3, 4; every run predicts the mixed slides of all seven sessions). Known limit (point
+   11): the warm-up and patience count epochs, and B failed in round 6 where the pool gave 4-28
+   optimizer steps per epoch; DFK851's steps per epoch are reported. No recipe change.
+
+   Readouts on the single-dye traces of DFK851 slide 3 (dfk851_summary.py), as point 11:
+   - Primary: the B ensemble (mean p_SNAP of the trained seeds): AUC and within-FOV AUC with 95 %
+     FOV-cluster bootstrap intervals, balanced accuracy at 0.5 and at the median of the members'
+     equal-recall thresholds; per run AUC, balanced accuracy, kept fraction and balanced accuracy of the
+     kept, trained flag, epochs and steps per epoch.
+   - Reference (no training): the five round-6 C models (trained on the six other sessions, never on
+     DFK851) applied unchanged to the same traces with train_pure's prediction (MC dropout, 100 passes;
+     their own Wasserstein and equal-recall thresholds); B minus this reference on the same resampled
+     FOVs, read as real only if the interval excludes 0 and the difference exceeds twice the larger seed
+     SD (point 11). The prediction script is first checked on DFK846's mixed slide against the C runs'
+     own predictions.
+   - Secondary: early and late halves of slide 3 (split at its median FOV in acquisition order; the
+     late-FOV drop of acquisition_issues.md item 5, declared here rather than post hoc); the DFK851 B
+     ensemble on the other sessions' mixed slides (transfer row).
+   - Slide 3 counts per class are reported; fewer than 50 traces of a class make it a reported, not a
+     read, result (as point 11).
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,

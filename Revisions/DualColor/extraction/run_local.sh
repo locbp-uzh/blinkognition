@@ -37,6 +37,8 @@ sed -e "s|^input_folder: .*|input_folder: $STAGE/$DS   # local staging (run_loca
 export PYTHONPATH=$REPO/Revisions/DualColor/daint/picasso_sync DUALCOLOR_PICASSO_SYNC_MLE=1 QT_QPA_PLATFORM=offscreen
 LOG=$STAGE/runs/$TAG
 echo "$TAG: staging $(date +%H:%M:%S), repo $(git -C "$REPO" log --oneline -1)"
+# VESICLES_RUN=run_NNN (gt modes): pair FOVs with that vesicles run instead of the trace_assignment's
+[ -n "$MODE" ] && [ -n "${VESICLES_RUN:-}" ] && GTARG+=(--vesicles-run "$VESICLES_RUN")
 (cd "$REPO" && "$PY" Revisions/DualColor/stage_inputs.py "$DS" --stage-root "$STAGE" ${GTARG[@]+"${GTARG[@]}"}) > "$LOG.stage.log" 2>&1
 # paramfinder keeps its Optuna study in the staged experiment folder and LOADS it if present: a rerun
 # must start a fresh study
@@ -46,6 +48,17 @@ for f in optimization_$GTSUF.db optimized_localization_params_$GTSUF.yaml; do
 done
 cd "$REPO/Extraction"
 echo "$TAG: paramfinder $(date +%H:%M:%S)"; "$PY" paramfinder.py -c "$CFG" > "$LOG.paramfinder.log" 2>&1
+# GT_SNAPSHOTS_ONLY=1 (gt modes only): localize the vesicle-channel snapshots alone. paper_in.py reads only
+# those (its 640 ROIs are the 640-only run's), so the 640 localization of a gt run is never used; the 640
+# links move into a subfolder (find_nd2_files is non-recursive) after the paramfinder, which needs them.
+# Round 6 localized five of its six gt runs this way (checks/20261117_round6_paper_in, relocalize).
+if [ -n "$MODE" ] && [ "${GT_SNAPSHOTS_ONLY:-0}" = 1 ]; then
+  for d in "$STAGE/$DS/$DS"/*/; do
+    mkdir -p "$d/_640_not_localized"
+    for f in "$d"*_640nm_*; do [ -e "$f" ] && mv "$f" "$d/_640_not_localized/"; done
+  done
+  echo "$TAG: GT_SNAPSHOTS_ONLY, $(ls "$STAGE/$DS/$DS"/*/*.nd2 | wc -l | tr -d ' ') snapshot movies to localize"
+fi
 echo "$TAG: localize $(date +%H:%M:%S)"; "$PY" localize.py -c "$CFG" > "$LOG.localize.log" 2>&1
 grep -o 'Output folder: .*' "$LOG.localize.log" | tail -1 | sed 's/Output folder: //' > "$STAGE/runs/$TAG.txt"
 test -s "$STAGE/runs/$TAG.txt"

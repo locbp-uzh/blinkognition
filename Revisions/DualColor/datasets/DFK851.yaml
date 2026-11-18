@@ -1,0 +1,41 @@
+# DFK851 (acquired 2026-11-16 to 18, after the laser re-alignment). Readme: <data>/20261116_readme.txt
+# (no README_analysis.md). 640 nm at 23 mW, 515 nm at 17 %. All slides 5 % biotin, 20x washed.
+# Vesicles loaded with 8 uM protein (DFK842/843/846: 2 uM), so more proteins per vesicle.
+# Slides mapped by ND2 acquisition time (405 nm snapshots) and FOV counts: SNAP520/day1 is slide 1,
+# HT390/day1 slide 2, HT390_SNAP520 slide 3, SNAP520/day2 slide 4 (the readme has no day labels).
+base: ../base.yaml
+dataset: DFK851
+data_folder: 20261116_DFK851
+output_root: Results/Revisions/DualColor/DFK851
+
+slides:
+  slide1:
+    dye: ATTO520
+    folder: SNAP520/day1
+    prefix: SNAP520
+    key: Slide1SNAP
+    sample: SNAP520 15 uL fr.11 in 585 uL PB, 15 min, 100 FOVs (16 Nov 12:49-18:44)
+    channels: ["405", "488", "515", "640"]
+  slide2:
+    dye: ATTO390
+    folder: HT390/day1
+    prefix: HT390
+    key: Slide2HT
+    sample: HT390 15 uL fr.10 in 585 uL PB, 15 min, 130 FOVs (16 Nov 19:42 - 17 Nov 03:25)
+    channels: ["405", "488", "515", "640"]
+  slide3:
+    dye: mix
+    folder: HT390_SNAP520
+    prefix: HT390_SNAP520
+    key: Slide3Mix
+    sample: mix 15 uL HT390 (fr.10) + 5 uL SNAP520 (fr.11) in 600 uL, 30 min, 120 FOVs (17 Nov 10:07-17:14)
+    channels: ["405", "488", "515", "640"]
+  slide4:
+    dye: ATTO520
+    folder: SNAP520/day2
+    prefix: SNAP520
+    key: Slide4SNAP
+    sample: SNAP520 20 uL fr.11 in 580 uL PB, 20 min, 150 FOVs (17 Nov 20:24 - 18 Nov 05:18)
+    channels: ["405", "488", "515", "640"]
+
+runs: {}

@@ -60,6 +60,17 @@ lines in `datasets/DFK84{2,3,6}.yaml`; first look in the section "New sessions" 
 
 DFK842 slide 1 was not saved.
 
+A seventh session, DFK851 (16-18 Nov 2026, copied 2026-11-18, `dual_color/SOURCES.md`), same
+acquisition settings, but vesicles loaded with 8 uM protein instead of 2 uM; design B only
+(TRAINING_NOTES.md point 13; section "DFK851" below). Slides mapped by ND2 acquisition time:
+
+| Dataset | Slide | Folder | Content | FOVs |
+|---|---|---|---|---|
+| DFK851 | 1 | SNAP520/day1 | SNAP | 100 |
+| | 2 | HT390/day1 | HT | 130 |
+| | 3 | HT390_SNAP520 | mix (15 uL HT + 5 uL SNAP) | 120 |
+| | 4 | SNAP520/day2 | SNAP, next day | 150 |
+
 ## Layout
 
 - `base.yaml`: analysis settings shared by all datasets (copied from the DFK785 config).
