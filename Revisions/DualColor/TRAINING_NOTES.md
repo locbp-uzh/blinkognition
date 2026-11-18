@@ -927,6 +927,43 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    Compute: Daint debug, three jobs of four runs. Limits: one subsample size; the older mixed slides are small
    (their per-session intervals are wide); C, CC, S and P all train on the older sessions' controls, so the older
    slides test "more data elsewhere", not "a new session".
+   Result (2026-11-18; Daint jobs 5388467, 5388468, 5388543, four runs on four GPUs each, 7:21 / 6:45 / 3:42;
+   readout dfk851_controls_summary.py, outputs Results/Revisions/DualColor/dfk851_b/controls/; README.md
+   "Controls"). Ensemble AUC on DFK851's mixed slide / mean of the six older sessions: C 0.808 / 0.741, CC 0.804 /
+   0.745, FT full 0.840 / 0.755, S 0.831 / 0.765, P 0.851 / 0.786. DFK851: CC - C -0.004 [-0.007, -0.002] (not
+   real); FT full - CC +0.036 [0.023, 0.049] real (and on all three balanced accuracies); S - C +0.022 [0.015, 0.030]
+   real (AUC only); P - S +0.020 [0.012, 0.029] real (AUC, BA at the cut, BA kept). Older sessions (mean of six):
+   CC - C +0.004, FT full - CC +0.009 [-0.013, 0.031], S - C +0.024 [0.010, 0.038] (below its margin 0.032), P - S
+   +0.021 [0.007, 0.036] real, P - C +0.045 real. Limits of detection (SNAP in HT, 500/24): C 0.163, CC 0.166, FT
+   full 0.127, S 0.138, P 0.131. Counting line: S -0.09 / 1.25. Six-seed S: the same verdicts. Predictions: CC - C
+   no gain held; S - C below half of P - C on the older sessions undetermined (share 0.54).
+   Outcome and corrections (2026-11-18; independent verification, three agents, checks/20261118_dfk851/
+   verify_controls). Every number reproduced blind (to 7e-16; all verdicts agree). Integrity: CC = C's config,
+   split (8335 older traces, every column) and starting weights (md5), FT full's optimization block; S's
+   subsample re-derived exactly from the raw pool for every seed (843-855 traces; 195-201 / 493-501 / 154-158 per
+   slide); the older sessions' S split equals P's FOV for FOV (187-237 older traces per seed swap between val and
+   val_unused because the class balancing runs over a validation set with less DFK851); jobs on four GPUs.
+   Corrections to the reading: (1) CC is a weak control by design: it stops on the validation set that had
+   selected C, after 112-1120 steps (FT full 2190-6364), its weights moving 0.9-3.4 % (FT full 7-14 %). Checkpoint
+   tests (one deterministic pass) close most of the gap: CC's last checkpoints add +0.0007, re-estimating C's
+   batch-norm statistics on DFK851 without labels +0.0002, and FT full with C's batch-norm statistics keeps +0.031
+   [0.018, 0.042]: the fine-tune's gain is learned from DFK851's labels (tested up to about 2200 steps). FT full -
+   CC's BA at the cut and BA kept pass their margins by 0.002 and 0.001 (fail Holm and Bonferroni); AUC and BA at
+   0.5 are robust. (2) "FT full's gain is session-specific" is plausible, not established: the DFK851 gain minus
+   the older-session gain is +0.027 [0.001, 0.054] against CC, +0.018 [-0.007, 0.045] against C (seed level p
+   0.074); the older-session margin (0.045, FT full's per-run SD 0.023) could not read a smaller gain, and FT full
+   seed 1 loses 0.037 on the older sessions (forgetting). (3) S's share of P's gain is 0.54 [0.30, 0.80] (runs
+   resampled too [0.12, 0.96]; P(share < 0.5) about 0.4): the prediction is undetermined, not failed. The first
+   841 DFK851 traces gave as much as the next 5070 ((S - C) - (P - S) +0.003 [-0.017, 0.023] older). Pool size
+   alone would predict a share of 0.14-0.36 unless the gain saturates steeply; a post hoc, confounded comparison
+   with round 6's design A (adding a typical older session: -0.009 [-0.023, 0.004]) hints that DFK851's traces are
+   worth more than an older session's. S's 841 traces span 52-58 FOVs, a typical older pool of that size about 104.
+   (4) "S - C older not real" next to "P - S older real" comes from which cell's per-run SD sets the margin (C's
+   0.016 vs S's 0.009); both are about +0.02 with intervals excluding 0. (5) S's counting follows its validation
+   composition (DFK851 14-18 % of S's validation, 55 % of P's): reweighted to P's composition, S reads -0.007 /
+   1.16 (P -0.002 / 1.18). The counting intervals in lod_paired.csv hold the constants fixed and are too narrow
+   (per-run offset SD 0.03-0.06). (6) The controls figure was written for four cells and lacked the older-session
+   test: offsets now follow the number of cells, and controls_older shows the six sessions.
 
 ## Open
 

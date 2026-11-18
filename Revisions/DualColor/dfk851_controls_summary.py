@@ -109,6 +109,41 @@ def older_sessions(cells, n_boot: int, rng) -> tuple[pd.DataFrame, pd.DataFrame]
     return pd.DataFrame(rows), pd.DataFrame(prow)
 
 
+def older_figure(older: pd.DataFrame, out: Path) -> None:
+    """Per older session and the mean of six: ensemble AUC with 95 % FOV-bootstrap intervals (locbplots)."""
+    sys.path.insert(0, str(F.LOCBPLOTS))
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from scripts.plot_standards import COLORS, apply_axis_standards, apply_rcparams, save_figure, save_source_data
+    apply_rcparams()
+    units = sorted(u for u in older["unit"].unique() if u != "mean of six") + ["mean of six"]
+    n = len(F.CELLS)
+    fig, ax = plt.subplots(figsize=(7.0, 3.0))
+    for j, (c, k) in enumerate(zip(F.CELLS, F.COLOR_KEYS)):
+        g = older[older["cell"] == c].set_index("unit").loc[units]
+        x = np.arange(len(units)) + (j - (n - 1) / 2) * (0.7 / n)
+        y = g["auc"].to_numpy()
+        ax.errorbar(x, y, yerr=[y - g["lo"].to_numpy(), g["hi"].to_numpy() - y], fmt="o", ms=3, color=COLORS[k],
+                    elinewidth=0.7, capsize=0, label=F.LABELS[c])
+    ax.axvline(len(units) - 1.5, color=COLORS["black"], lw=0.5, ls=":")
+    ax.set_xticks(range(len(units)))
+    ax.set_xticklabels(units)
+    ax.set_ylabel("Ensemble AUC on the session's mixed slides")
+    apply_axis_standards(ax)
+    fig.legend(frameon=False, loc="lower center", ncol=n, fontsize=6, bbox_to_anchor=(0.5, -0.1))
+    fdir = out / "figures"
+    save_source_data(older, fdir, "controls_older_panel.csv")
+    save_figure(fig, fdir, "controls_older.png")
+    plt.close(fig)
+    with open(fdir / "caption.txt", "a") as f:
+        f.write("\nThe same cells on the six older sessions' mixed slides (all labeled traces of each session; DFK785 "
+                "and DFK789 two slides each). Points, ensemble AUC; bars, 95 % FOV-cluster bootstrap intervals (FOVs "
+                "resampled within each slide, 2000 draws); right of the dotted line, the mean over the six sessions. "
+                "C, CC, S and P were trained on these sessions' single-protein slides, FT full on them through C. "
+                "Paired differences and the reading rule: older_paired.csv.\n")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--n-boot", type=int, default=2000)
@@ -122,6 +157,8 @@ def main() -> None:
     older, older_p = older_sessions(cells, a.n_boot, np.random.default_rng([F.SEED, 18]))
     older.to_csv(a.out / "older.csv", index=False)
     older_p.to_csv(a.out / "older_paired.csv", index=False)
+    if not a.no_figures:
+        older_figure(older, a.out)
     with pd.option_context("display.width", 220, "display.float_format", "{:.3f}".format):
         print(older.pivot(index="unit", columns="cell", values="auc")[list(F.CELLS)].to_string())
         print(older_p[older_p["unit"] == "mean of six"].to_string(index=False))

@@ -210,7 +210,7 @@ def figures(ens: pd.DataFrame, lod: pd.DataFrame, out: Path) -> None:
     for i, (m, name) in enumerate(shown):
         for j, cell in enumerate(CELLS):
             r = ens[(ens["cell"] == cell) & (ens["metric"] == m)].iloc[0]
-            x = i + (j - 1.5) * 0.17
+            x = i + (j - (len(CELLS) - 1) / 2) * (0.68 / len(CELLS))   # 0.17 apart for four cells
             ax.errorbar([x], [r["value"]], yerr=[[r["value"] - r["lo"]], [r["hi"] - r["value"]]], fmt="o", ms=3.5,
                         color=col[cell], elinewidth=0.8, capsize=0, label=lab[cell] if i == 0 else None)
     ax.set_xticks(range(len(shown)))
@@ -225,7 +225,7 @@ def figures(ens: pd.DataFrame, lod: pd.DataFrame, out: Path) -> None:
         g = lod[(lod["cell"] == cell) & lod["metric"].str.startswith("lod_snap@")].copy()
         g["n"] = g["metric"].str.extract(r"@(\d+)/").astype(int)[0]
         g = g.sort_values("n")
-        x = g["n"].to_numpy() * (1 + 0.04 * (j - 1.5))
+        x = g["n"].to_numpy() * (1 + 0.04 * (j - (len(CELLS) - 1) / 2))
         y, lo, hi = g["value"].to_numpy(), g["lo"].to_numpy(), np.minimum(g["hi"].to_numpy(), 1.0)
         ok = np.isfinite(y)
         ax.errorbar(x[ok], y[ok], yerr=[y[ok] - lo[ok], hi[ok] - y[ok]], fmt="o-", ms=3, lw=1.0, color=col[cell],
@@ -241,7 +241,7 @@ def figures(ens: pd.DataFrame, lod: pd.DataFrame, out: Path) -> None:
     ax.text(-0.2, 1.04, "b", transform=ax.transAxes, fontsize=8, fontweight="bold")
     apply_axis_standards(ax)
     save_source_data(pd.concat(rows), fdir, f"{FIG_NAME}_panel_b.csv")
-    fig.legend(frameon=False, loc="lower center", ncol=4, fontsize=6, bbox_to_anchor=(0.5, -0.08))
+    fig.legend(frameon=False, loc="lower center", ncol=len(CELLS), fontsize=6, bbox_to_anchor=(0.5, -0.08))
     save_figure(fig, fdir, f"{FIG_NAME}.png")
     plt.close(fig)
     (fdir / "caption.txt").write_text(

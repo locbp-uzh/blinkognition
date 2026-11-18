@@ -774,6 +774,26 @@ slide. Six seeds each, Daint debug, three four-GPU jobs of about 11 min. Outputs
   for every model (all-HT reads -0.17 to -0.25); P's 0.00 is two biases cancelling. The ratio needs the same
   session's mixed control (point 15).
 
+## Controls (2026-11-18; TRAINING_NOTES.md point 18; Revisions/DualColor/dfk851_controls_summary.py)
+
+CC: each C model continued exactly as the full fine-tune (lr 0.00004, no warm-up) but on C's own data, to tell the
+DFK851 controls from more training at a lower rate. S: the seven-session pool with DFK851's pool cut to the median
+older session (841 traces; seeded, slide-stratified whole FOVs), to tell pool size from DFK851's controls. 12 runs,
+three four-GPU Daint jobs. Outputs Results/Revisions/DualColor/dfk851_b/controls/ (figures controls, controls_older).
+
+| Ensemble AUC | C | CC | FT full | S | P |
+|---|---|---|---|---|---|
+| DFK851 mixed slide | 0.808 | 0.804 | 0.840 | 0.831 | 0.851 |
+| Six older sessions' mixed slides, mean | 0.741 | 0.745 | 0.755 | 0.765 | 0.786 |
+| LoD SNAP in HT, 500/24, on DFK851 | 0.163 | 0.166 | 0.127 | 0.138 | 0.131 |
+
+- Continuing C at the lower rate on its own data does nothing (-0.004); the fine-tune's +0.036 over it is learned
+  from DFK851's labels (checkpoint tests: not the learning rate, the extra steps or the batch-norm statistics). Its
+  gain is larger on DFK851 than on the older sessions (+0.009), which suggests an on-day effect, not established.
+- A session's worth of DFK851 (841 traces) gives about half of the full pool's gain, on DFK851 (+0.022) and on the
+  older sessions (+0.024 of +0.045); the other 5070 traces give the other half. The share is uncertain
+  (0.54 [0.30, 0.80]); size alone would predict less, which hints that DFK851's controls are worth more per trace.
+
 ## Paper code (checked 2026-10-10)
 
 The revisions run on the `revisions` branch, on top of `main` (6f93bb0, untouched). Outside
