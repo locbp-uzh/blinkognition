@@ -973,6 +973,41 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    (per-run offset SD 0.03-0.06). (6) The controls figure was written for four cells and lacked the older-session
    test: offsets now follow the number of cells, and controls_older shows the six sessions.
 
+19. Representative-FOV figures of the mixed slide for the paper (user request and decisions 2026-11-19; scripts
+   paper_in_mixed.py and dfk851_fov_figure.py; outputs Results/Revisions/DualColor/DFK851/paper_in_mixed/run_001 and
+   Results/Revisions/DualColor/dfk851_b/pool7/figures/fov/). A dual-colour image of a DFK851 slide-3 FOV (ATTO390 / HT
+   vesicles and ATTO520 / SNAP vesicles) with a circle on every protein localization the paper's IN rule places on a
+   vesicle, two-colour vesicles included (localizations fully outside vesicles are noise or impurities and are not
+   drawn): grey dotted if the trace failed the quality filters, otherwise coloured by the classifier's call and
+   certainty, so that certain, uncertain, correct and wrong calls read off the image.
+   Decisions (user): the colour is the ensemble p_SNAP on Crameri bam restricted to its inner 75 % on each side
+   (positions 0.125-0.875; the darkest ends render poorly on a fluorescence image), the vesicles drawn in the two end
+   hues so that a circle of the other colour is a wrong call; solid = kept and dashed = removed by the uncertainty
+   filter ("let's see how it looks; it might be too much information"); model P only (point 17); FOVs close to the
+   slide's median in the number of classified traces and in per-FOV accuracy (more than one may be shown); scale bar in
+   um, bleed-through-corrected vesicle images, a colour bar for call and certainty.
+   Paper-IN on the mixed slide: the IN rule had only been applied to the single-protein slides (the S3IT ground-truth
+   runs localized slides 1, 2 and 4 only), so slide 3's 120 x 2 vesicle snapshots were localized here as those runs did
+   (Picasso 0.8.8 localize CLI, MLE, box 5, gradient 1000 in both channels, read from the runs; get_and_cluster_locs;
+   4 px from the box corner, no registration), and a ROI is IN if within 4 px of a 405 nm or of a 488 nm cluster. On
+   this slide the rule is permissive: 93 % of the 6086 ROIs are IN against 68 % by chance (next FOV's clusters);
+   chance share of the IN calls 0.149, at point 7's 15 % limit (slide 2: 0.09). The 405 nm localization at gradient
+   1000 gives about 800 clusters per FOV where the unmixing counts about 100 ATTO390 and 40 two-colour vesicles, so
+   most 405 nm clusters are dim spots; 'IN in both channels' (44 % of ROIs) is mostly coincidence with them, not
+   two-colour vesicles. The figure follows the rule as asked; an alternative is "within 2 or 4 px of a vesicle of the
+   vesicle table" (unmixing labels), which the user has not chosen.
+   Image: 10-frame means, background (median) subtracted, per-pixel bleed-through correction with the unmixing run's
+   signatures (ATTO390 into 488 nm 0.027, ATTO520 into 405 nm 0.020; 2 x 2 inverse, clipped at 0), each channel shifted
+   into the 640 nm frame by the trace_assignment run's offsets; one display range per channel (99.7th percentile of
+   the rendered FOVs pooled); 0.13 um per pixel from the ND2 metadata. FOVs: 117 eligible (at least 5 labelled
+   classified traces, both classes); medians 28 classified, accuracy 0.778; rendered FOV57 (28, 0.778), FOV71 (29,
+   0.765), FOV76 (26, 0.778).
+   Checks (checks/20261118_dfk851/fov_figure_check): at all 72 single-dye circles of the three FOVs the true dye is the
+   brighter one in the corrected image; the mean dye signal at labelled single-dye vesicles peaks at zero shift
+   (0.77 / 1.00 / 0.79 at -1 / 0 / +1 px); the other dye at single-dye vesicles after correction has median 0; the colour
+   map's anchors equal bam(0.125), bam(0.5), bam(0.875). P's p_SNAP reaches about 0.87 at most in these FOVs (HT calls
+   down to 0.002), so confident SNAP calls look lighter green than confident HT calls look magenta.
+
 ## Open
 
 - Architectures on the round-5 folds (ResNet1D, TCN paired with the CNN-GRU by repeat and fold,
