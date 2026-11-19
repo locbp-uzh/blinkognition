@@ -1007,6 +1007,11 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    (0.77 / 1.00 / 0.79 at -1 / 0 / +1 px); the other dye at single-dye vesicles after correction has median 0; the colour
    map's anchors equal bam(0.125), bam(0.5), bam(0.875). P's p_SNAP reaches about 0.87 at most in these FOVs (HT calls
    down to 0.002), so confident SNAP calls look lighter green than confident HT calls look magenta.
+   User verdict (2026-11-19): fine as is for now, may be tweaked later (open: paper-IN vs vesicle-table rule, the
+   solid/dashed distinction, the paler SNAP colors, which FOVs).
+
+20. Next (user plan, 2026-11-19): at least one more dual-color session will be measured; then retrain P with it in the
+   pool (point 17's design) and measure how much P gains from the extra session. Nothing is run until those data exist.
 
 ## Open
 
