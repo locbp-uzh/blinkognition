@@ -93,7 +93,7 @@ def main() -> None:
     cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cb.set_label("Fraction of the true class")
     cb.outline.set_linewidth(0.4)
-    name = f"{F.FIG_NAME if a.cell not in ('P', 'M') else 'pool7'}_confusion_kept_{a.cell.replace(' ', '_')}"
+    name = f"confusion_kept_{a.cell.replace(' ', '_')}"
     ax.set_title(f"{F.LABELS.get(a.cell, a.cell)}\nkept {len(k)} of {len(e)} traces ({e['kept'].mean():.0%}), "
                  f"balanced accuracy {ba:.3f}", fontsize=7, color="black")
     save_figure(fig, a.out, f"{name}.png")
