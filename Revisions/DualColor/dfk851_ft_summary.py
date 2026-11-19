@@ -235,13 +235,16 @@ def figures(ens: pd.DataFrame, lod: pd.DataFrame, out: Path) -> None:
     ax.set_xticks([n for n, _ in L.DIAG])
     ax.set_xticklabels([f"{n}/{k}" for n, k in L.DIAG])
     ax.minorticks_off()
+    nn = np.geomspace(L.DIAG[0][0], L.DIAG[-1][0], 200)
+    ax.plot(nn, L.ideal_lod(nn), color=COLORS["black"], lw=1.0, ls=":", zorder=1, label="perfect classifier, 1 - 0.05^(1/n)")
     ax.set_ylim(0, 1)
     ax.set_xlabel("Molecules / FOVs")
     ax.set_ylabel("Limit of detection, SNAP in HT (share)")
     ax.text(-0.2, 1.04, "b", transform=ax.transAxes, fontsize=8, fontweight="bold")
     apply_axis_standards(ax)
     save_source_data(pd.concat(rows), fdir, f"{FIG_NAME}_panel_b.csv")
-    fig.legend(frameon=False, loc="lower center", ncol=len(CELLS), fontsize=6, bbox_to_anchor=(0.5, -0.08))
+    fig.legend(frameon=False, loc="lower center", ncol=3 if len(CELLS) + 1 > 4 else len(CELLS) + 1, fontsize=6,
+               bbox_to_anchor=(0.5, -0.1))   # the cells and the perfect-classifier line
     save_figure(fig, fdir, f"{FIG_NAME}.png")
     plt.close(fig)
     (fdir / "caption.txt").write_text(
@@ -251,7 +254,8 @@ def figures(ens: pd.DataFrame, lod: pd.DataFrame, out: Path) -> None:
         "(b) Limit of detection of SNAP in HT (5 % false positives and negatives; CLSI EP17) for designs with about "
         "16 molecules per FOV, from a two-component variance model fitted to each ensemble's output on n = 1828 "
         "traces in n = 112 FOVs; bars, 95 % FOV-cluster bootstrap intervals, upper ends above 1 drawn at 1; "
-        "missing points, not detectable. Paired differences and the reading rule: paired.csv, lod_paired.csv.\n")
+        "missing points, not detectable; black dotted line, the limit of a perfect classifier (a sample of n molecules "
+        "holds at least one SNAP molecule with probability 0.95: 1 - 0.05^(1/n), about 3/n). Paired differences and the reading rule: paired.csv, lod_paired.csv.\n")
     shutil.copy(__file__, fdir)
 
 

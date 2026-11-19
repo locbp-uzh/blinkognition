@@ -733,6 +733,14 @@ jobs 5010462-3, 2026-10-09) are in README.md, "Models".
    size, of the pure vs mixed shift. Either a composition effect (then blanks built from a mixed slide's HT
    traces do not represent an all-HT sample: the deferred pure-HT-slide check) or FOV quality tracking the
    counts; the data cannot separate them.
+   Figure addition (user request 2026-11-19): every limit-of-detection plot (lod_grid a-d, and panel b of the
+   point 16-18 figures) shows the limit of a perfect classifier as a black dotted line: with no false positives a
+   sample is detected when it holds at least one minority molecule, so at 95 % the share must reach
+   1 - 0.05^(1/n), about 3/n (rule of three: 0.26 at 10 molecules, 0.17 at 16, 0.006 at 500), whatever the number
+   of FOVs. 1/n (one molecule in n) is the finest share a single sample can show, not a 95 % detection limit.
+   The models sit far above it (0.11-0.16 at 500 molecules): the classifier, not the molecule count, sets the
+   limits. Figures redrawn, numbers unchanged (point 15's grid.csv byte-identical; points 16-18 redrawn from their
+   saved tables).
 
 16. C fine-tuned on DFK851's single-protein slides (user request and decisions 2026-11-18; fixed before any
    run; configs ml/dfk851/ft_*.yaml, written by ml/dfk851/make_ft_configs.py from B's configs; option

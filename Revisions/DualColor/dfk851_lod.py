@@ -170,6 +170,12 @@ def detection(cp: dict, n: float, k: float) -> dict:
     return out
 
 
+def ideal_lod(n):
+    """Limit of detection of a perfect classifier (no false positives; a sample is detected when it holds at
+    least one minority molecule): the share s with 1 - (1 - s)^n = 0.95, i.e. 1 - 0.05^(1/n), about 3/n."""
+    return 1 - 0.05 ** (1 / np.asarray(n, float))
+
+
 def clipped_moments(mu, sig) -> tuple[np.ndarray, np.ndarray]:
     """Mean and SD of clip(X, 0, 1), X ~ N(mu, sig^2)."""
     mu, sig = np.broadcast_arrays(np.asarray(mu, float), np.asarray(sig, float))
@@ -445,7 +451,10 @@ def figures(grid: pd.DataFrame, curves: pd.DataFrame, check: pd.DataFrame, out: 
                 ax.scatter(x[~ext], y[~ext], s=14, color=kcol[k], zorder=3, edgecolor="none")
                 ax.scatter(x[ext], y[ext], s=14, facecolor="white", edgecolor=kcol[k], linewidth=0.8, zorder=3)
             d = g.set_index(["n", "k"]).loc[list(DIAG)]
-            ax.plot([n for n, _ in DIAG], d[col].to_numpy(), color=COLORS["black"], lw=0.6, ls=":", zorder=1)
+            ax.plot([n for n, _ in DIAG], d[col].to_numpy(), color="0.6", lw=0.6, zorder=1)
+            if col.startswith("lod_"):   # a perfect classifier: P(at least one minority molecule among n) = 0.95
+                nn = np.geomspace(NS[0], NS[-1], 200)
+                ax.plot(nn, ideal_lod(nn), color=COLORS["black"], lw=1.0, ls=":", zorder=1)
             ax.set_xscale("log")
             ax.set_xticks(NS)
             ax.set_xticklabels([str(n) for n in NS])
@@ -465,7 +474,8 @@ def figures(grid: pd.DataFrame, curves: pd.DataFrame, check: pd.DataFrame, out: 
                for k in KS]
     handles += [Line2D([], [], ls="none", marker="o", ms=3, mfc="white", mec=COLORS["black"],
                        label="molecules per FOV outside the slide's range (model extrapolation)"),
-                Line2D([], [], color=COLORS["black"], lw=0.6, ls=":", label="about 16 molecules per FOV, as on the slide"),
+                Line2D([], [], color="0.6", lw=0.6, label="about 16 molecules per FOV, as on the slide"),
+                Line2D([], [], color=COLORS["black"], lw=1.0, ls=":", label="perfect classifier, 1 - 0.05^(1/n) (about 3/n)"),
                 Line2D([], [], color=COLORS["black"], lw=1.0, ls="--", label="model check failed at this number of FOVs")]
     fig.legend(handles=handles, frameon=False, loc="lower center", ncol=4, fontsize=6, bbox_to_anchor=(0.5, -0.05))
     save_figure(fig, fdir, "lod_grid.png")
@@ -554,7 +564,9 @@ def figures(grid: pd.DataFrame, curves: pd.DataFrame, check: pd.DataFrame, out: 
         "model (FOV and within-FOV variance of the model's SNAP probability, per class) fitted to n = 1828 "
         "traces in n = 112 FOVs of one slide; bars, 95 % FOV-cluster bootstrap intervals (2000 resamples), "
         "upper ends above 1 drawn at 1; open symbols, designs with more or fewer molecules per FOV than the "
-        "slide's FOVs hold (10-26); dotted line, designs with about 16 molecules per FOV; dashed lines, numbers "
+        "slide's FOVs hold (10-26); grey line, designs with about 16 molecules per FOV; black dotted line (a-d), the "
+        "limit of a perfect classifier, the share at which a sample of n molecules contains at least one molecule of "
+        "the minority with probability 0.95, 1 - 0.05^(1/n) (about 3/n; independent of the FOVs); dashed lines, numbers "
         "of FOVs at which the model failed its check on real samples (its limits are optimistic there). Missing "
         "points: not detectable within the full range of shares. Within-slide limits: blank, samples and "
         "calibrator share one slide.\n\n"
