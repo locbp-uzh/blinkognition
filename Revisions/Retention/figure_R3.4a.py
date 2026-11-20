@@ -273,10 +273,12 @@ def plot(out: Path) -> Path:
     t = pd.read_csv(out / f"{FIG}_table.csv", dtype=str).fillna("-")
     fig, ax = plt.subplots(figsize=(FIG_WIDTH_IN, 0.35 + 0.2 * (len(t) + 2)))
     ax.axis("off")
-    headers = [h.replace(", ", ",\n").replace("Single molecules in vesicles", "Single molecules\nin vesicles")
-               .replace("Passing quality filter", "Passing\nquality filter")
-               .replace("Approximate overall yield", "Approximate\noverall yield") for h in COLUMNS]
-    tab = ax.table(cellText=t.values, colLabels=headers, loc="center", cellLoc="center", colLoc="center")
+    headers = ["Comparison", "Protein", "Single molecules\nin vesicles", "Passing\nquality filter",
+               "Kept at WD ≥ 0.7\n(cross-validation)", "Kept at WD ≥ 0.7\n(final model)", "Approximate\noverall yield",
+               "Balanced accuracy\n(all)", "Balanced accuracy\n(kept)"]
+    widths = [0.13, 0.10, 0.10, 0.10, 0.12, 0.11, 0.10, 0.12, 0.12]
+    tab = ax.table(cellText=t.values, colLabels=headers, colWidths=widths, loc="center", cellLoc="center",
+                   colLoc="center")
     tab.auto_set_font_size(False)
     tab.set_fontsize(6)
     tab.scale(1.0, 1.35)
