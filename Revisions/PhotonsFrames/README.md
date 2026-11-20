@@ -171,5 +171,30 @@ Reading:
 - The gain is an upper bound: flagged traces were not tested against the later peak-number and
   timing criteria.
 
-Not done: whether the flagged traces blink differently from the passed ones (would show whether
-the published features are biased by the selection); a figure.
+Bias check (`flagged_features.py`, run_001): events of every molecule-like rejected trace (the
+paper's classifier without the separation gate, as in R3.3a) against the passed traces of the same
+construct and session; medians over molecules, sessions with >= 20 flagged traces:
+
+| Construct, session | Group | Molecules | Events | 1-frame events | Mean ON (frames) | Photons per event | Mean OFF (frames) |
+|---|---|---|---|---|---|---|---|
+| Halo-K117 Exp1 | passed | 638 | 24 | 95 % | 1.05 | 460 | 128 |
+| | flagged | 41 | 46 | 98 % | 1.02 | 341 | 113 |
+| Halo-K117 Exp2 | passed | 1746 | 30 | 93 % | 1.08 | 474 | 113 |
+| | flagged | 58 | 45 | 97 % | 1.03 | 343 | 117 |
+| scGrx1 Exp9 | passed | 768 | 11 | 86 % | 1.18 | 630 | 290 |
+| | flagged | 712 | 157 | 96 % | 1.05 | 141 | 37 |
+| scGrx1-AcK20 Exp10 | passed | 324 | 8 | 75 % | 1.33 | 881 | 249 |
+| | flagged | 363 | 194 | 94 % | 1.07 | 135 | 30 |
+
+(all sessions in `flagged_features/run_001/comparison.csv`; Halo-D106 Exp3, SNAP-C148 Exp1-3 and the
+other scGrx1 / scGrx1-AcK20 sessions look like the last two rows.)
+
+- Halo-K117: the flagged traces are the same kind of molecule as the passed ones, fast single-frame
+  blinkers with the same OFF times and duty cycle, about 27 % dimmer per event. Including them would
+  move Halo-K117 toward shorter and dimmer events, i.e. widen the difference from Halo-D106; at
+  3-6 % of the passed traces they would barely move its medians.
+- Everywhere else the flagged traces are unlike the analyzed molecules: hundreds of tiny "events" of
+  about 140 photons (about 2.5 x the per-frame noise of 55-60 photons), short OFF gaps, a few frames
+  above 5 sigma. Noise-dominated traces, not lost molecules of the analyzed kind. Where the
+  background threshold is low (1-8 frames) the flag is not specific, so the 22 % "molecule-like"
+  share of scGrx1 and scGrx1-AcK20 overstates the loss.
