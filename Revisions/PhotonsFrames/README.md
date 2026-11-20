@@ -43,6 +43,17 @@ sessions); per-session values; Halo-D106 vs Halo-K117 only within the shared ses
 - 2026-11-20, `events` run_001: 19,271 molecules, 447,930 events, 6 min on 16 cores.
 - 2026-11-20, figure R3.3a. A first build placed histogram cells by their lower photon edge after a
   CSV round trip and shifted some by one bin (white gaps); the CSV now carries the bin index.
+- 2026-11-20, `filter_audit` run_001 (local): the replay of the paper's filter passed 2 traces the
+  published run rejected (1 Halo-D106, 1 scGrx1-AcK20, both far from every threshold). Cause:
+  `Extraction/filter.py` lines 212-215 drop traces whose z-scored version has an exact 0 before the
+  cascade (4 traces in all have a frame exactly at their mean). Added as criterion `zscore_zero`.
+- 2026-11-20, `filter_audit` run_002 (local): reproduces the published filtered set exactly for all
+  five constructs. Caveat: it ran commit 2896d13, but its manifest names 4803d3f (the script was
+  committed while it ran; the change only added options, the IN replay is the same). The S3IT run
+  (job 8602367, original environment) is the reference.
+- Found while replaying: `filter.py` reads `gmm_min_separation` with a default of 3.0 and
+  `Extraction/config.yaml` does not set it, so traces with GMM separation below 3 get no ON frames
+  and are rejected as having too few peaks. The effective SNR cut is 3, not the 2 the SI states.
 
 ## R3.3a results
 
