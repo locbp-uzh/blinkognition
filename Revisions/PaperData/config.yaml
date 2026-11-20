@@ -1,0 +1,48 @@
+# Revisions/PaperData: the paper's published extraction and model outputs, read in place (never written to).
+# Shared by the first-round review topics (Revisions/ReviewRound1/README.md). Paths are S3IT paths unless
+# marked local; check_data.py runs on S3IT, where the published extraction lives.
+
+# The published extraction (2026-05-09, Picasso 0.9.3 MLE, S3IT picasso-env). Its normalized filtered
+# pickles are byte-identical to Inputs/FinalTraces and the Zenodo FinalTraces (published_md5 below).
+published_run: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001
+# Raw ND2 movies and Picasso localizations, one folder per session (the published run's input_folder).
+raw_root: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT
+
+# Local only: the Zenodo GeneralData (cross-validation, final models, features, controls) and the
+# published traces in the repo (relative to the repo root).
+general_data_local: /Volumes/MediumBerth/SalomePaperData/Püntener2026/GeneralData
+published_traces_local: Inputs/FinalTraces
+
+# Paper name: extraction key (the published run's file prefix). Inputs/FinalTraces uses the paper names.
+constructs:
+  HaloD106: HTHTL
+  HaloK117: HTIA
+  SNAPC148: snap
+  scGrx1: Grx1
+  scGrx1AcK20: K20Ac
+
+# md5 of the published filtered IN pickles (Inputs/FinalTraces, verified against S3IT 2026-11-20).
+published_md5:
+  HaloD106: {minmax: 9515f605cbfe9e85c9f0421c2ac3ef86, zscored: f4b906d21e98e92278c617f9695a717a}
+  HaloK117: {minmax: 2dcd7734ffc5e89f1623d374e6595e89, zscored: 2ea482a03940bb4c8e1b1fa72b439553}
+  SNAPC148: {minmax: 4fad97a4dfcc71f12583f498a804a2a4, zscored: c3b62795298f135507f34a8a5e31cd09}
+  scGrx1: {minmax: 624ddc74d11d874277c0bc330e2459e2, zscored: 8ff5158084bb938051edaef7f003d180}
+  scGrx1AcK20: {minmax: 66199598fdb532cb90ff023449f9e1f7, zscored: e132dd2d2edd76cee3dc12b964b011b0}
+
+# Camera: the Picasso Localize parameters of the published run (every *_locs.yaml), Andor iXon 888.
+# Detected photons = (ADU - baseline) * sensitivity / em_gain, Picasso's convention since v0.6.0
+# (no division by QE). The extraction's bg_rm traces already have baseline and background removed.
+# The ND2 headers give EM gain 300 directly; sensitivity is not in them (readout speed and conversion
+# gain are stored as indices), so 16.0 e-/ADU stands as entered in Picasso until confirmed.
+camera:
+  baseline_adu: 79
+  sensitivity_e_per_adu: 16.0
+  em_gain: 300
+  qe: 0.93
+  pixel_nm: 130
+
+box_px: 5                     # extraction ROI (5 x 5 pixel sum)
+exposure_ms: 30.0             # ND2 Exposure
+frame_interval_ms: 34.49      # ND2 timestamps (30 ms exposure plus readout); check_data.py re-checks per session
+
+output_root: Results/Revisions/PaperData
