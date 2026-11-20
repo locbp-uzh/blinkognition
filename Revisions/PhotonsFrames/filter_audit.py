@@ -96,18 +96,25 @@ def audit_trace(bg: np.ndarray, f: dict) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--constructs", nargs="+")
+    ap.add_argument("--where", choices=["IN", "background"], default="IN",
+                    help="background: the unfiltered background traces (random positions >= 5 px from any "
+                         "protein ROI, same movies) through the same cascade, as a noise reference; their "
+                         "published 'Filtered' set is a different filter (combine.py robust outlier score), "
+                         "so published_passed means 'kept by that filter' there and no reproduction is checked")
+    ap.add_argument("--remote", action="store_true", help="read the published run on S3IT, not the local mirror")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    tcfg, pcfg = load_topic_config(), load_config(local=True)
+    tcfg, pcfg = load_topic_config(), load_config(local=not args.remote)
     f = tcfg["filter"]
     constructs = args.constructs or tcfg["constructs"]
-    run = make_run_dir(pcfg, "filter_audit", topic_root=tcfg["output_root"])
+    stage = "filter_audit" if args.where == "IN" else "filter_audit_background"
+    run = make_run_dir(pcfg, stage, topic_root=tcfg["output_root"])
     t0, inputs, rows, checks = time.time(), [], [], {}
     for c in constructs:
-        p = trace_path(pcfg, c, "bg_rm", filtered=False)
+        p = trace_path(pcfg, c, "bg_rm", where=args.where, filtered=False)
         inputs.append(p)
         bg = pd.read_pickle(p)
-        idx = load_index(pcfg, c).set_index("uniqueID")
+        idx = load_index(pcfg, c, where=args.where).set_index("uniqueID")
         ids = list(bg.columns)
         res = Parallel(n_jobs=tcfg["n_jobs"])(delayed(audit_trace)(bg[u].to_numpy(np.float64), f) for u in ids)
         published = set(idx.index[idx["passed_filter"]])
@@ -126,11 +133,12 @@ def main() -> None:
         fate = tr.groupby(by + ["criterion"]).size().unstack(fill_value=0).reindex(columns=CRITERIA, fill_value=0)
         fate.insert(0, "n_unfiltered", fate.sum(axis=1))
         fate.reset_index().to_csv(run / name, index=False)
-    all_ok = all(v["identical_sets"] for v in checks.values())
+    all_ok = all(v["identical_sets"] for v in checks.values()) if args.where == "IN" else None
     with open(run / "checks.json", "w") as fh:
-        json.dump({"replay_reproduces_published": all_ok, "constructs": checks}, fh, indent=2)
+        json.dump({"where": args.where, "replay_reproduces_published": all_ok, "constructs": checks}, fh, indent=2)
     write_manifest(run, {**tcfg, "paperdata_config": pcfg["_path"], "published_run": pcfg["published_run"]},
-                   Path(__file__), inputs, extra={"constructs": constructs, "elapsed_s": round(time.time() - t0)})
+                   Path(__file__), inputs, extra={"constructs": constructs, "where": args.where,
+                                                  "elapsed_s": round(time.time() - t0)})
     logging.info("replay reproduces the published filtered set: %s; done: %s", all_ok, run)
 
 
