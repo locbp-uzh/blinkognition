@@ -136,3 +136,5 @@ movie), `manifest.yaml`, `config.yaml`, `code/`.
   Direction: probably conservative for D106 vs K117 (the missing molecules are the most D106-like),
   but not tested; how many would pass the quality filter and how the models would call them is
   unknown without extracting their traces. Reported to the user; nothing changed.
+- 2026-11-20: tested at the user's request in `../FrameZero/` (extraction rerun with the removal off):
+  Halo-D106 passing traces +17.6 %, others +2-3 %; no conclusion changes (see that README).
