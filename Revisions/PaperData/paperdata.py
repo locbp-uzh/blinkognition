@@ -238,7 +238,8 @@ def write_manifest(run: Path, cfg: dict, script: Path, inputs: list[Path], extra
         "run_folder_override": cfg.get("_run_folder_override"),
         "git_commit": _git("rev-parse", "HEAD"),
         "git_branch": _git("rev-parse", "--abbrev-ref", "HEAD"),
-        "git_dirty": bool(_git("status", "--porcelain", "--", "Revisions/PaperData")),
+        "git_dirty": bool(_git("status", "--porcelain", "--", "Revisions/PaperData",
+                               rel_to_repo(Path(script).resolve().parent))),
         "python": platform.python_version(),
         "packages": pkgs,
         "inputs": {str(p): {"bytes": Path(p).stat().st_size, "sha256": sha256(Path(p)) if hash_inputs else None}

@@ -1,0 +1,20 @@
+# Revisions/PhotonsFrames: photons per ON event and frame-time effects (R3.3). Settings of this topic only;
+# the published Extraction/ and Features/ defaults are not changed. Data access via ../PaperData/config.yaml.
+
+# ON events exactly as for Figs. 5D and 6C (Features/config.yaml): the paper's frame classifier
+# (Extraction/utils.py gmm_classify_frames) on the per-trace min-max trace, posterior >= 0.9, runs of
+# >= 1 frame. Here on the full 6000-frame traces (Figs. 5D, 6C used the first 4000, the final models'
+# input).
+gmm_proba: 0.9
+min_peak_width: 1
+
+# Robustness: photons summed over each event plus this many frames on each side (clipped at the trace
+# ends; a single OFF frame between two events is counted in both padded sums).
+pad_frames: 1
+
+# Full-frame emission: inner frames (first and last excluded) of events of at least this many frames.
+interior_min_frames: 3
+
+constructs: [HaloD106, SNAPC148, HaloK117, scGrx1, scGrx1AcK20]
+n_jobs: 16
+output_root: Results/Revisions/PhotonsFrames
