@@ -17,6 +17,15 @@ frame timing (needs the camera mode).
 - `check_fig5d6c.py`: the event definition against the published Figs. 5D and 6C.
 - `figure_R3.3a.py`: figure R3.3a from an events run (`--build --events <run> --out <folder>`), or
   replot from the CSVs next to it.
+- `filter_audit.py` (+ `s3it/filter_audit.sbatch`): replay of the paper's quality filter with the
+  first failing criterion per trace, IN or background traces, local mirror or S3IT (`--remote`).
+- `bright_frames.py` (+ `s3it/bright_frames.sbatch`): frames above median + k sigma per unfiltered
+  trace, IN and background.
+- `molecule_like.py`: session thresholds from background, molecule-like flags for SNR-rejected
+  traces. `flagged_features.py`: events of the flagged traces against the passed ones.
+- `figure_R3.3b.py`: figure R3.3b from those runs (`--build`, defaults to the reference runs), or
+  replot from the CSVs next to it. Figure folder
+  `/Volumes/MediumBerth/SalomePaperData/Püntener2026/revisions_figures/R3.3b/`.
 
 Outputs: `Results/Revisions/PhotonsFrames/events/run_NNN/`, `check_fig5d6c/run_NNN/` (manifests);
 figure folder `/Volumes/MediumBerth/SalomePaperData/Püntener2026/revisions_figures/R3.3a/`.
