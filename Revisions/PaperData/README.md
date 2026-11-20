@@ -48,4 +48,17 @@ movie), `manifest.yaml`, `config.yaml`, `code/`.
   structure checks pass (normalizations reproduced to 2e-16, raw minus bg_rm constant per trace,
   filtered values identical to unfiltered ones, IDs complete), md5 checks fail as they should on a
   different extraction. ND2 reader tested on a DFK788 movie: EM gain 300, 30 ms exposure, 34.49 ms
-  frame interval, 640 nm at 90 %.
+  frame interval, 640 nm at 90 % (read from the per-frame events; the text header's laser line
+  belonged to another channel).
+- 2026-11-20, check run_001 (S3IT job 8598013, 5 min, 45 GB peak memory): every data check
+  passed; the "IDs equal unfiltered traces" check failed for 4 of 5 constructs. Cause:
+  `Extraction/combine.py` drops traces with any zero or NaN frame. The check was changed to count
+  and flag those IDs (commit 04028d1).
+- 2026-11-20, check run_002 (S3IT job 8598156, 6 min, 50 GB peak memory), the reference run:
+  all checks pass. Dropped IDs are all traces of 10 whole movies (Halo-D106: Exp4 movies 0029,
+  0032; SNAP-C148: Exp4 0048, 0055, 0067, 0105; scGrx1: Exp7 0014, Exp8 0014, Exp9 0031;
+  scGrx1-AcK20: Exp6 0006) plus single OUT and background traces in a few others; most likely
+  a zero frame in each movie (not verified on the movies). 1303 movie headers read, all with
+  EM gain 300, readout index 2, conversion-gain index 0, sensor-mode index 1, 30 ms exposure,
+  640 nm at 90 %, 34.493 ms per frame; Exp1-6 have 8000 frames, Exp7-10 6000. Per-session counts
+  are in `../ReviewRound1/README.md`.
