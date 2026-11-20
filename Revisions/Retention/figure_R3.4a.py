@@ -274,8 +274,8 @@ def plot(out: Path) -> Path:
     fig, ax = plt.subplots(figsize=(FIG_WIDTH_IN, 0.35 + 0.2 * (len(t) + 2)))
     ax.axis("off")
     headers = ["Comparison", "Protein", "Single molecules\nin vesicles", "Passing\nquality filter",
-               "Kept at WD ≥ 0.7\n(cross-validation)", "Kept at WD ≥ 0.7\n(final model)", "Approximate\noverall yield",
-               "Balanced accuracy\n(all)", "Balanced accuracy\n(kept)"]
+               "Kept at\nWD ≥ 0.7\n(cross-validation)", "Kept at\nWD ≥ 0.7\n(final model)", "Approximate\noverall yield",
+               "Balanced\naccuracy\n(all)", "Balanced\naccuracy\n(kept)"]
     widths = [0.13, 0.10, 0.10, 0.10, 0.12, 0.11, 0.10, 0.12, 0.12]
     tab = ax.table(cellText=t.values, colLabels=headers, colWidths=widths, loc="center", cellLoc="center",
                    colLoc="center")
@@ -286,7 +286,7 @@ def plot(out: Path) -> Path:
         cell.set_linewidth(0.0 if i > 0 else 0.6)
         cell.visible_edges = "B" if i == 0 else ""
         if i == 0:
-            cell.set_height(cell.get_height() * 2.0)
+            cell.set_height(cell.get_height() * 2.8)
             cell.set_text_props(fontweight="bold")
     path = out / f"{FIG}.pdf"
     fig.savefig(path)
