@@ -4,15 +4,17 @@
 # __copyright_ = "Copyright 2026, UZH, Switzerland"
 
 """
-Raw physical features before deep learning (R3.2): do the proteins separate on photons per event, mean ON,
-mean OFF and duty cycle alone, and is that separation the protein's or the measurement day's?
+Raw physical features before deep learning (R3.2): do the proteins separate on the paper's kinetic features
+(mean ON time, mean OFF time, duty cycle; config.yaml `features`) alone, and is that separation the protein's or
+the measurement day's? Absolute photon numbers are not used (user, 2026-11-20: they carry day- and slide-specific
+information; reported descriptively in R3.3a).
 
 Per pair (config.yaml `pairs`), on all published filtered traces inside vesicles (features from the R3.3a
 event table), with log10-transformed features standardized within the pair:
   - PCA (2 components): scores per molecule, explained variance, loadings;
   - unsupervised two-component Gaussian mixture (full covariance, gmm_n_init starts): cluster per molecule
     and its agreement with the proteins (adjusted Rand index, contingency table);
-  - logistic regression on the four features (class-balanced weights), stratified n_folds-fold cross-
+  - logistic regression on the features (class-balanced weights), stratified n_folds-fold cross-
     validation with the paper's seed, scaler fitted on the training folds, test folds balanced by
     subsampling the larger class as in the paper: AUC and balanced accuracy (threshold 0.5) per fold,
     mean +/- population SD; coefficients of a fit on all molecules;

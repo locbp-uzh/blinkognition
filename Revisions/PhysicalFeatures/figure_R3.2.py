@@ -7,20 +7,22 @@
 Figures R3.2a-e (first-round review, Reviewer 3, point 2): raw physical features of every filtered single-
 molecule trace inside vesicles, before deep learning.
 
-Features per molecule (R3.3a event table; the paper's ON classification): median detected photons per ON
-event, mean ON time, mean OFF time, duty cycle (34.49 ms per frame, full 6000-frame traces).
+Features per molecule (R3.3a event table; the paper's ON classification): mean ON time, mean OFF time, duty
+cycle (34.49 ms per frame, full 6000-frame traces), the kinetic features the paper uses. Absolute photon numbers
+are not used to separate proteins (user, 2026-11-20): they carry day- and slide-specific information (laser
+power, focus, slide), which is why the traces are normalized; they are reported descriptively in R3.3a.
 
 R3.2a  Per protein pair (rows: Halo-D106 vs SNAP-C148, Halo-D106 vs Halo-K117, scGrx1 vs scGrx1-AcK20):
        a-c) PCA of the log10, standardized features: density contours per protein enclosing 50 % and 90 % of
             the molecules, feature directions (loadings x 2); adjusted Rand index of an unsupervised
             two-component Gaussian mixture against the proteins.
-       d-f) Mean ON time against photons per event, same contours (log axes).
-       g-i) AUC of a logistic regression on the four features (4-fold cross-validation, seed 840410; bars:
+       d-f) Mean OFF time against mean ON time, same contours (log axes).
+       g-i) AUC of a logistic regression on the three features (4-fold cross-validation, seed 840410; bars:
             all sessions pooled, mean +/- SD over folds; points: within single sessions) against the
             networks behind Figs. 4C, 5B, 6B (same cross-validation design).
        j-l) Rank-biserial effect size per feature (r > 0: the pair's first protein tends to larger values),
             one point per session in which both proteins were measured, bar: all sessions pooled.
-R3.2b-d  Corner plots of the four features for each pair: per-protein distributions (diagonal) and
+R3.2b-d  Corner plots of the three features for each pair: per-protein distributions (diagonal) and
        density contours (50 % and 90 %) for every pair of features.
 R3.2e  Mean ON time per molecule on all filtered traces against the traces shown in Figs. 5D and 6C (final
        models' test traces with Wasserstein distance >= 0.7, grouped by true identity), recomputed here on
@@ -65,7 +67,7 @@ LABELS = {"HaloD106": "Halo-D106", "HaloK117": "Halo-K117", "SNAPC148": "SNAP-C1
 PROTEIN_COLORS = {"HaloD106": "#0072B2", "HaloK117": "#E69F00", "SNAPC148": "#CC79A7",
                   "scGrx1": "#009E73", "scGrx1AcK20": "#D55E00"}
 BLACK, WHITE = "#000000", "#FFFFFF"
-FEATURES = ["photons_per_event", "mean_on_ms", "mean_off_ms", "duty_cycle"]
+FEATURES = ["mean_on_ms", "mean_off_ms", "duty_cycle"]
 FEATURE_LABELS = {"photons_per_event": "Photons per event", "mean_on_ms": "Mean ON (ms)",
                   "mean_off_ms": "Mean OFF (ms)", "duty_cycle": "Duty cycle"}
 FEATURE_SHORT = {"photons_per_event": "Photons", "mean_on_ms": "ON", "mean_off_ms": "OFF", "duty_cycle": "Duty"}
@@ -251,14 +253,14 @@ def plot_overview(out: Path, rng: np.random.Generator) -> Path:
         a.set_title(f"{LABELS[p[0]]} vs {LABELS[p[1]]}", loc="left", pad=3)
         axis_standards(a)
         _letter(a, "abc"[i])
-        # ON vs photons
+        # OFF vs ON
         b = fig.add_subplot(gs[i, 1])
-        lx, ly = np.log10(d["photons_per_event"].to_numpy()), np.log10(d["mean_on_ms"].to_numpy())
-        xl2, yl2 = _log_limits(d["photons_per_event"].to_numpy()), _log_limits(d["mean_on_ms"].to_numpy())
+        lx, ly = np.log10(d["mean_on_ms"].to_numpy()), np.log10(d["mean_off_ms"].to_numpy())
+        xl2, yl2 = _log_limits(d["mean_on_ms"].to_numpy()), _log_limits(d["mean_off_ms"].to_numpy())
         for c in p:
             m = (d["construct"] == c).to_numpy()
             _hdr_contours(b, lx[m], ly[m], PROTEIN_COLORS[c], xl2, yl2, rng)
-        b.set(xlim=xl2, ylim=yl2, xlabel="Photons per event", ylabel="Mean ON (ms)")
+        b.set(xlim=xl2, ylim=yl2, xlabel="Mean ON (ms)", ylabel="Mean OFF (ms)")
         _set_log_ticks(b, "x", xl2)
         _set_log_ticks(b, "y", yl2)
         axis_standards(b)
@@ -397,24 +399,25 @@ def captions(out: Path) -> str:
     n = {k: ", ".join(f"{LABELS[c]} {v}" for c, v in g["construct"].value_counts().items())
          for k, g in mol.groupby("pair")}
     nsets = mol[mol["in_figure_set"]].groupby(["pair", "construct"]).size()
-    common = ("Features per molecule from every filtered single-molecule trace inside vesicles: median detected "
-              "photons per ON event, mean ON time, mean OFF time and duty cycle (ON frames as classified for "
-              "Figures 5D and 6C; 6000 frames, 34.49 ms per frame). Detected photons: background-removed 5 x 5 pixel sum x 0.062 photons per ADU, measured from the camera noise (mean-variance analysis of the raw movies), no quantum-efficiency correction.")
+    common = ("Features per molecule from every filtered single-molecule trace inside vesicles: mean ON time, "
+              "mean OFF time and duty cycle (ON frames as classified for Figures 5D and 6C; 6000 frames, 34.49 ms "
+              "per frame). Absolute photon numbers are not used, as they depend on excitation power, focus and "
+              "slide (photon numbers per construct: Figure R3.3a).")
     return "\n\n".join([
         "Figure R3.2a. Physical features of single molecules before deep learning. " + common +
         " Rows, Halo-D106 vs SNAP-C148, Halo-D106 vs Halo-K117 and scGrx1 vs scGrx1-AcK20 (n: " +
         "; ".join(n[pair_key(p)] for p in PAIRS) + " molecules). a-c) First two principal components of the "
         "log-transformed, standardized features; contours enclose 50 % (thick) and 90 % (thin) of each "
         "protein's molecules; arrows, feature directions; ARI, adjusted Rand index between an unsupervised "
-        "two-component Gaussian mixture and the protein identity (0, no relation; 1, identical). d-f) Mean ON "
-        "time against photons per event, same contours. g-i) Area under the ROC curve of a logistic regression "
-        "on the four features, four-fold stratified cross-validation with class-balanced test folds (bars, all "
+        "two-component Gaussian mixture and the protein identity (0, no relation; 1, identical). d-f) Mean OFF "
+        "time against mean ON time, same contours. g-i) Area under the ROC curve of a logistic regression "
+        "on the three features, four-fold stratified cross-validation with class-balanced test folds (bars, all "
         "sessions, mean ± SD over folds; points, single sessions in which both proteins were measured with at "
         "least 20 molecules each) and of the networks of Figures 4C, 5B and 6B in the same design (gray, mean "
         "± SD over folds); dotted line, chance. j-l) Rank-biserial effect size per feature (positive: the first "
         "protein of the row tends to larger values); bars, all sessions; points, single sessions. Molecules are "
         "distinct. No statistical tests were performed.",
-        *[f"Figure R3.2{s}. Corner plot of the four features, {LABELS[p[0]]} vs {LABELS[p[1]]}. " + common +
+        *[f"Figure R3.2{s}. Corner plot of the three features, {LABELS[p[0]]} vs {LABELS[p[1]]}. " + common +
           " Diagonal, per-protein distributions (log scale); below the diagonal, contours enclosing 50 % (thick) "
           f"and 90 % (thin) of each protein's molecules (n: {n[pair_key(p)]}). No statistical tests were performed."
           for s, p in zip("bcd", PAIRS)],

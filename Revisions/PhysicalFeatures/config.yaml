@@ -4,8 +4,11 @@
 # Per-molecule features from the R3.3a event table (all published filtered traces inside vesicles;
 # the paper's ON classification, as for Figs. 5D and 6C, on the full 6000 frames).
 events_run: Results/Revisions/PhotonsFrames/events/run_002   # 0.062 photons per ADU (run_001: 16.0 / 300)
+# Only the kinetic features the paper uses (user, 2026-11-20): absolute photon numbers carry experiment-, day-
+# and slide-specific information (laser power, focus, slide quality), which is why the paper normalizes its traces;
+# photons are reported descriptively in R3.3a, never used to separate proteins. (analysis run_001 and run_002
+# included median photons per event.)
 features:                       # name: molecules.csv column (frames converted to ms with frame_interval_ms)
-  photons_per_event: median_photons_per_event
   mean_on_ms: mean_on_frames
   mean_off_ms: mean_off_frames
   duty_cycle: duty_cycle
