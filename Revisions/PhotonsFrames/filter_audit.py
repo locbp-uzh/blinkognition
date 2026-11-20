@@ -7,9 +7,11 @@
 Replay of the paper's quality filter on every unfiltered trace inside vesicles, recording which criterion
 removes each trace (R3.3b).
 
-The cascade is Extraction/filter.py `_filter_particle`, in its order, with the published parameters
-(config.yaml `filter`): one GMM fit per background-removed trace (Extraction/utils.py gmm_classify_frames,
-posterior >= gmm_proba_threshold, gmm_min_separation), then
+The cascade is Extraction/filter.py, in its order, with the published parameters (config.yaml `filter`):
+  0. zscore_zero     the z-scored trace has a frame exactly 0 (filter_and_augment_compound drops these as
+                     invalid before the peak criteria)
+then `_filter_particle`: one GMM fit per background-removed trace (Extraction/utils.py gmm_classify_frames,
+posterior >= gmm_proba_threshold, gmm_min_separation), and
   1. snr_gate        separation < snr_min_separation (2.0)
   2. duty_cycle      fraction of ON frames > max_duty_cycle
   3. too_few_peaks   number of ON runs <= min_peak_number; split by whether the separation was below
@@ -51,19 +53,24 @@ from events import load_topic_config, runs_of  # noqa: E402
 from paperdata import load_config, load_index, load_traces, make_run_dir, to_photons, trace_path, write_manifest  # noqa: E402
 from utils import gmm_classify_frames  # noqa: E402  (Extraction/utils.py, on sys.path via events)
 
-CRITERIA = ["snr_gate", "too_few_peaks_no_on_frames", "duty_cycle", "too_few_peaks", "first_peak_late",
-            "first_gap_long", "last_peak_early", "passed"]
+CRITERIA = ["zscore_zero", "snr_gate", "too_few_peaks_no_on_frames", "duty_cycle", "too_few_peaks",
+            "first_peak_late", "first_gap_long", "last_peak_early", "passed"]
 
 
 def audit_trace(bg: np.ndarray, f: dict) -> dict:
-    """The filter cascade on one bg_rm trace (ADU), with the first failing criterion."""
+    """The filter cascade on one bg_rm trace (ADU), with the first failing criterion. Before the cascade,
+    filter.py drops traces whose z-scored version (AllNorm) has an exact 0 (it treats 0 as invalid data);
+    the stored z-score equals (bg_rm - mean) / SD exactly (PaperData step 0), so it is recomputed here."""
+    zero = bool(((bg - bg.mean()) / bg.std() == 0).any())
     _, _, sig_free, sep = gmm_classify_frames(bg, f["gmm_proba_threshold"], 0.0, return_separation=True)
     no_on = sep < f["gmm_min_separation"]
     signal = np.zeros_like(sig_free) if no_on else sig_free   # what filter.py's classifier returns
     runs = runs_of(signal, f["min_peak_width"])
     peaks = np.array([s + int(np.argmax(bg[s:e + 1])) for s, e in runs])
     n = len(peaks)
-    if f["snr_min_separation"] > 0 and sep < f["snr_min_separation"]:
+    if zero:
+        crit = "zscore_zero"
+    elif f["snr_min_separation"] > 0 and sep < f["snr_min_separation"]:
         crit = "snr_gate"
     elif f["max_duty_cycle"] > 0 and signal.mean() > f["max_duty_cycle"]:
         crit = "duty_cycle"
