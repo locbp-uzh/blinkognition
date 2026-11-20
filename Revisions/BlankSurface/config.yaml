@@ -44,3 +44,14 @@ gradient_ground_truth: {"488": 2000, "405": 4000}
 picasso_sync_env: BLANKSURFACE_PICASSO_SYNC_MLE
 
 output_root: Results/Revisions/BlankSurface
+
+# Classification of the traces that pass the quality filter (classify_blank.py, local, ML/classify.py):
+# the paper's two final models (GeneralData MLresults/FinalModels) at the paper's Wasserstein threshold.
+classify:
+  final_models:
+    HaloD106_HaloK117: /Volumes/MediumBerth/SalomePaperData/Püntener2026/GeneralData/MLresults/FinalModels/2026-05-19_08-21-58_orig_conv_gru_mirrored_IN_training_HaloD106_HaloK117
+    scGrx1_scGrx1AcK20: /Volumes/MediumBerth/SalomePaperData/Püntener2026/GeneralData/MLresults/FinalModels/2026-05-19_10-14-25_tcn_mirrored_IN_training_scGrx1_scGrx1AcK20
+  wasserstein_threshold: 0.7     # Figs. 5D and 6C
+  n_mc: 100
+  filtered_root: Results/Revisions/BlankSurface/s3it/filtered      # <tag>/ProteinTraces{IN,OUT}/Filtered (rsync of the S3IT runs)
+  count_run: Results/Revisions/BlankSurface/s3it/count/run_003
