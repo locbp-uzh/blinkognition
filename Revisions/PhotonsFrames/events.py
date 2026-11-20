@@ -9,7 +9,7 @@ ON events of every published filtered trace inside vesicles, with their photons 
 Per trace (the published filtered IN set, from the local mirror of the published extraction,
 ../PaperData): ON frames from the paper's classifier on the min-max trace (config gmm_proba), runs of
 ON frames as events (config min_peak_width), exactly as Features/features.py does for Figs. 5D and 6C,
-here on the full 6000 frames. Photons are the bg_rm traces x 16.0 / 300 (../PaperData).
+here on the full 6000 frames. Photons are the bg_rm traces x camera.photons_per_adu (../PaperData; 0.062, measured; run_001 used 16.0 / 300).
 
 Outputs (Results/Revisions/PhotonsFrames/events/run_NNN/):
   events.csv.gz   one row per event: construct, uniqueID, event, start_frame, n_frames, photons (sum

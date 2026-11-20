@@ -47,8 +47,12 @@ with 16.0 / 300 (R2.1, R3.3, R3.2 photons) would be 10-16 % higher with the empi
 rankings and all non-photon results are unaffected. The fits cross zero variance near 530 ADU, the
 camera's per-pixel offset (Picasso's baseline is 79); irrelevant for the bg_rm photon numbers, which
 subtract each trace's own background. Caveat: F^2 = 2 is the high-gain limit; clock-induced charge
-and any departure of F^2 shift the factor by a few percent. Not changed anywhere; the user decides
-which factor the revision reports.
+and any departure of F^2 shift the factor by a few percent.
+
+Decision (user, 2026-11-20): the revision reports detected photons with the measured 0.062 photons
+per ADU (`config.yaml` camera.photons_per_adu, used by `to_photons`), not Picasso's 16.0 / 300. The
+paper itself reports no photon numbers and no camera values, so only the revision's new numbers
+change (all photon values x 1.1625 against the first versions of R2.1, R3.3a, R3.3b and R3.2).
 
 ## Local mirror
 
@@ -63,10 +67,12 @@ not needed locally.
 
 ## Units
 
-- Detected photons per frame = bg_rm (ADU) x 16.0 / 300, Picasso's convention (no QE division), with
-  the Picasso Localize parameters of the published run (baseline 79, sensitivity 16.0 e-/ADU, EM
-  gain 300, QE 0.93, 130 nm pixels). EM gain 300 is confirmed by the ND2 headers; the sensitivity is
-  not stored there (readout speed and conversion gain are indices) and is used as entered in Picasso.
+- Detected photons per frame = bg_rm (ADU) x 0.062, the photons per ADU measured from the raw movies'
+  noise (see Photon conversion check; chosen by the user 2026-11-20), no QE division. The Picasso
+  Localize parameters of the published run (baseline 79, sensitivity 16.0 e-/ADU, EM gain 300, QE
+  0.93, 130 nm pixels) give 0.053; they stay in `config.yaml` for the record. EM gain 300 is confirmed
+  by the ND2 headers; the sensitivity is not stored there (readout speed and conversion gain are
+  indices). Until 2026-11-20 (events run_001 and the first figure versions) the revision used 0.053.
 - Time: 34.49 ms per frame (ND2 timestamps; 30 ms exposure plus readout), not the 30 ms exposure.
   The camera did not run in frame-transfer mode (user, 2026-11-20): each frame is 30 ms of exposure
   followed by 4.49 ms of readout with no light recorded. Photons per fully-ON frame are photons per

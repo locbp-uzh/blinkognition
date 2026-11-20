@@ -129,11 +129,11 @@ def load_index(cfg: dict, construct: str, where: str = "IN") -> pd.DataFrame:
 # --- Units ---
 
 def to_photons(adu, cfg: dict):
-    """Background-removed ADU to detected photons (photoelectrons): ADU * sensitivity / EM gain.
-    Picasso's convention since v0.6.0 (no QE division). Use on bg_rm traces, never on raw ones
-    (raw still carries baseline and background)."""
-    cam = cfg["camera"]
-    return adu * (cam["sensitivity_e_per_adu"] / cam["em_gain"])
+    """Background-removed ADU to detected photons (photoelectrons): ADU * camera.photons_per_adu, the
+    factor measured from the raw movies' noise (0.062; conversion_check.py, chosen by the user
+    2026-11-20) rather than Picasso's sensitivity / EM gain (16.0 / 300 = 0.053). No QE division.
+    Use on bg_rm traces, never on raw ones (raw still carries baseline and background)."""
+    return adu * float(cfg["camera"]["photons_per_adu"])
 
 
 def frame_s(cfg: dict) -> float:

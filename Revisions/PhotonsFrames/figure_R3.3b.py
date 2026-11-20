@@ -67,7 +67,7 @@ FATES = [("passed", "Passed", BLACK), ("snr_molecule_like", "SNR < 3, molecule-l
 SNR_STATED, SNR_EFFECTIVE = 2.0, 3.0
 SHARED_SESSIONS = ["20231130_SP_Exp1", "20231201_SP_Exp2"]
 K_MAIN = 5
-PHOTONS_PER_ADU = 16.0 / 300.0         # sensitivity / EM gain (Revisions/PaperData/config.yaml)
+PAPERDATA_CONFIG = "Revisions/PaperData/config.yaml"   # camera.photons_per_adu (build only)
 JITTER = 0.32
 RNG_SEED = 42
 FIG_WIDTH_IN = 180 / 25.4
@@ -115,6 +115,9 @@ def build(repo: Path, a: argparse.Namespace, out: Path) -> list[Path]:
              "ml_thr": p["molecule_like"] / "thresholds.csv", "flagged": p["flagged"] / "molecules_flagged.csv",
              "comparison": p["flagged"] / "comparison.csv", "events": p["events"] / "molecules.csv",
              "counts": p["counts"] / "counts_IN.csv"}
+    import yaml
+    with open(repo / PAPERDATA_CONFIG) as fh:
+        photons_per_adu = float(yaml.safe_load(fh)["camera"]["photons_per_adu"])
     ml = pd.read_csv(files["ml"])
     ml["fate"] = np.select([ml["passed"], ml[f"molecule_like_k{K_MAIN}"], ml["rejected_snr"]],
                            ["passed", "snr_molecule_like", "snr_other"], "other")
@@ -145,7 +148,7 @@ def build(repo: Path, a: argparse.Namespace, out: Path) -> list[Path]:
 
     cnt = pd.read_csv(files["counts"])[["construct", "uniqueID", "sigma_adu"]]
     passed = ml.loc[ml["passed"], ["construct", "uniqueID"]].merge(cnt, on=["construct", "uniqueID"])
-    noise = passed.groupby("construct")["sigma_adu"].median().mul(PHOTONS_PER_ADU).rename("noise_sigma_photons")
+    noise = passed.groupby("construct")["sigma_adu"].median().mul(photons_per_adu).rename("noise_sigma_photons")
     noise.reset_index().to_csv(out / f"{FIG}_panel_f_noise.csv", index=False, float_format="%.2f")
 
     ain.groupby(["construct", "criterion"]).size().unstack(fill_value=0).reset_index().to_csv(
@@ -316,7 +319,7 @@ def caption(out: Path) -> str:
         "molecule, passed (construct color) and molecule-like rejected (black) traces, sessions pooled; dotted "
         "line, median per-frame noise of the passed traces. ON events as classified for Figures 5D and 6C "
         "(without the separation minimum). Boxes, median and quartiles; whiskers, 1.5 x IQR. Molecules are "
-        "distinct. No statistical comparisons were performed."
+        "distinct. " + "Detected photons: background-removed 5 x 5 pixel sum x 0.062 photons per ADU, measured from the camera noise (mean-variance analysis of the raw movies), no quantum-efficiency correction. No statistical comparisons were performed."
     )
 
 

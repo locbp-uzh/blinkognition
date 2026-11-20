@@ -14,7 +14,7 @@ traces inside vesicles that passed the paper's quality filter (the published fil
   window start. ON frames as the paper classifies them for Figs. 5D and 6C
   (`Extraction/utils.py` `gmm_classify_frames` on the min-max trace, posterior >= 0.9).
 - Intensity: the extraction's bg_rm traces (5 x 5 pixel sum minus the per-trace GMM
-  background), in detected photons per frame (x 16.0 / 300, `../PaperData/`); one common
+  background), in detected photons per frame (x 0.062 photons per ADU, measured, `../PaperData/`; the first version used 16.0 / 300); one common
   intensity scale for all panels.
 
 No statistics.

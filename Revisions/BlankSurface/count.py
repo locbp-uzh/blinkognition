@@ -22,8 +22,8 @@ staged from config.yaml's stage_root) and counts, per field of view (FOV, one 64
   - camera and laser settings from the ND2 headers (Revisions/PaperData/paperdata.py nd2_camera).
 Per trace (every single IN and OUT trace that reaches the filter): the filter replay of R3.3b
 (Revisions/PhotonsFrames/filter_audit.py audit_trace, published filter parameters): the criterion that removes
-it, the GMM separation, the number of ON events and the median detected photons per event (16.0 / 300 photons
-per ADU, Picasso's convention as everywhere in the revision). The replay must reproduce the pipeline's
+it, the GMM separation, the number of ON events and the median detected photons per event (0.062 photons per
+ADU, measured; Revisions/PaperData camera.photons_per_adu, as everywhere in the revision). The replay must reproduce the pipeline's
 filtered set trace by trace (checks.json).
 
 References for the per-FOV numbers:

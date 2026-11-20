@@ -399,7 +399,7 @@ def captions(out: Path) -> str:
     nsets = mol[mol["in_figure_set"]].groupby(["pair", "construct"]).size()
     common = ("Features per molecule from every filtered single-molecule trace inside vesicles: median detected "
               "photons per ON event, mean ON time, mean OFF time and duty cycle (ON frames as classified for "
-              "Figures 5D and 6C; 6000 frames, 34.49 ms per frame).")
+              "Figures 5D and 6C; 6000 frames, 34.49 ms per frame). Detected photons: background-removed 5 x 5 pixel sum x 0.062 photons per ADU, measured from the camera noise (mean-variance analysis of the raw movies), no quantum-efficiency correction.")
     return "\n\n".join([
         "Figure R3.2a. Physical features of single molecules before deep learning. " + common +
         " Rows, Halo-D106 vs SNAP-C148, Halo-D106 vs Halo-K117 and scGrx1 vs scGrx1-AcK20 (n: " +

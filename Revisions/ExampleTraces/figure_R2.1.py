@@ -15,7 +15,7 @@ model's output.
 Left: the full trace (6000 frames, 34.49 ms per frame). Right: the 10 s window with the most frames
 classified ON, with the ON frames marked. Intensity: the 5 x 5 pixel sum with the per-trace GMM
 background removed (the extraction's bg_rm traces), in detected photons per frame
-(ADU x 16.0 e-/ADU / EM gain 300, Picasso's convention). ON frames: the paper's frame classifier
+(ADU x 0.062 photons per ADU, measured; Revisions/PaperData camera.photons_per_adu). ON frames: the paper's frame classifier
 (Extraction/utils.py gmm_classify_frames on the min-max trace, posterior >= 0.9), as in Figs. 5D, 6C.
 
 Usage:
@@ -235,7 +235,8 @@ def caption(out: Path) -> str:
         "right, the 10 s window with the most ON frames (shaded on the left; time from the window start), "
         "with ON frames (black bars) as classified for Figures 5D and 6C (two-component Gaussian mixture, "
         "posterior probability >= 0.9). Intensity is the 5 x 5 pixel sum with the per-trace background "
-        "removed, in detected photons per frame; all panels share one intensity scale. Each trace is a "
+        "removed, in detected photons per frame (0.062 photons per ADU, measured from the camera noise); all "
+        "panels share one intensity scale. Each trace is a "
         "different molecule; labels give the session, the movie and the trace identifier of the published "
         "dataset. No statistical comparisons were performed."
     )

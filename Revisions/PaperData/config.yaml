@@ -30,14 +30,18 @@ published_md5:
   scGrx1AcK20: {minmax: 66199598fdb532cb90ff023449f9e1f7, zscored: e132dd2d2edd76cee3dc12b964b011b0}
 
 # Camera: the Picasso Localize parameters of the published run (every *_locs.yaml), Andor iXon 888.
-# Detected photons = (ADU - baseline) * sensitivity / em_gain, Picasso's convention since v0.6.0
-# (no division by QE). The extraction's bg_rm traces already have baseline and background removed.
-# The ND2 headers give EM gain 300 directly; sensitivity is not in them (readout speed and conversion
-# gain are stored as indices), so 16.0 e-/ADU stands as entered in Picasso until confirmed.
+# Picasso's detected photons = (ADU - baseline) * sensitivity / em_gain = 16.0 / 300 = 0.053 photons per
+# ADU (no division by QE). The ND2 headers give EM gain 300 directly; sensitivity is not in them (readout
+# speed and conversion gain are stored as indices).
+# photons_per_adu is what the revision uses (paperdata.to_photons): measured from the raw movies' noise,
+# 0.062 (0.059-0.065 over 20 movies; conversion_check.py, conversion run_001, median 0.0620 all pixels),
+# chosen by the user 2026-11-20 over Picasso's 0.053. The extraction's bg_rm traces already have
+# baseline and background removed, so photons = bg_rm ADU x photons_per_adu (no QE correction).
 camera:
   baseline_adu: 79
-  sensitivity_e_per_adu: 16.0
+  sensitivity_e_per_adu: 16.0     # as entered in Picasso (published run); not used for photons here
   em_gain: 300
+  photons_per_adu: 0.062          # measured (see above); detected photons per background-removed ADU
   qe: 0.93
   pixel_nm: 130
 

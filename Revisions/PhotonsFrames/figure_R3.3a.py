@@ -8,8 +8,8 @@ Figure R3.3a (first-round review, Reviewer 3, point 3): detected photons per ON 
 and photon numbers per molecule, for every construct.
 
 Data: every ON event of every published filtered trace inside vesicles (events.py run): ON frames from the
-paper's classifier (as for Figs. 5D and 6C), photons = background-removed 5 x 5 pixel sum x 16.0 / 300
-(detected photons, Picasso's convention), 34.49 ms per frame.
+paper's classifier (as for Figs. 5D and 6C), photons = background-removed 5 x 5 pixel sum x 0.062 photons
+per ADU (measured; Revisions/PaperData camera.photons_per_adu), 34.49 ms per frame.
 
 a-e) Per construct, 2D histogram of photons per event against ON duration (percentage of the construct's
      events per bin, log color scale, Crameri batlow). Solid line: median over molecules of each
@@ -274,8 +274,8 @@ def caption(out: Path) -> str:
         f"longer than {MAX_FRAMES} frames are not shown (table). f) Median photons per event and g) total "
         "detected photons over the ON frames of the 207 s trace, one point per molecule. h) Photons per "
         "fully-ON frame, one point per molecule, for Halo-D106 and Halo-K117 measured on the same days. "
-        "Photons are detected photons (background-removed 5 x 5 pixel sum, EM gain and camera sensitivity "
-        "removed, no quantum-efficiency correction). Boxes, median and quartiles; whiskers, 1.5 x IQR. "
+        "Photons are detected photons (background-removed 5 x 5 pixel sum x 0.062 photons per ADU, measured "
+        "from the camera noise by mean-variance analysis of the raw movies; no quantum-efficiency correction). Boxes, median and quartiles; whiskers, 1.5 x IQR. "
         "Molecules are distinct; sessions differ in excitation power, so f and g mix construct and session "
         f"effects. n (a-g): {n}. n (h, molecules with events of three or more frames): {nh}. No statistical "
         "comparisons were performed."
