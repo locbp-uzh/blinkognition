@@ -39,6 +39,8 @@ Descriptive; no tests. Passing blank traces, if any, classified by the final mod
   localize`; copies the run config and link map into the pipeline's run folder.
 - `picasso_sync/sitecustomize.py`: synchronous Picasso MLE fits (see below).
 - `dye_check.py`: which vesicle dye is on which slide, from the snapshots.
+- `count.py`: per-FOV and per-trace counts of the six runs, references (same-power protein slides, the
+  paper's passing IN traces per movie), checks (docstring lists them).
 
 Outputs: `Results/Revisions/BlankSurface/Extraction_gt<ch>_g<gradient>/<run>/` (S3IT clone),
 `dye_check/run_NNN/`.
@@ -72,3 +74,21 @@ Outputs: `Results/Revisions/BlankSurface/Extraction_gt<ch>_g<gradient>/<run>/` (
   the camera's saturation, about 56,800 ADU per pixel; irrelevant for detection.)
 - 2026-11-20: six extraction jobs submitted (S3IT 8604886, 8604887, 8604889 for 488 nm at gradients
   10000, 20000, 40000; 8604890, 8604892, 8604893 for 405 nm).
+- 2026-11-20, first six runs (8604886-8604893, all COMPLETED in 5-10 min) are invalid for the blank and
+  empty-vesicle slides, for two reasons found before counting anything:
+  1. `Extraction/extract.py` skips a movie without any 640 nm localization ("No localizations",
+     `FileLists/failed_file_list.pkl`): at gradient 10000, 3 of 10 DFK786 blank fields, 14 of 20 DFK787
+     blank fields and 1 empty-ATTO520 field had none. Nothing is lost: count.py counts them as fields with
+     zero of everything (and checks that every skipped movie has zero localizations and vice versa).
+  2. `Extraction/combine.py` assigns per-movie traces to a protein by matching the protein name in the file
+     name, case-sensitively and bounded by underscores. The raw files are named `blank_*`, `ATTO390_*`,
+     `ATTO425_*`, so it found no files for Blank, EmptyATTO520, EmptyATTO390 and EmptyATTO425 ("No trace
+     files found", 358-byte empty tables); only SNAP520 and HT390 went through the filter. Fixed in my
+     staging, not in the pipeline (commit eaef51a): links are named `<slide>_<original file name>` and
+     checked against combine's own patterns; the pipeline's channel pairing (first name token plus field
+     number) is unchanged. Tested on a mock tree with the real file names (pairing and matching per slide).
+     The paper's files carried the construct key as prefix, so the published run is not affected.
+  New staging root `/scratch/pabriv/blanksurface/stage2`; the `_001` run folders stay as they are and are
+  not used (count.py takes the newest run staged from the configured root).
+- 2026-11-20: six extraction jobs resubmitted (S3IT 8606234-8606236 for 488 nm at 10000, 20000, 40000;
+  8606237-8606239 for 405 nm).
