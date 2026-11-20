@@ -41,6 +41,10 @@ Descriptive; no tests. Passing blank traces, if any, classified by the final mod
 - `dye_check.py`: which vesicle dye is on which slide, from the snapshots.
 - `count.py`: per-FOV and per-trace counts of the six runs, references (same-power protein slides, the
   paper's passing IN traces per movie), checks (docstring lists them).
+- `projections.py`: per-field images (640 nm maximum projection and mean, vesicle snapshot).
+- `classify_blank.py`: the paper's two final models on every passing trace (local, `ML/classify.py`).
+- `figure_R3.1.py`: figure R3.1 (a: fields and counts; b: passing traces and model calls).
+- `s3it/run_cpu.sbatch <script>`: count.py or projections.py on an S3IT CPU node.
 
 Outputs: `Results/Revisions/BlankSurface/Extraction_gt<ch>_g<gradient>/<run>/` (S3IT clone),
 `dye_check/run_NNN/`.
@@ -158,3 +162,30 @@ Reading:
   excluded.
 - Caveat: these slides were imaged at 13-15 mW, the paper at 20-21 mW; the same-power protein slides
   give the like-for-like reference.
+
+Final models on the passing traces (`classify_blank.py`, run_001, local MPS, 2026-11-20; ML/classify.py
+unchanged, first 4000 frames, both channels, n_mc 100, WD threshold 0.7). Each emitter counted once
+across gradients (24 from blank or empty slides: 15 IN and 6 OUT on DFK786 ATTO390, 2 IN on ATTO520,
+1 OUT on ATTO425; 274 from the same-power protein slides):
+
+| Model | Blank or empty: kept | Called | Protein slides: kept | Called |
+|---|---|---|---|---|
+| Halo-D106 vs Halo-K117 (CNN-GRU) | 24 of 24 (100 %) | Halo-D106 24 | 226 of 274 (82 %) | Halo-D106 222, Halo-K117 4 |
+| scGrx1 vs scGrx1-AcK20 (TCN) | 11 of 24 (46 %) | scGrx1 11 | 121 of 274 (44 %) | scGrx1 118, AcK20 3 |
+
+- The uncertainty filter does not reject these traces: the Halo model calls every one of them
+  Halo-D106 with confidence, as it does with the SNAP-tag and HaloTag7 traces it never saw (the same
+  default-class behavior as DFK785, where SNAP-tag traces were called Halo). What keeps impurities out
+  of the paper's numbers is how rare they are, not the classifier. (Random background positions, in
+  contrast, are almost all rejected: MANUSCRIPT_FIXES item 4.)
+- The passing impurity traces are not separable from protein traces by simple properties (median 19
+  ON events and 770 photons per event against 18 and 1000; GMM separation 6.4 against 10.3; R3.1b b).
+  Some look unlike protein blinking (a bright first seconds then nothing, or a few isolated spikes;
+  R3.1b a), but one outside-vesicle trace on DFK786 ATTO390 blinks throughout.
+
+Figure: `revisions_figures/R3.1/` (R3.1a, R3.1b, caption, CSVs, script; standalone replot checked,
+provenance at commit 18272a9).
+
+Not done: no normalization of the contamination bound by vesicle density (a choice for the user; the
+paper's vesicles per movie are in `edge_groups` run_001), no test of the gradient the paper used per
+session (all three gradients reported instead), and the laser power differs (13-15 against 20-21 mW).
