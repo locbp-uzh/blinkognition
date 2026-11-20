@@ -10,7 +10,7 @@
 #SBATCH --account=locbp.chem.uzh
 #SBATCH --partition=standard
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=64G
+#SBATCH --mem=96G
 #SBATCH --time=02:00:00
 #SBATCH --output=slurm-%j.out
 source /etc/profile

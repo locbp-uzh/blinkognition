@@ -13,15 +13,17 @@ Per construct (IN traces):
   - raw minus bg_rm is one constant per trace (the GMM background);
   - the filtered minmax and zscored pickles have the published md5 (Inputs/FinalTraces, Zenodo);
   - filtered traces are a subset of the unfiltered ones, with unchanged bg_rm values;
-  - the unfiltered traces are exactly the UniqueIDs IN rows; each trace's session, movie and box position.
+  - every unfiltered trace has a UniqueIDs IN row; each trace's session, movie and box position. IDs
+    without an unfiltered trace were dropped by Extraction/combine.py as invalid (a zero or NaN frame);
+    they are counted (ids_dropped_as_invalid) and flagged in the index (in_unfiltered = False).
 OUT and background traces (unless --skip-out-bg): unfiltered and filtered counts and index; UniqueIDs_all
 gives the ROI counts by overlap and IN/OUT label (the start of the trace funnel).
 ND2 headers of every 640 nm movie (unless --no-nd2): EM gain, readout indices, exposure, frame count,
 frame interval.
 
-Outputs (Results/Revisions/PaperData/check/run_NNN/): checks.json, funnel.csv, sessions.csv, rois.csv,
-index_<where>_<construct>.csv (uniqueID, session, folder, movie, x, y, passed_filter), camera.csv,
-manifest.yaml, config.yaml, code/.
+Outputs (Results/Revisions/PaperData/check/run_NNN/): checks.json, funnel.csv and sessions.csv (n_ids,
+n_unfiltered, n_filtered), rois.csv, index_<where>_<construct>.csv (uniqueID, session, folder, movie, x,
+y, in_unfiltered, passed_filter), camera.csv, manifest.yaml, config.yaml, code/.
 
 Usage (repo root; on S3IT through Revisions/PaperData/s3it/check_data.sbatch):
     python Revisions/PaperData/check_data.py [--constructs HaloK117 ...] [--skip-out-bg] [--no-nd2]
@@ -79,9 +81,10 @@ def check_filtered_in(cfg: dict, c: str, run: Path, inputs: list) -> tuple[dict,
     allbg_p = trace_path(cfg, c, "bg_rm", filtered=False)
     inputs.append(allbg_p)
     allbg = pd.read_pickle(allbg_p)
+    allbg_cols = allbg.columns
     r["unfiltered_n_traces"] = int(allbg.shape[1])
     cols = mats["bg_rm"].columns
-    r["filtered_subset_of_unfiltered"] = bool(cols.isin(allbg.columns).all())
+    r["filtered_subset_of_unfiltered"] = bool(cols.isin(allbg_cols).all())
     if r["filtered_subset_of_unfiltered"]:
         r["filtered_bg_rm_vs_unfiltered_max_abs_diff"] = _max_abs(allbg[cols].to_numpy(np.float64), bg)
     del allbg, bg, mats
@@ -92,26 +95,47 @@ def check_filtered_in(cfg: dict, c: str, run: Path, inputs: list) -> tuple[dict,
     r["ids_uniqueID_unique"] = bool(ids["uniqueID"].is_unique)
     r["ids_overlap_values"] = ids["overlap"].value_counts().to_dict()
     r["ids_ground_truth_values"] = ids["ground_truth"].value_counts().to_dict()
-    r["ids_equal_unfiltered_columns"] = r["ids_rows"] == r["unfiltered_n_traces"]
     r["ids_sessions_parsed"] = bool((ids["session"] != "").all())
-    idx = ids[["uniqueID", "session", "folder", "movie", "x", "y"]].copy()
-    idx["passed_filter"] = idx["uniqueID"].isin(cols)
+    r["unfiltered_all_in_ids"] = bool(allbg_cols.isin(ids["uniqueID"]).all())
+    idx = _index(ids, allbg_cols, cols)
     r["filtered_found_in_ids"] = int(idx["passed_filter"].sum()) == r["filtered_n_traces"]
+    # IDs the combine step dropped as invalid (any zero or NaN frame, Extraction/combine.py); informative
+    r.update(_dropped_summary(idx))
     idx.to_csv(run / f"index_IN_{c}.csv", index=False)
     return r, idx
+
+
+def _index(ids: pd.DataFrame, unfiltered_cols: pd.Index, filtered_cols: pd.Index) -> pd.DataFrame:
+    idx = ids[["uniqueID", "session", "folder", "movie", "x", "y"]].copy()
+    idx["in_unfiltered"] = idx["uniqueID"].isin(unfiltered_cols)
+    idx["passed_filter"] = idx["uniqueID"].isin(filtered_cols)
+    return idx
+
+
+def _dropped_summary(idx: pd.DataFrame) -> dict:
+    """Where the IDs missing from the unfiltered matrix sit: x and y ranges against all IDs'."""
+    d = idx.loc[~idx["in_unfiltered"]]
+    out = {"ids_dropped_as_invalid": int(len(d))}
+    if len(d):
+        out["dropped_xy_range"] = {k: [int(d[k].min()), int(d[k].max())] for k in ("x", "y")}
+        out["all_xy_range"] = {k: [int(idx[k].min()), int(idx[k].max())] for k in ("x", "y")}
+        out["dropped_by_session"] = d["session"].value_counts().to_dict()
+    return out
 
 
 def count_where(cfg: dict, c: str, where: str, run: Path, inputs: list) -> pd.DataFrame:
     """Index of OUT or background traces with passed_filter, from UniqueIDs and the filtered columns."""
     fp = trace_path(cfg, c, "bg_rm", where=where)
-    inputs.extend([fp, ids_path(cfg, c, where)])
+    up = trace_path(cfg, c, "bg_rm", where=where, filtered=False)
+    inputs.extend([fp, up, ids_path(cfg, c, where)])
     cols = pd.read_pickle(fp).columns
+    ucols = pd.read_pickle(up).columns
     ids = load_ids(cfg, c, where)
-    idx = ids[["uniqueID", "session", "folder", "movie", "x", "y"]].copy()
-    idx["passed_filter"] = idx["uniqueID"].isin(cols)
-    if int(idx["passed_filter"].sum()) != len(cols):
-        logging.warning("%s %s: %d filtered columns, %d found in UniqueIDs", c, where, len(cols),
-                        int(idx["passed_filter"].sum()))
+    idx = _index(ids, ucols, cols)
+    for what, n_cols, n_found in (("filtered", len(cols), int(idx["passed_filter"].sum())),
+                                  ("unfiltered", len(ucols), int(idx["in_unfiltered"].sum()))):
+        if n_cols != n_found:
+            logging.warning("%s %s: %d %s columns, %d found in UniqueIDs", c, where, n_cols, what, n_found)
     idx.to_csv(run / f"index_{where}_{c}.csv", index=False)
     return idx
 
@@ -172,9 +196,11 @@ def main() -> None:
                 groups[where] = count_where(cfg, c, where, run, inputs)
             rois.append(roi_counts(cfg, c, inputs))
         for where, g in groups.items():
-            funnel.append({"construct": c, "where": where, "n_unfiltered": len(g),
+            funnel.append({"construct": c, "where": where, "n_ids": len(g),
+                           "n_unfiltered": int(g["in_unfiltered"].sum()),
                            "n_filtered": int(g["passed_filter"].sum())})
-            s = g.groupby("session")["passed_filter"].agg(n_unfiltered="size", n_filtered="sum").reset_index()
+            s = g.groupby("session").agg(n_ids=("uniqueID", "size"), n_unfiltered=("in_unfiltered", "sum"),
+                                         n_filtered=("passed_filter", "sum")).reset_index()
             s.insert(0, "where", where)
             s.insert(0, "construct", c)
             sessions.append(s)
