@@ -8,38 +8,35 @@ Figure R3.1 (first-round review, Reviewer 3, point 1): blank coverslips and empt
 extraction and quality filter, against protein slides imaged at the same 640 nm power and against the paper.
 
 Slides (Revisions/BlankSurface/config.yaml): coated coverslips without vesicles (DFK786, DFK787), empty vesicles
-(ATTO520, the paper's vesicle dye; ATTO390 twice; ATTO425), and protein in vesicles at the same power (DFK788:
-SNAP-tag in ATTO520 vesicles, HaloTag7 in ATTO390 vesicles). 6000 frames at 640 nm, 34.49 ms per frame, 13-15 mW
+(ATTO520, the paper's vesicle dye; ATTO390; ATTO425), and protein in vesicles at the same power (DFK788: SNAP-tag
+in ATTO520 vesicles, HaloTag7 in ATTO390 vesicles). DFK786's ATTO390 slide (folder ATT390) is not used: it had an
+experimental mix-up (user, 2026-11-20). 6000 frames at 640 nm, 34.49 ms per frame, 13-15 mW
 (the paper: 20-21 mW). Extraction with fixed protein gradients 10000 (main; the paper's most permissive),
 20000 and 40000.
 
 R3.1a.pdf
-  a-h) One field per slide, 640 nm maximum projection over 6000 frames, one common gray scale (ADU; limits:
-       lowest 1st and highest 99.9th percentile of the eight fields shown). The field shown is the slide's field
+  a-g) One field per slide, 640 nm maximum projection over 6000 frames, one common gray scale (ADU; limits:
+       lowest 1st and highest 99.9th percentile of the fields shown). The field shown is the slide's field
        with the median number of detected emitters at gradient 10000 (not chosen by eye). Circles: single
        emitters (ROIs) the extraction kept; squares: traces that passed the quality filter.
-  i)   Detected emitters per field (linked localization groups = extraction ROIs), gradient 10000.
-  j)   Vesicles per field (vesicle-channel clusters, as the extraction finds them), slides and the paper's movies.
-  k)   Traces passing the quality filter per field, inside and outside vesicles, at the three gradients (points:
+  h)   Detected emitters per field (linked localization groups = extraction ROIs), gradient 10000.
+  i)   Vesicles per field (vesicle-channel clusters, as the extraction finds them), slides and the paper's movies.
+  j)   Traces passing the quality filter per field, inside and outside vesicles, at the three gradients (points:
        fields at 10000; open markers: means at 10000, 20000, 40000).
-  l)   Traces inside vesicles passing the quality filter per field: slides (as k) and the paper's movies per
+  k)   Traces inside vesicles passing the quality filter per field: slides (as j) and the paper's movies per
        construct (points: movies; line: mean).
 R3.1b.pdf
-  a)   Every trace from a blank or empty-vesicle slide that passed the quality filter at gradient 10000, and one
-       random passing trace inside vesicles from each same-power protein slide (seed 42); detected photons per
-       frame (0.062 photons per ADU), one common scale.
-  b)   Median photons per ON event against number of ON events per trace (the paper's ON classification without
-       the separation minimum, as R3.3), every passing trace of the blank and empty-vesicle slides at any gradient
-       (an emitter found at two gradients counts once) and of the same-power protein slides.
-  c)   The paper's final models on those traces: share kept at the paper's Wasserstein threshold (0.7), and the
-       class called among the kept.
+  Every trace from a blank or empty-vesicle slide that passed the quality filter at any gradient (an emitter
+  found at several gradients shown once, at the lowest), and one random passing trace inside vesicles from each
+  same-power protein slide at gradient 10000 (seed 42); detected photons per frame (0.062 photons per ADU), one
+  common scale. Table: every passing emitter with its filter values (R3.1b_table_passing_traces.csv).
 Descriptive; no statistical tests.
 
 Usage:
     python figure_R3.1.py
         Replot from the CSVs next to this script (works in the figure folder as distributed).
-    python figure_R3.1.py --build [--out <dir>] [--count ... --projections ... --classify ... --filtered ...
-                                   --edge-groups ... --step0 ...]
+    python figure_R3.1.py --build [--out <dir>] [--count ... --projections ... --filtered ... --edge-groups ...
+                                   --step0 ...]
         From the blinkognition repo: build the CSVs from the analysis runs, replot, copy this script into --out.
 """
 
@@ -66,13 +63,15 @@ from matplotlib.patches import Rectangle  # noqa: E402
 
 # --- Constants ---
 FIG = "R3.1"
+# DFK786 EmptyATTO390 (folder ATT390) is left out: experimental mix-up (user, 2026-11-20)
 SLIDES = [("DFK786", "Blank", "Blank coverslip 1"), ("DFK787", "Blank", "Blank coverslip 2"),
-          ("DFK786", "EmptyATTO520", "Empty ATTO520 vesicles"), ("DFK786", "EmptyATTO390", "Empty ATTO390 vesicles 1"),
-          ("DFK787", "EmptyATTO390", "Empty ATTO390 vesicles 2"), ("DFK787", "EmptyATTO425", "Empty ATTO425 vesicles"),
+          ("DFK786", "EmptyATTO520", "Empty ATTO520 vesicles"), ("DFK787", "EmptyATTO390", "Empty ATTO390 vesicles"),
+          ("DFK787", "EmptyATTO425", "Empty ATTO425 vesicles"),
           ("DFK788", "SNAP520", "SNAP-tag, same power"), ("DFK788", "HT390", "HaloTag7, same power")]
 SHORT = {"Blank coverslip 1": "Blank 1", "Blank coverslip 2": "Blank 2", "Empty ATTO520 vesicles": "Empty 520",
-         "Empty ATTO390 vesicles 1": "Empty 390 (1)", "Empty ATTO390 vesicles 2": "Empty 390 (2)",
-         "Empty ATTO425 vesicles": "Empty 425", "SNAP-tag, same power": "SNAP-tag", "HaloTag7, same power": "HaloTag7"}
+         "Empty ATTO390 vesicles": "Empty 390", "Empty ATTO425 vesicles": "Empty 425",
+         "SNAP-tag, same power": "SNAP-tag", "HaloTag7, same power": "HaloTag7"}
+IMPURITY_SLIDES = ["Blank", "EmptyATTO520", "EmptyATTO390", "EmptyATTO425"]
 ROLE_STYLE = {"blank": {"color": "#000000", "fill": False}, "empty_vesicles": {"color": "#56B4E9", "fill": True},
               "protein": {"color": "#000000", "fill": True}}
 CONSTRUCTS = ["HaloD106", "SNAPC148", "HaloK117", "scGrx1", "scGrx1AcK20"]
@@ -80,8 +79,6 @@ LABELS = {"HaloD106": "Halo-D106", "HaloK117": "Halo-K117", "SNAPC148": "SNAP-C1
           "scGrx1": "scGrx1", "scGrx1AcK20": "scGrx1-AcK20"}
 PROTEIN_COLORS = {"HaloD106": "#0072B2", "HaloK117": "#E69F00", "SNAPC148": "#CC79A7",
                   "scGrx1": "#009E73", "scGrx1AcK20": "#D55E00"}
-MODEL_LABELS = {"HaloD106_HaloK117": "Halo-D106 vs Halo-K117 (CNN-GRU)",
-                "scGrx1_scGrx1AcK20": "scGrx1 vs scGrx1-AcK20 (TCN)"}
 GRADIENTS = [10000, 20000, 40000]
 GRAD_MARKERS = {10000: "o", 20000: "s", 40000: "^"}
 MAIN_GRADIENT = 10000
@@ -96,7 +93,7 @@ FIG_WIDTH_IN = 180 / 25.4
 
 R = "Results/Revisions"
 DEFAULTS = {"count": f"{R}/BlankSurface/s3it/count/run_003", "projections": f"{R}/BlankSurface/s3it/projections/run_001",
-            "classify": f"{R}/BlankSurface/classify/run_001", "filtered": f"{R}/BlankSurface/s3it/filtered",
+            "filtered": f"{R}/BlankSurface/s3it/filtered",
             "edge_groups": f"{R}/PaperData/s3it/edge_groups/run_001", "step0": f"{R}/PaperData/check/run_003"}
 
 
@@ -148,6 +145,8 @@ def build(repo: Path, a: argparse.Namespace, out: Path) -> list[Path]:
     # fields (all gradients)
     f = pd.read_csv(p["count"] / "fov.csv")
     inputs.append(p["count"] / "fov.csv")
+    used = {(s, n) for s, n, _ in SLIDES}
+    f = f[[(s, n) in used for s, n in zip(f["session"], f["slide"])]].copy()
     f["label"] = [_slide_label(s, n) for s, n in zip(f["session"], f["slide"])]
     cols = ["gradient", "session", "slide", "label", "role", "fov", "n_locs", "n_linked", "n_linked_all",
             "n_vesicles", "in_area_fraction", "n_single", "n_single_in", "n_single_out", "n_pass_in", "n_pass_out"]
@@ -173,6 +172,7 @@ def build(repo: Path, a: argparse.Namespace, out: Path) -> list[Path]:
     # traces: ROI marks for the shown fields, and every passing trace
     tr = pd.read_csv(p["count"] / "traces.csv")
     inputs.append(p["count"] / "traces.csv")
+    tr = tr[[(s, n) in used for s, n in zip(tr["session"], tr["slide"])]].copy()
     tr["label"] = [_slide_label(s, n) for s, n in zip(tr["session"], tr["slide"])]
     marks = []
     for i, r in enumerate(shown.itertuples()):
@@ -200,27 +200,30 @@ def build(repo: Path, a: argparse.Namespace, out: Path) -> list[Path]:
     paper = pd.DataFrame(rows).merge(em[["session", "movie", "n_vesicles"]], on=["session", "movie"], how="left")
     paper.to_csv(out / f"{FIG}a_paper_movies.csv", index=False)
 
-    # R3.1b: passing traces of the blank / empty slides (unique emitters) and the protein slides
+    # R3.1b: passing traces of the blank / empty slides (unique emitters, lowest gradient) and the protein slides
     ps = tr[tr["passed_pipeline"]].copy()
-    ps["impurity"] = ps["slide"].isin(["Blank", "EmptyATTO520", "EmptyATTO390", "EmptyATTO425"])
-    ps = ps.sort_values("gradient")
-    ps["emitter"] = ps["session"] + "|" + ps["slide"] + "|" + ps["fov"].astype(str) + "|" + ps["x"].astype(str) + "|" + ps["y"].astype(str)
-    ps["first_gradient"] = ps.groupby("emitter")["gradient"].transform("min")
+    ps["impurity"] = ps["slide"].isin(IMPURITY_SLIDES)
+    ps = ps.sort_values(["gradient", "uniqueID"])
+    ps["emitter"] = (ps["session"] + "|" + ps["slide"] + "|" + ps["fov"].astype(str) + "|" + ps["x"].astype(str)
+                     + "|" + ps["y"].astype(str))
+    ps["gradients_passed"] = ps.groupby("emitter")["gradient"].transform(lambda g: ",".join(map(str, sorted(g))))
     uniq = ps.drop_duplicates("emitter")
-    keep = ["emitter", "gradient", "gt", "session", "slide", "label", "where", "uniqueID", "fov", "x", "y", "impurity",
-            "separation", "n_events_free", "frac_events_1frame_free", "median_photons_per_event_free"]
-    uniq[keep].to_csv(out / f"{FIG}b_passing_traces.csv", index=False, float_format="%.5g")
+    keep = ["emitter", "gradient", "gradients_passed", "gt", "session", "slide", "label", "where", "uniqueID", "fov",
+            "x", "y", "impurity", "separation", "n_peaks_filter", "n_events_free", "frac_events_1frame_free",
+            "median_photons_per_event_free"]
+    uniq[keep].to_csv(out / f"{FIG}b_table_passing_traces.csv", index=False, float_format="%.5g")
 
-    # example traces (gradient 10000): every impurity trace, one random protein trace per protein slide
-    ex = ps[(ps["gradient"] == MAIN_GRADIENT)]
+    # example traces: every unique impurity emitter; one random protein trace per protein slide (gradient 10000)
     rng = np.random.default_rng(RNG_SEED)
-    sel = [r for r in ex[ex["impurity"]].sort_values(["slide", "session", "where", "uniqueID"]).itertuples()]
-    for s, n, _ in SLIDES[6:]:
-        g = ex[(ex["session"] == s) & (ex["slide"] == n) & (ex["where"] == "IN")].sort_values("uniqueID")
+    sel = list(uniq[uniq["impurity"]].sort_values(["slide", "session", "where", "uniqueID"]).itertuples())
+    ex = ps[ps["gradient"] == MAIN_GRADIENT]
+    for s_, n_, _ in [x for x in SLIDES if x[1] not in IMPURITY_SLIDES]:
+        g = ex[(ex["session"] == s_) & (ex["slide"] == n_) & (ex["where"] == "IN")].sort_values("uniqueID")
         sel.append(list(g.itertuples())[int(rng.integers(len(g)))])
     series, meta = {}, []
     for k, r in enumerate(sel):
-        fp = p["filtered"] / f"gt{r.gt}_g{r.gradient}" / f"ProteinTraces{r.where}" / "Filtered" / f"{r.slide}_{r.where}_filtered_bg_rm.pkl"
+        fp = (p["filtered"] / f"gt{r.gt}_g{r.gradient}" / f"ProteinTraces{r.where}" / "Filtered"
+              / f"{r.slide}_{r.where}_filtered_bg_rm.pkl")
         inputs.append(fp)
         bg = pd.read_pickle(fp)[r.uniqueID].to_numpy(float)
         series[f"trace_{k + 1}_photons"] = bg * ph_per_adu
@@ -231,18 +234,6 @@ def build(repo: Path, a: argparse.Namespace, out: Path) -> list[Path]:
     pd.DataFrame({"time_s": np.arange(T) * FRAME_S, **series}).to_csv(out / f"{FIG}b_traces.csv", index=False,
                                                                        float_format="%.2f")
     pd.DataFrame(meta).to_csv(out / f"{FIG}b_traces_selection.csv", index=False)
-
-    # classification of the unique passing emitters
-    if not (p["classify"] / "predictions.csv").exists():
-        print(f"no {p['classify'] / 'predictions.csv'}: panel R3.1b c left out")
-        return inputs
-    pr = pd.read_csv(p["classify"] / "predictions.csv")
-    inputs.append(p["classify"] / "predictions.csv")
-    pr["emitter"] = pr["session"] + "|" + pr["slide"] + "|" + pr["fov"].astype(str) + "|" + pr["x"].astype(str) + "|" + pr["y"].astype(str)
-    pr = pr.sort_values("gradient").drop_duplicates(["model", "emitter"])
-    pr["impurity"] = pr["slide"].isin(["Blank", "EmptyATTO520", "EmptyATTO390", "EmptyATTO425"])
-    pr[["model", "emitter", "gradient", "session", "slide", "where", "uniqueID", "impurity", "prediction",
-        "wasserstein", "kept"]].to_csv(out / f"{FIG}b_classification.csv", index=False, float_format="%.5g")
     return inputs
 
 
@@ -288,7 +279,7 @@ def plot_a(out: Path) -> Path:
             L = SCALE_BAR_UM * 1000 / PIXEL_NM
             ax.plot([230 - 12 - L, 230 - 12], [230 - 12, 230 - 12], color="white", lw=1.5)
             ax.text(230 - 12 - L / 2, 230 - 18, f"{SCALE_BAR_UM} µm", color="white", ha="center", va="bottom", fontsize=6)
-        if i == 7:
+        if i == len(shown) - 1:
             cax = ax.inset_axes([1.04, 0.0, 0.05, 1.0])
     cb = fig.colorbar(im_h, cax=cax)
     cb.set_label("640 nm max. projection (ADU)", fontsize=6)
@@ -313,7 +304,7 @@ def plot_a(out: Path) -> Path:
     ax.set(ylabel="Detected emitters per field", ylim=(-0.3, None))
     ax.set_xticks(xs, [SHORT[l] for l in labels], rotation=60, ha="right")
     axis_standards(ax)
-    _letter(ax, "i", x=-0.16)
+    _letter(ax, "h", x=-0.16)
 
     # j) vesicles per field, slides and paper
     ax = fig.add_subplot(bottom[1])
@@ -332,7 +323,7 @@ def plot_a(out: Path) -> Path:
     ax.set_xticks(list(xs) + list(px), [SHORT[l] for l in labels] + [LABELS[c] for c in CONSTRUCTS],
                   rotation=60, ha="right")
     axis_standards(ax)
-    _letter(ax, "j", x=-0.16)
+    _letter(ax, "i", x=-0.16)
 
     # k) passing traces per field, all positions, three gradients
     ax = fig.add_subplot(bottom[2])
@@ -348,7 +339,7 @@ def plot_a(out: Path) -> Path:
     ax.set(ylabel="Passing traces per field", ylim=(-0.02, None))
     ax.set_xticks(xs, [SHORT[l] for l in labels], rotation=60, ha="right")
     axis_standards(ax)
-    _letter(ax, "k", x=-0.16)
+    _letter(ax, "j", x=-0.16)
 
     # l) passing IN traces per field, slides and paper
     ax = fig.add_subplot(bottom[3])
@@ -372,16 +363,16 @@ def plot_a(out: Path) -> Path:
     ax.set_xticks([xs[i] for i in keep] + list(px), [SHORT[labels[i]] for i in keep] + [LABELS[c] for c in CONSTRUCTS],
                   rotation=60, ha="right")
     axis_standards(ax)
-    _letter(ax, "l", x=-0.16)
+    _letter(ax, "k", x=-0.16)
 
     handles = [Line2D([], [], ls="none", marker="o", mfc="none", mec="#000000", ms=4, label="Blank coverslip, field"),
                Line2D([], [], ls="none", marker="o", mfc="#56B4E9", mec="#56B4E9", ms=4, label="Empty vesicles, field"),
                Line2D([], [], ls="none", marker="o", mfc="#000000", mec="#000000", ms=4, label="Protein, same power, field"),
-               Line2D([], [], color="#000000", lw=1.0, label="Median (i, j) / mean (l, paper)"),
+               Line2D([], [], color="#000000", lw=1.0, label="Median (h, i) / mean (k, paper)"),
                *[Line2D([], [], ls="none", marker=GRAD_MARKERS[g], mfc="none", mec="#000000", ms=4,
                         label=f"Mean, gradient {g}") for g in GRADIENTS],
-               Line2D([], [], ls="none", marker="o", mfc="none", mec="#56B4E9", ms=5, label="Emitter (a-h)"),
-               Line2D([], [], ls="none", marker="s", mfc="none", mec="#F0E442", ms=5, label="Passed the filter (a-h)")]
+               Line2D([], [], ls="none", marker="o", mfc="none", mec="#56B4E9", ms=5, label="Emitter (a-g)"),
+               Line2D([], [], ls="none", marker="s", mfc="none", mec="#F0E442", ms=5, label="Passed the filter (a-g)")]
     fig.legend(handles=handles, loc="upper center", ncol=5, frameon=False, bbox_to_anchor=(0.5, 0.0))
     path = out / f"{FIG}a.pdf"
     fig.savefig(path)
@@ -393,71 +384,22 @@ def plot_b(out: Path) -> Path:
     apply_style()
     tr = pd.read_csv(out / f"{FIG}b_traces.csv")
     sel = pd.read_csv(out / f"{FIG}b_traces_selection.csv")
-    pt = pd.read_csv(out / f"{FIG}b_passing_traces.csv")
-    clp = out / f"{FIG}b_classification.csv"
-    cl = pd.read_csv(clp) if clp.exists() else pd.DataFrame(columns=["model", "impurity", "kept", "prediction"])
     n = len(sel)
-    fig = plt.figure(figsize=(FIG_WIDTH_IN, (25 + 13 * n) / 25.4))
-    gs = fig.add_gridspec(n, 2, width_ratios=[2.2, 1], hspace=0.55, wspace=0.35)
+    fig, axes = plt.subplots(n, 1, figsize=(FIG_WIDTH_IN * 0.75, (14 + 14 * n) / 25.4), sharex=True,
+                             gridspec_kw={"hspace": 0.6})
     cols = [f"trace_{k}_photons" for k in sel["trace"]]
     lo = 500 * np.floor(tr[cols].min().min() / 500)
     hi = 500 * np.ceil(tr[cols].max().max() / 500)
-    for k, r in enumerate(sel.itertuples()):
-        ax = fig.add_subplot(gs[k, 0])
+    for ax, r in zip(np.atleast_1d(axes), sel.itertuples()):
         color = "#56B4E9" if r.impurity else "#000000"
         ax.plot(tr["time_s"], tr[f"trace_{r.trace}_photons"], color=color, lw=0.4)
         ax.set(xlim=(0, tr["time_s"].iloc[-1]), ylim=(lo, hi))
         where = "inside vesicle" if r.where == "IN" else "outside vesicles"
-        ax.set_title(f"{r.label}, {r.session} field {int(r.fov)}, {where}", loc="left", fontsize=6, pad=1.5)
+        grad = f", gradient {int(r.gradient)}" if r.impurity else ""
+        ax.set_title(f"{r.label}, {r.session} field {int(r.fov)}, {where}{grad}", loc="left", fontsize=6, pad=1.5)
         axis_standards(ax)
-        if k < n - 1:
-            ax.tick_params(labelbottom=False)
-        else:
-            ax.set_xlabel("Time (s)")
-        if k == n // 2:
-            ax.set_ylabel("Photons per frame")
-        if k == 0:
-            _letter(ax, "a", x=-0.10, y=1.15)
-    # b) properties
-    right = gs[:, 1].subgridspec(2, 1, height_ratios=[1.25, 1.0], hspace=0.95)
-    ax = fig.add_subplot(right[0])
-    prot = pt[~pt["impurity"]]
-    imp = pt[pt["impurity"]]
-    ax.scatter(prot["n_events_free"], prot["median_photons_per_event_free"], s=4, color="#BBBBBB", lw=0,
-               label=f"Protein, same power (n = {len(prot)})")
-    for where, mk in (("IN", "o"), ("OUT", "D")):
-        g = imp[imp["where"] == where]
-        ax.scatter(g["n_events_free"], g["median_photons_per_event_free"], s=12, marker=mk, facecolors="#56B4E9",
-                   edgecolors="#000000", linewidths=0.4,
-                   label=f"Blank or empty, {'inside' if where == 'IN' else 'outside'} vesicles (n = {len(g)})")
-    ax.set(xscale="log", yscale="log", xlabel="ON events per trace", ylabel="Photons per ON event (median)")
-    ax.legend(frameon=False, loc="lower left", bbox_to_anchor=(-0.05, 1.02), handletextpad=0.2, borderaxespad=0)
-    axis_standards(ax)
-    _letter(ax, "b", x=-0.32, y=1.25)
-    # c) classification: blank/empty, SNAP-tag (a class of neither model), HaloTag7 (labeled with the HaloTag
-    #    ligand, i.e. the Halo-D106 labeling of the paper; a class of the Halo model)
-    ax = fig.add_subplot(right[1])
-    models = list(MODEL_LABELS)
-    groups = [("blank/empty", "Blank or empty slides", "#56B4E9"), ("SNAP520", "SNAP-tag, same power", "#FFFFFF"),
-              ("HT390", "HaloTag7 (HaloTag ligand), same power", "#BBBBBB")]
-    cl = cl.copy()
-    cl["group"] = np.where(cl["impurity"].astype(bool), "blank/empty", cl.get("slide", pd.Series(dtype=str)))
-    width = 0.26
-    for j, (gkey, glab, gcol) in enumerate(groups):
-        vals, ns, d106 = [], [], []
-        for mdl in models:
-            g = cl[(cl["model"] == mdl) & (cl["group"] == gkey)]
-            vals.append(100 * g["kept"].astype(bool).mean() if len(g) else np.nan)
-            ns.append(len(g))
-        x = np.arange(len(models)) + (j - 1) * width
-        ax.bar(x, vals, width=width, color=gcol, edgecolor="#000000", lw=0.6, label=glab)
-        for xx, v, nn in zip(x, vals, ns):
-            ax.text(xx, (0 if np.isnan(v) else v) + 2, f"{nn}", ha="center", va="bottom", fontsize=5)
-    ax.set_xticks(np.arange(len(models)), ["Halo-D106 vs\nHalo-K117", "scGrx1 vs\nscGrx1-AcK20"])
-    ax.set(ylabel="Kept at WD ≥ 0.7 (%)", ylim=(0, 108))
-    ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.32), ncol=1)
-    axis_standards(ax)
-    _letter(ax, "c", x=-0.32, y=1.05)
+    axes[-1].set_xlabel("Time (s)")
+    fig.text(0.04, 0.5, "Photons per frame", rotation=90, va="center", ha="center", fontsize=7)
     path = out / f"{FIG}b.pdf"
     fig.savefig(path)
     plt.close(fig)
@@ -477,9 +419,8 @@ def caption(out: Path) -> str:
     nfs = "; ".join(f"{lab} {nf[(s, n)]}" for s, n, lab in SLIDES)
     paper = pd.read_csv(out / f"{FIG}a_paper_movies.csv")
     npm = ", ".join(f"{LABELS[c]} {int((paper['construct'] == c).sum())}" for c in CONSTRUCTS)
-    pt = pd.read_csv(out / f"{FIG}b_passing_traces.csv")
-    clp = out / f"{FIG}b_classification.csv"
-    cl = pd.read_csv(clp) if clp.exists() else pd.DataFrame(columns=["model", "impurity", "kept", "prediction"])
+    pt = pd.read_csv(out / f"{FIG}b_table_passing_traces.csv")
+    sel = pd.read_csv(out / f"{FIG}b_traces_selection.csv")
     return "\n\n".join([
         "Figure R3.1a. Blank coverslips and empty vesicles through the extraction and quality filter. Coverslips "
         "coated as in all experiments (PLL-PEG with 2 % biotin-PLL-PEG, NeutrAvidin) and imaged without vesicles "
@@ -488,33 +429,21 @@ def caption(out: Path) -> str:
         "13-15 mW, against 20-21 mW in the paper's sessions). 6000 frames at 640 nm (30 ms exposure, 34.49 ms per "
         "frame); vesicle snapshots at 488 nm (ATTO520) or 405 nm (ATTO390, ATTO425). The paper's extraction and "
         "quality filter, unchanged, with fixed protein-channel spot-detection gradients of 10000 (the paper's most "
-        "permissive setting) and, in k and l, also 20000 and 40000. a-h) One field per slide: maximum projection "
+        "permissive setting) and, in j and k, also 20000 and 40000. a-g) One field per slide: maximum projection "
         "of the 640 nm movie, one common gray scale; the field shown is the one with the median number of detected "
         "emitters at gradient 10000. Circles, emitters the extraction kept (single regions of interest); squares, "
-        "traces that passed the quality filter. Scale bar, 5 µm. i) Detected emitters per field (linked "
-        "localizations, gradient 10000). j) Vesicles per field, slides and the paper's movies. k) Traces passing "
+        "traces that passed the quality filter. Scale bar, 5 µm. h) Detected emitters per field (linked "
+        "localizations, gradient 10000). i) Vesicles per field, slides and the paper's movies. j) Traces passing "
         "the quality filter per field, inside and outside vesicles; points, fields at gradient 10000; open "
-        "markers, means at the three gradients. l) Traces inside vesicles passing the quality filter per field: "
-        "slides (as in k) and the paper's movies (points; line, mean). Fields: " + nfs + ". Paper movies: " + npm +
+        "markers, means at the three gradients. k) Traces inside vesicles passing the quality filter per field: "
+        "slides (as in j) and the paper's movies (points; line, mean). Fields: " + nfs + ". Paper movies: " + npm +
         ". Fields with no localization at all are included as zero. No statistical comparisons were performed.",
-        "Figure R3.1b. Every trace from the blank and empty-vesicle slides that passed the quality filter. a) "
-        "Detected photons per frame (background-removed 5 x 5 pixel sum x 0.062 photons per ADU, measured from the "
-        "camera noise) of each such trace at gradient 10000 (blue) and of one randomly chosen passing trace inside "
-        "vesicles from each same-power protein slide (black). b) Median detected photons per ON event against the "
-        "number of ON events per trace (ON frames as classified for Figures 5D and 6C), every passing trace at any "
-        f"gradient (an emitter found at several gradients counted once; blank or empty slides n = "
-        f"{int(pt['impurity'].sum())}, protein slides n = {int((~pt['impurity']).sum())}). c) The final models of "
-        "Figures 5D and 6C on the same traces (first 4000 frames, as trained): percentage kept at the paper's "
-        "Wasserstein-distance threshold of 0.7 (numbers, traces). SNAP-tag is a class of neither model; HaloTag7 "
-        "labeled with the HaloTag ligand is the Halo-D106 labeling of Figure 5, measured on another day. No "
-        "statistical comparisons were performed."
-        + (" Calls among kept traces, blank or empty / SNAP-tag / HaloTag7: " + "; ".join(
-            f"{MODEL_LABELS[mdl]}: " + " / ".join(
-                ", ".join(f"{LABELS.get(k, k)} {v}" for k, v in
-                          cl[(cl['model'] == mdl) & sel & cl['kept'].astype(bool)]['prediction'].value_counts().items())
-                or "none"
-                for sel in (cl['impurity'].astype(bool), cl['slide'] == 'SNAP520', cl['slide'] == 'HT390'))
-            for mdl in MODEL_LABELS) + "." if len(cl) else ""),
+        "Figure R3.1b. Every trace from the blank and empty-vesicle slides that passed the quality filter, at any "
+        f"of the three gradients ({int(pt['impurity'].sum())} emitters; one found at several gradients is shown once, "
+        "at the lowest), in blue, and one randomly chosen passing trace inside vesicles from each same-power protein "
+        "slide at gradient 10000, in black. Detected photons per frame (background-removed 5 x 5 pixel sum x 0.062 "
+        "photons per ADU, measured from the camera noise), one common scale; 6000 frames, 34.49 ms per frame. No "
+        "statistical comparisons were performed.",
     ])
 
 
