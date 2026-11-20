@@ -44,6 +44,8 @@ camera:
 box_px: 5                     # extraction ROI (5 x 5 pixel sum)
 exposure_ms: 30.0             # ND2 Exposure
 frame_interval_ms: 34.49      # ND2 timestamps (30 ms exposure plus readout); check_data.py re-checks per session
+frame_transfer: false         # user, 2026-11-20: the camera did not run in frame-transfer mode, so each frame is
+dead_time_ms: 4.49            # 30 ms of exposure then 4.49 ms of readout with no light recorded (13 % of the time)
 
 output_root: Results/Revisions/PaperData
 

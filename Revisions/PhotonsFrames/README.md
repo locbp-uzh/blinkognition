@@ -123,8 +123,10 @@ Reading:
 - Across constructs, photons per event and per molecule mix construct and session (laser power
   differed between sessions); only the within-session comparison is clean.
 
-Not done: tests (none requested); the camera mode (frame transfer or not) and anything that
-depends on it (R3.3c).
+Not done: tests (none requested); R3.3c. Camera mode (user, 2026-11-20): no frame transfer, so
+each 34.49 ms frame is 30 ms of exposure plus 4.49 ms of readout with no light recorded. A
+fully-ON frame's photons are 30 ms of emission (Halo-D106 2483 photons, about 83 per ms; Halo-K117
+1871, about 62 per ms), and ON periods inside a readout gap are invisible.
 
 ## R3.3b results (2026-11-20)
 

@@ -44,6 +44,9 @@ not needed locally.
   gain 300, QE 0.93, 130 nm pixels). EM gain 300 is confirmed by the ND2 headers; the sensitivity is
   not stored there (readout speed and conversion gain are indices) and is used as entered in Picasso.
 - Time: 34.49 ms per frame (ND2 timestamps; 30 ms exposure plus readout), not the 30 ms exposure.
+  The camera did not run in frame-transfer mode (user, 2026-11-20): each frame is 30 ms of exposure
+  followed by 4.49 ms of readout with no light recorded. Photons per fully-ON frame are photons per
+  30 ms of emission; ON periods that fall entirely within a readout gap are not seen.
 
 ## Outputs
 
