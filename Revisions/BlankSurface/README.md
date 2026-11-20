@@ -92,3 +92,69 @@ Outputs: `Results/Revisions/BlankSurface/Extraction_gt<ch>_g<gradient>/<run>/` (
   not used (count.py takes the newest run staged from the configured root).
 - 2026-11-20: six extraction jobs resubmitted (S3IT 8606234-8606236 for 488 nm at 10000, 20000, 40000;
   8606237-8606239 for 405 nm).
+- 2026-11-20, reruns 8606234-8606239 (5-8 min each): combine.py now finds every slide (Blank 13 movies,
+  EmptyATTO520 24, EmptyATTO390 42, EmptyATTO425 17 at gradient 10000; the others have no linked
+  emitter). `projections` run_001 (S3IT job 8606489, 3 min): images of all 172 fields.
+- 2026-11-20, `count` run_001 and run_002 failed checks that caught two errors of mine, fixed before any
+  number was used: run_001 matched skipped movies by file name, but DFK786 and DFK787 share file names
+  (commit b346e45); run_002 showed one movie skipped despite 4 localizations, because Picasso's
+  `postprocess.link` (default `remove_ambiguous_lengths=True`) drops every linked group starting in
+  frame 0; count.py now reports linked groups with and without that removal (commit 12a3309). The
+  same removal applies to the paper's data (`../PaperData/README.md`, `edge_groups`; MANUSCRIPT_FIXES 14).
+
+## Results (count run_003, 2026-11-20; all checks pass)
+
+`Results/Revisions/BlankSurface/s3it/count/run_003/` (S3IT job 8608552). Every 640 nm movie has its
+localizations; skipped movies are exactly those without a linked emitter (counted as zero); the filter
+replay reproduces the pipeline's filtered set trace by trace; the run's filter parameters equal the
+published ones; no blank field has a vesicle cluster.
+
+Per field at gradient 10000:
+
+| Slide | Fields | Without any emitter | Localizations (median) | Emitters (mean) | Vesicles (mean) | IN area | Single IN | Single OUT |
+|---|---|---|---|---|---|---|---|---|
+| Blank DFK786 | 10 | 3 | 1.5 | 1.7 | 0 | 0 | 0 | 1.7 |
+| Blank DFK787 | 20 | 14 | 0 | 0.35 | 0 | 0 | 0 | 0.35 |
+| Empty ATTO520 DFK786 | 25 | 1 | 19 | 5.8 | 595 | 0.45 | 2.6 | 3.0 |
+| Empty ATTO390 DFK786 | 25 | 0 | 138 | 27.3 | 659 | 0.50 | 12.4 | 10.7 |
+| Empty ATTO390 DFK787 | 20 | 3 | 4.5 | 2.6 | 361 | 0.29 | 1.0 | 1.5 |
+| Empty ATTO425 DFK787 | 20 | 3 | 5.5 | 3.0 | 212 | 0.17 | 0.65 | 2.2 |
+| SNAP-tag DFK788 (protein) | 26 | 0 | 195 | 13.0 | 108 | 0.09 | 5.3 | 5.5 |
+| HaloTag7 DFK788 (protein) | 26 | 0 | 450 | 15.4 | 180 | 0.15 | 8.1 | 4.5 |
+
+(IN area: share of the field within 4 px of a vesicle center, where a spot counts as inside.) The paper's
+movies have 117-375 vesicles per field on average (`edge_groups` run_001; scGrx1-AcK20 117, scGrx1 214,
+Halo-D106 232, Halo-K117 253, SNAP-C148 375).
+
+Traces passing the quality filter (all fields; IN / OUT) at gradients 10000, 20000, 40000:
+
+| Slide | 10000 | 20000 | 40000 |
+|---|---|---|---|
+| Blank DFK786 | 0 / 0 | 0 / 0 | 0 / 0 |
+| Blank DFK787 | 0 / 0 | 0 / 0 | 0 / 0 |
+| Empty ATTO520 DFK786 | 1 / 0 | 2 / 0 | 1 / 0 |
+| Empty ATTO390 DFK786 | 3 / 1 | 12 / 6 | 3 / 2 |
+| Empty ATTO390 DFK787 | 0 / 0 | 0 / 0 | 0 / 0 |
+| Empty ATTO425 DFK787 | 0 / 0 | 0 / 1 | 0 / 0 |
+| SNAP-tag DFK788 | 54 / 29 | 71 / 37 | 55 / 30 |
+| HaloTag7 DFK788 | 97 / 10 | 114 / 13 | 105 / 11 |
+
+Passing IN traces per field: blank 0; empty ATTO520 0.04-0.08; empty ATTO390 DFK787 and ATTO425 0;
+empty ATTO390 DFK786 0.12-0.48; same-power protein 2.1-2.7 (SNAP-tag) and 3.7-4.4 (HaloTag7); the
+paper's movies 3.9 (scGrx1-AcK20) to 41 (Halo-K117) on average (Halo-D106 9.1, scGrx1 9.6, SNAP-C148 34).
+
+Reading:
+- Coated coverslips without vesicles carry almost no emitters (median 0-1.5 localizations per field;
+  17 of 30 fields without a single linked emitter) and none passes the filter at any gradient.
+- Of the four empty-vesicle slides, three give 0-2 passing traces in 20-25 fields. The ATTO520 slide,
+  the paper's vesicle dye, gives 1-2 (0.04-0.08 per field, about 2-3 % of the same-power SNAP-tag
+  slide's rate although it has 5.5 times as many vesicles per field).
+- DFK786's ATTO390 slide is the exception, and the one whose readme notes background signal at
+  640 nm: 27 emitters per field and 3-12 passing IN traces (0.12-0.48 per field, at most 11 % of the
+  same-power HaloTag7 rate). It also has the most vesicles (659 per field, half the field area counted
+  as inside), 3.7 times the HaloTag7 slide and 1.8-5.6 times the paper's movies; impurities that sit
+  on or in vesicles scale with vesicle number. The gradient dependence is not monotonic (more passing
+  traces at 20000 than at 10000): at 10000 its many dim emitters overlap and the overlapping ROIs are
+  excluded.
+- Caveat: these slides were imaged at 13-15 mW, the paper at 20-21 mW; the same-power protein slides
+  give the like-for-like reference.
