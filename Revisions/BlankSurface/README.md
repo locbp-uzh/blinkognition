@@ -176,3 +176,8 @@ next to one protein trace per same-power slide; caption, CSVs, script; standalon
 
 Not done: no test of the gradient the paper used per session (all three gradients reported
 instead), and the laser power differs (13-15 against 20-21 mW).
+- 2026-11-20 (user: answer only what is asked): figure R3.1 trimmed to the two blank coverslips and one
+  same-power SNAP-tag field with the counts in the caption (`figure_R3.1.py`, commit 05b8bf1); the full
+  version (empty vesicles, counts against the paper, passing traces) is in
+  `revisions_figures/not_in_revision/R3.1_full_20261120/` and git history (4ddac80). The empty-vesicle
+  results above stay as a record; they are not part of the answer.

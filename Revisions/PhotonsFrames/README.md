@@ -224,3 +224,8 @@ other scGrx1 / scGrx1-AcK20 sessions look like the last two rows.)
   totals +4 (447,934); every reported median unchanged in the non-photon columns. run_002's code
   copies equal commit 5bf026c (it was started a minute before that commit; the manifest records the
   commit).
+- 2026-11-20 (user: answer only what is asked): figure R3.3 (renamed from R3.3a; `figure_R3.3.py`) keeps
+  photons per event against ON duration per protein and photons per event and per molecule, with the
+  photon-budget table; the same-day photons per fully-ON frame panel and R3.3b (filter replay, SNR gate,
+  molecule-like test) are not part of the revision (`revisions_figures/not_in_revision/`). R3.3c
+  (simulation) not done.

@@ -91,3 +91,7 @@ Checks: the final models' accuracies on all test traces (84.5 %, 73.5 %) equal
 Figs. 5D and 6C; replotting from the figure folder's CSVs alone gives a pixel-identical render.
 Not verified: kept fractions at exactly 0.7 in cross-validation (the fold models were not saved;
 values are bracketed by the grid).
+- 2026-11-20 (user: answer only what is asked): R3.4a is now one table (`R3.4a_table.csv`, rendered as
+  `R3.4a.pdf`; `figure_R3.4a.py`, commit c623014): quality-filter pass, kept at WD >= 0.7 (cross-validation
+  and final models), approximate yield, balanced accuracy all and kept. The threshold-sweep figure is in
+  `revisions_figures/not_in_revision/R3.4a_full_20261120/` and git history (e4dc7fb).

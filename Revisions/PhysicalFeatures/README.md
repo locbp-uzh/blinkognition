@@ -101,3 +101,7 @@ the sub-frame ON-time idea for acetylation (would need a choice by the user).
 - 2026-11-20, `analysis` run_003: kinetic features only (user decision above); figure R3.2 rebuilt
   from it (PCA, clustering, classifier, effect sizes and corner plots on ON, OFF and duty cycle;
   panels d-f now mean OFF against mean ON).
+- 2026-11-20 (user: answer only what is asked): figure R3.2 trimmed to one clustering plot per pair
+  (PCA and unsupervised mixture on ON, OFF, duty cycle; `figure_R3.2.py`, commit 5ecf9aa). The classifier
+  AUCs, effect sizes, corner plots and the Fig. 6C subsets (R3.2e) stay as a record in
+  `revisions_figures/not_in_revision/R3.2_full_20261120/` and in the analysis runs; not part of the answer.
