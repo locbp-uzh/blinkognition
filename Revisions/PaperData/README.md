@@ -111,3 +111,28 @@ movie), `manifest.yaml`, `config.yaml`, `code/`.
   `file_origin` (their `origin` is just "background"). `load_ids` now reads `file_origin` when
   present, and check_data warns on IDs without a session. All checks pass; only the background
   index files and sessions.csv differ from run_002 (IN and OUT indices byte-identical).
+- 2026-11-20, `edge_groups` run_001 (S3IT job 8608997, 1 min): molecules the published extraction
+  dropped for touching the movie's first frame. `Extraction/utils.py` get_and_link_locs calls
+  Picasso's `postprocess.link` with its default `remove_ambiguous_lengths=True`, which removes every
+  linked group starting in frame 0 (or ending at or after the frame count; none did). With
+  max_darktime 4000 a group is nearly a whole molecule, so a molecule ON in frame 0 is never
+  extracted. Found in R3.1, where it removed a blank-surface field's only spot. Replication exact:
+  linked groups equal the published ROIs per construct and session, and the recomputed single IN
+  ROIs equal step 0's (`checks.json`). Dropped groups (all start in frame 0) and the single IN
+  ROIs among them (overlap recomputed with the dropped groups put back), against the published
+  single IN ROIs:
+
+  | Construct | Groups dropped | Of all groups | Single IN dropped | Of published single IN |
+  |---|---|---|---|---|
+  | Halo-D106 | 1624 | 7.7 % | 1086 | 17.7 % |
+  | Halo-K117 | 215 | 2.4 % | 125 | 2.6 % |
+  | SNAP-C148 | 1242 | 4.2 % | 705 | 4.5 % |
+  | scGrx1 | 701 | 1.4 % | 183 | 1.4 % |
+  | scGrx1-AcK20 | 379 | 1.9 % | 99 | 2.3 % |
+
+  Same days, Halo-D106 against Halo-K117: Exp1 8.6 % vs 0.4 %, Exp2 27.3 % vs 3.8 % (D106 Exp4
+  23 %). The loss depends on the construct: Halo-D106 molecules are more often ON in the first frame
+  (longer ON, higher duty cycle), so its published population lacks some of its most-ON molecules.
+  Direction: probably conservative for D106 vs K117 (the missing molecules are the most D106-like),
+  but not tested; how many would pass the quality filter and how the models would call them is
+  unknown without extracting their traces. Reported to the user; nothing changed.
