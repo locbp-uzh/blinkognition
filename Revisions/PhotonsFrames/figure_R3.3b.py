@@ -75,8 +75,8 @@ FIG_HEIGHT_IN = 120 / 25.4
 
 R = "Results/Revisions/PhotonsFrames"
 DEFAULTS = {"audit_in": f"{R}/s3it/filter_audit/run_001", "audit_bg": f"{R}/s3it/filter_audit_background/run_001",
-            "molecule_like": f"{R}/molecule_like/run_001", "flagged": f"{R}/flagged_features/run_001",
-            "events": f"{R}/events/run_001", "counts": f"{R}/s3it/bright_frames/run_001"}
+            "molecule_like": f"{R}/molecule_like/run_001", "flagged": f"{R}/flagged_features/run_002",
+            "events": f"{R}/events/run_002", "counts": f"{R}/s3it/bright_frames/run_001"}
 
 
 # --- Style ---

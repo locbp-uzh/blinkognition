@@ -3,7 +3,7 @@
 
 # Per-molecule features from the R3.3a event table (all published filtered traces inside vesicles;
 # the paper's ON classification, as for Figs. 5D and 6C, on the full 6000 frames).
-events_run: Results/Revisions/PhotonsFrames/events/run_001
+events_run: Results/Revisions/PhotonsFrames/events/run_002   # 0.062 photons per ADU (run_001: 16.0 / 300)
 features:                       # name: molecules.csv column (frames converted to ms with frame_interval_ms)
   photons_per_event: median_photons_per_event
   mean_on_ms: mean_on_frames
