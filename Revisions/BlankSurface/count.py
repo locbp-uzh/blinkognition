@@ -10,9 +10,15 @@ R3.1 counts: blank coverslips and empty vesicles through the paper's extraction 
 Reads the six BlankSurface extraction runs (vesicle channel 488 / 405 nm x protein gradient 10000 / 20000 /
 40000; for each, the newest run folder under Results/Revisions/BlankSurface/Extraction_gt<ch>_g<gradient>/
 staged from config.yaml's stage_root) and counts, per field of view (FOV, one 640 nm movie):
-  - n_locs        Picasso localizations at 640 nm (the run folder's _locs.hdf5). A movie without any is
-                  skipped by Extraction/extract.py ("No localizations", FileLists/failed_file_list.pkl): it
-                  counts here as a FOV with zero of everything, not as missing;
+  - n_locs        Picasso localizations at 640 nm (the run folder's _locs.hdf5);
+  - n_linked      linked groups as the pipeline makes them (Extraction/utils.py get_and_link_locs: Picasso
+                  ensure_sanity, then postprocess.link with the run's max_distance and max_darktime and
+                  Picasso's default remove_ambiguous_lengths=True, which drops every group that starts in
+                  frame 0 or ends in the last frame); n_linked_all the same without that removal, so
+                  n_edge_dropped = n_linked_all - n_linked emitters were removed for touching the movie's
+                  first or last frame. A movie with n_linked = 0 is skipped by Extraction/extract.py ("No
+                  localizations", FileLists/failed_file_list.pkl): it counts here as a FOV with zero ROIs
+                  and traces, not as missing;
   - n_vesicles    vesicle-channel clusters, recomputed exactly as extract.py does (Extraction/utils.py
                   get_and_cluster_locs with the run's max_distance_ground_truth and min_on_ground_truth);
                   in_area_fraction = share of the FOV's pixels within max_dist_closest_ground_truth (4 px) of a
@@ -119,6 +125,18 @@ def vesicles(locs_path: Path, rc: dict, shape: tuple[int, int]) -> tuple[int, fl
     return int(n), float((d < float(rc.get("max_dist_closest_ground_truth", 4.0))).mean()), ""
 
 
+def linked_counts(locs_path: Path, rc: dict) -> dict:
+    """Linked groups as get_and_link_locs makes them, and without Picasso's removal of groups touching the
+    movie's first or last frame (remove_ambiguous_lengths)."""
+    from picasso import io as pio, lib, postprocess
+    locs, info = pio.load_locs(str(locs_path))
+    locs = lib.ensure_sanity(locs, info)
+    kw = {"r_max": float(rc["max_distance"]), "max_dark_time": int(rc["max_darktime"])}
+    n = len(postprocess.link(locs, info, **kw)) if len(locs) else 0
+    n_all = len(postprocess.link(locs, info, remove_ambiguous_lengths=False, **kw)) if len(locs) else 0
+    return {"n_linked": int(n), "n_linked_all": int(n_all), "n_edge_dropped": int(n_all - n)}
+
+
 def count_fov(row: pd.Series, run: dict, failed: set[tuple[str, str, str]], gt_links: dict,
               shape: tuple[int, int]) -> dict:
     import h5py
@@ -132,8 +150,9 @@ def count_fov(row: pd.Series, run: dict, failed: set[tuple[str, str, str]], gt_l
     if lp.exists():
         with h5py.File(lp, "r") as h:
             out["n_locs"] = int(len(h["locs"]))
+        out.update(linked_counts(lp, rc))
     else:
-        out["n_locs"] = np.nan
+        out.update(n_locs=np.nan, n_linked=np.nan, n_linked_all=np.nan, n_edge_dropped=np.nan)
     gl = gt_links.get((row["session"], row["slide"], out["fov"]))
     glp = folder / f"{Path(gl).stem}_locs.hdf5" if gl else None
     if glp is not None and glp.exists():
@@ -209,7 +228,9 @@ def summarize(fov: pd.DataFrame) -> pd.DataFrame:
     g = fov.groupby(["gt", "gradient", "session", "slide", "role"], sort=False)
     s = g.agg(n_fov=("fov", "size"), n_fov_no_locs=("skipped_no_locs", "sum"),
               locs_per_fov_mean=("n_locs", "mean"), locs_per_fov_median=("n_locs", "median"),
-              locs_per_fov_max=("n_locs", "max"), vesicles_per_fov_mean=("n_vesicles", "mean"),
+              locs_per_fov_max=("n_locs", "max"), linked_per_fov_mean=("n_linked", "mean"),
+              edge_dropped_total=("n_edge_dropped", "sum"), linked_all_total=("n_linked_all", "sum"),
+              vesicles_per_fov_mean=("n_vesicles", "mean"),
               in_area_fraction_mean=("in_area_fraction", "mean"), rois_per_fov_mean=("n_rois", "mean"),
               single_per_fov_mean=("n_single", "mean"), single_in_per_fov_mean=("n_single_in", "mean"),
               single_out_per_fov_mean=("n_single_out", "mean"), pass_in_total=("n_pass_in", "sum"),
@@ -280,8 +301,12 @@ def main() -> None:
         # checks
         ck = {
             "every_640_movie_has_locs": bool(fov["n_locs"].notna().all()),
-            "skipped_movies_have_zero_locs": bool((fov.loc[fov["skipped_no_locs"], "n_locs"] == 0).all()),
-            "zero_locs_movies_are_skipped": bool((fov.loc[fov["n_locs"] == 0, "skipped_no_locs"]).all()),
+            "skipped_movies_have_no_linked_groups": bool((fov.loc[fov["skipped_no_locs"], "n_linked"] == 0).all()),
+            "movies_without_linked_groups_are_skipped": bool((fov.loc[fov["n_linked"] == 0, "skipped_no_locs"]).all()),
+            "rois_equal_linked_groups": bool((fov.loc[~fov["skipped_no_locs"], "n_rois"]
+                                              == fov.loc[~fov["skipped_no_locs"], "n_linked"]).all()),
+            "n_skipped_with_localizations": int((fov["skipped_no_locs"] & (fov["n_locs"] > 0)).sum()),
+            "n_edge_dropped_total": int(fov["n_edge_dropped"].sum()),
             "failed_list_only_640_movies_of_this_run": failed <= set(zip(m640["session"], m640["slide"], m640["link"])),
             "n_skipped": int(fov["skipped_no_locs"].sum()),
             "single_in_matches_uniqueids": int(fov["n_single_in"].sum()) == int((tr["where"] == "IN").sum()) if not tr.empty else int(fov["n_single_in"].sum()) == 0,
