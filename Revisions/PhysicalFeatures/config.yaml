@@ -1,0 +1,34 @@
+# Revisions/PhysicalFeatures: raw physical features before deep learning (R3.2). Choices confirmed by the user
+# 2026-11-20 (Revisions/ReviewRound1/README.md, decisions log). Data access via ../PaperData/config.yaml.
+
+# Per-molecule features from the R3.3a event table (all published filtered traces inside vesicles;
+# the paper's ON classification, as for Figs. 5D and 6C, on the full 6000 frames).
+events_run: Results/Revisions/PhotonsFrames/events/run_001
+features:                       # name: molecules.csv column (frames converted to ms with frame_interval_ms)
+  photons_per_event: median_photons_per_event
+  mean_on_ms: mean_on_frames
+  mean_off_ms: mean_off_frames
+  duty_cycle: duty_cycle
+frame_columns: [mean_on_frames, mean_off_frames]
+
+pairs:                          # the paper's three binary comparisons; the first is the reference for effect signs
+  - [HaloD106, SNAPC148]
+  - [HaloD106, HaloK117]
+  - [scGrx1, scGrx1AcK20]
+
+# log10 then standardization within the pair (within the training folds for the classifier)
+seed: 840410                    # the paper's cross-validation seed
+n_folds: 4
+gmm_n_init: 10
+min_per_class_session: 20       # within-session analyses need this many molecules of each protein
+
+# The networks' cross-validation behind Figs. 4C, 5B, 6B (min-max, time reversal, no further augmentation),
+# for comparison; read from the Zenodo GeneralData (local, read-only).
+dl_reference:
+  general_data: /Volumes/MediumBerth/SalomePaperData/Püntener2026/GeneralData
+  runs:
+    HaloD106_SNAPC148: {glob: "CrossValidation/HaloD106_SNAPC148/*_protein_mirrored_*_minmax_4fold_*", model: orig_conv_gru, figure: 4C}
+    HaloD106_HaloK117: {glob: "CrossValidation/HaloD106_HaloK117/*_protein_mirrored_*_minmax_4fold_*", model: orig_conv_gru, figure: 5B}
+    scGrx1_scGrx1AcK20: {glob: "CrossValidation/scGrx1_scGrx1AcK20/*_protein_mirrored_*_minmax_4fold_*", model: tcn, figure: 6B}
+
+output_root: Results/Revisions/PhysicalFeatures
