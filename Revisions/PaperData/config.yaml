@@ -51,4 +51,4 @@ output_root: Results/Revisions/PaperData
 # the files copied so far (README, "Local mirror"), each checked against step 0's manifest sha256.
 local_mirror: Inputs/PaperData/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001
 # Step 0 reference run: per-trace index (session, movie, position, filter flags), funnel, camera.
-step0_run: Results/Revisions/PaperData/check/run_002
+step0_run: Results/Revisions/PaperData/check/run_003

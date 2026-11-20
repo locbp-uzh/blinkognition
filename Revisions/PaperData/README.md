@@ -73,3 +73,8 @@ movie), `manifest.yaml`, `config.yaml`, `code/`.
   EM gain 300, readout index 2, conversion-gain index 0, sensor-mode index 1, 30 ms exposure,
   640 nm at 90 %, 34.493 ms per frame; Exp1-6 have 8000 frames, Exp7-10 6000. Per-session counts
   are in `../ReviewRound1/README.md`.
+- 2026-11-20, check run_003 (S3IT job 8602497), now the reference (`config.yaml` step0_run): run_002
+  left background traces without a session, because background UniqueIDs keep the source path in
+  `file_origin` (their `origin` is just "background"). `load_ids` now reads `file_origin` when
+  present, and check_data warns on IDs without a session. All checks pass; only the background
+  index files and sessions.csv differ from run_002 (IN and OUT indices byte-identical).

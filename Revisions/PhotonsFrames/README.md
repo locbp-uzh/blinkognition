@@ -51,6 +51,20 @@ sessions); per-session values; Halo-D106 vs Halo-K117 only within the shared ses
   five constructs. Caveat: it ran commit 2896d13, but its manifest names 4803d3f (the script was
   committed while it ran; the change only added options, the IN replay is the same). The S3IT run
   (job 8602367, original environment) is the reference.
+- 2026-11-20, S3IT `filter_audit` run_001 (job 8602367, picasso-env, sklearn 1.7.2), the reference:
+  reproduces the published filtered set exactly; identical criteria and separations to the local
+  run_002 (sklearn 1.8.0). Fetched to `Results/Revisions/PhotonsFrames/s3it/filter_audit/run_001`.
+- 2026-11-20, S3IT `filter_audit_background` run_001 (job 8602368): the same cascade on all unfiltered
+  background traces (random positions >= 5 px from protein ROIs, same movies). 97.5-99.9 % have
+  separation < 2 and 0.1-2.1 % pass the whole filter per session, except scGrx1 Exp5 (8.0 % pass,
+  15 % separation >= 2): that slide carried blinking emitters away from detected proteins. Sessions
+  attached from step 0 run_003 (the audit's own rows predate it).
+- Same-day separation of IN traces: Halo-K117 below 2 in 52.6 % (Exp1) and 34.7 % (Exp2) against
+  Halo-D106 11.4 % and 20.9 %; in the 2-3 band 4.7 / 3.8 % against 0.2 / 0.7 %.
+- Exploratory (400 traces per group): per-frame noise of a 5 x 5 box is 54-62 photons (1.4826 x MAD);
+  a Halo-K117 single-frame event (median 441 photons) is about 7 sigma. Halo-K117 traces rejected at
+  separation < 3 have a median of 8 frames above median + 5 sigma (82 % have >= 4); rejected
+  Halo-D106 traces 1 frame (21 %). Rule to flag molecule-like rejected traces proposed to the user.
 - Found while replaying: `filter.py` reads `gmm_min_separation` with a default of 3.0 and
   `Extraction/config.yaml` does not set it, so traces with GMM separation below 3 get no ON frames
   and are rejected as having too few peaks. The effective SNR cut is 3, not the 2 the SI states.
