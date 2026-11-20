@@ -65,6 +65,8 @@ sessions); per-session values; Halo-D106 vs Halo-K117 only within the shared ses
   a Halo-K117 single-frame event (median 441 photons) is about 7 sigma. Halo-K117 traces rejected at
   separation < 3 have a median of 8 frames above median + 5 sigma (82 % have >= 4); rejected
   Halo-D106 traces 1 frame (21 %). Rule to flag molecule-like rejected traces proposed to the user.
+- 2026-11-20, `bright_frames` run_001 (S3IT job 8602983, 1 min; fetched to `s3it/bright_frames/`) and
+  `molecule_like` run_001 (local): the confirmed rule. Results under "R3.3b results" below.
 - Found while replaying: `filter.py` reads `gmm_min_separation` with a default of 3.0 and
   `Extraction/config.yaml` does not set it, so traces with GMM separation below 3 get no ON frames
   and are rejected as having too few peaks. The effective SNR cut is 3, not the 2 the SI states.
@@ -112,5 +114,62 @@ Reading:
 - Across constructs, photons per event and per molecule mix construct and session (laser power
   differed between sessions); only the within-session comparison is clean.
 
-Not done: tests (none requested); the SNR-gate question (R3.3b); the camera mode (frame transfer
-or not) and anything that depends on it (R3.3c).
+Not done: tests (none requested); the camera mode (frame transfer or not) and anything that
+depends on it (R3.3c).
+
+## R3.3b results (2026-11-20)
+
+The paper's filter, replayed (`filter_audit.py`; S3IT reference run and local run agree on every
+trace), reproduces the published filtered set exactly once two rules outside the documented cascade
+are included: an exact-zero z-score drops 4 traces, and `gmm_min_separation` = 3.0 (default, not in
+the config) makes the effective SNR cut 3, not 2.
+
+Fate of the unfiltered traces inside vesicles:
+
+| Construct | Traces | SNR < 2 | SNR 2-3 | Too few peaks | Timing criteria | Passed |
+|---|---|---|---|---|---|---|
+| Halo-D106 | 6067 | 32.2 % | 0.6 % | 20.4 % | 4.2 % | 42.5 % |
+| Halo-K117 | 4740 | 40.9 % | 4.1 % | 2.3 % | 2.3 % | 50.3 % |
+| SNAP-C148 | 15382 | 28.5 % | 1.0 % | 4.7 % | 3.0 % | 62.7 % |
+| scGrx1 | 12664 | 62.3 % | 1.0 % | 5.7 % | 4.2 % | 26.8 % |
+| scGrx1-AcK20 | 4324 | 52.4 % | 0.1 % | 15.1 % | 3.2 % | 29.1 % |
+
+Noise reference (background traces, same movies): 97.5-99.9 % below SNR 2 and 0.1-2.1 % pass the
+whole filter per session, except scGrx1 Exp5 (8.0 % pass): random positions on that slide carry
+blinking emitters.
+
+Molecule-like rejected traces (rejected at separation < 3 with more frames above median + 5 sigma
+than 99 % of the session's background traces; background exceeds its threshold 0.8-1.1 % per
+session by construction). Thresholds vary between sessions from 1 to 79 bright frames: where the
+background itself contains emitters (dense slides), the threshold is high and the flag conservative.
+
+| Construct | Rejected at SNR < 3 | Molecule-like (k = 5) | Expected false flags | Gain over passed (upper bound) | k = 4 / 6 |
+|---|---|---|---|---|---|
+| Halo-D106 | 1987 | 154 (7.8 %) | 19.4 | 6.0 % | 5.1 / 11.8 % |
+| Halo-K117 | 2136 | 99 (4.6 %) | 20.8 | 4.2 % | 8.2 / 2.7 % |
+| SNAP-C148 | 4533 | 366 (8.1 %) | 43.5 | 3.8 % | 7.7 / 8.4 % |
+| scGrx1 | 8014 | 1728 (21.6 %) | 73.4 | 50.8 % | 22.3 / 22.8 % |
+| scGrx1-AcK20 | 2270 | 506 (22.3 %) | 21.7 | 40.2 % | 18.4 / 24.7 % |
+
+Same-day Halo-D106 against Halo-K117 (k = 5): Exp1 0 of 97 vs 41 of 944 rejected traces
+molecule-like (expected false flags 1.0 vs 8.8); Exp2 2 of 331 vs 58 of 1192 (3.2 vs 12.0). As a
+share of the passed traces: Halo-K117 6.4 % (Exp1) and 3.3 % (Exp2); Halo-D106 0 and 0.3 %.
+
+Reading:
+- The reviewer's concern holds in direction and is small in size for the comparison it was about:
+  the SNR gate removes more molecule-like Halo-K117 traces than Halo-D106 traces on the same days,
+  but they would add at most 3-6 % to the Halo-K117 traces analyzed.
+- The 400-trace exploratory sample (82 % of rejected Halo-K117 traces with >= 4 frames above
+  5 sigma) overstated this: background traces of the same sessions have as many bright frames
+  (thresholds 22-24 frames). Without the background calibration the conclusion would have been
+  wrong.
+- The gate matters more for the scGrx1 and scGrx1-AcK20 sessions (DK, cleaner background,
+  thresholds 1-15 frames): 21-22 % of their rejected traces are molecule-like, as many as 40-51 % of
+  the passed traces (more than the passed ones in some sessions). The fraction is similar for both
+  proteins, so the gate does not favor one of them, but the analyzed traces are the subset with a
+  clean bright mode. Halo-D106 Exp3 is similar (152 of 1098).
+- The gain is an upper bound: flagged traces were not tested against the later peak-number and
+  timing criteria.
+
+Not done: whether the flagged traces blink differently from the passed ones (would show whether
+the published features are biased by the selection); a figure.
