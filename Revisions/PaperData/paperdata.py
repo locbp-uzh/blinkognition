@@ -45,12 +45,15 @@ SESSION_RE = re.compile(r"(\d{8}[_-][A-Z]{2}_Exp\d+)")
 
 # --- Config ---
 
-def load_config(path: Path | None = None, run_folder: str | None = None) -> dict:
-    """Read config.yaml; `run_folder` replaces published_run (for tests on another extraction)."""
+def load_config(path: Path | None = None, run_folder: str | None = None, local: bool = False) -> dict:
+    """Read config.yaml. `run_folder` replaces published_run (tests on another extraction);
+    `local=True` points published_run at the local partial mirror (config local_mirror)."""
     path = Path(path) if path else HERE / "config.yaml"
     with open(path) as f:
         cfg = yaml.safe_load(f)
     cfg["_path"] = str(path)
+    if local and not run_folder:
+        run_folder = str(REPO_ROOT / cfg["local_mirror"])
     if run_folder:
         cfg["published_run"] = str(run_folder)
         cfg["_run_folder_override"] = str(run_folder)
@@ -109,6 +112,12 @@ def load_ids(cfg: dict, construct: str, where: str = "IN") -> pd.DataFrame:
     u["folder"] = [f for _, f, _ in parsed]
     u["movie"] = [m for _, _, m in parsed]
     return u.reset_index(drop=True)
+
+
+def load_index(cfg: dict, construct: str, where: str = "IN") -> pd.DataFrame:
+    """Step 0's per-trace index (uniqueID, session, folder, movie, x, y, in_unfiltered,
+    passed_filter); no UniqueIDs pickle needed."""
+    return pd.read_csv(REPO_ROOT / cfg["step0_run"] / f"index_{where}_{construct}.csv")
 
 
 # --- Units ---

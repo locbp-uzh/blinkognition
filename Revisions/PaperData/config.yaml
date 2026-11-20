@@ -46,3 +46,9 @@ exposure_ms: 30.0             # ND2 Exposure
 frame_interval_ms: 34.49      # ND2 timestamps (30 ms exposure plus readout); check_data.py re-checks per session
 
 output_root: Results/Revisions/PaperData
+
+# Local partial mirror of published_run (repo-relative, gitignored Inputs/), same layout; holds only
+# the files copied so far (README, "Local mirror"), each checked against step 0's manifest sha256.
+local_mirror: Inputs/PaperData/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001
+# Step 0 reference run: per-trace index (session, movie, position, filter flags), funnel, camera.
+step0_run: Results/Revisions/PaperData/check/run_002

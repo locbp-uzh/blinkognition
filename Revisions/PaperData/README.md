@@ -26,6 +26,17 @@ scGrx1AcK20 = K20Ac.
 - `check_data.py`: step 0 checks and per-trace index (docstring lists every check).
 - `s3it/check_data.sbatch`: the CPU job on S3IT (picasso-env).
 
+## Local mirror
+
+`Inputs/PaperData/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/` (gitignored), same layout as the
+published run, read with `load_config(local=True)`. Holds only what has been copied, each file
+checked against the sha256 in check run_002's manifest:
+
+- 2026-11-20: `ProteinTracesIN/Filtered/*_IN_filtered_bg_rm.pkl` (5 files, 0.93 GB; R2.1).
+
+`load_index()` reads step 0's per-trace index CSVs (check run_002), so the UniqueIDs pickles are
+not needed locally.
+
 ## Units
 
 - Detected photons per frame = bg_rm (ADU) x 16.0 / 300, Picasso's convention (no QE division), with
