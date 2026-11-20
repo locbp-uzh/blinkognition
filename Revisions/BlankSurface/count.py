@@ -119,13 +119,15 @@ def vesicles(locs_path: Path, rc: dict, shape: tuple[int, int]) -> tuple[int, fl
     return int(n), float((d < float(rc.get("max_dist_closest_ground_truth", 4.0))).mean()), ""
 
 
-def count_fov(row: pd.Series, run: dict, failed: set[str], gt_links: dict, shape: tuple[int, int]) -> dict:
+def count_fov(row: pd.Series, run: dict, failed: set[tuple[str, str, str]], gt_links: dict,
+              shape: tuple[int, int]) -> dict:
     import h5py
     R, rc = run["run"], run["run_cfg"]
     folder = R / row["session"] / row["slide"]
     stem = Path(row["link"]).stem
     out = {"gt": run["gt"], "gradient": run["gradient"], "session": row["session"], "slide": row["slide"],
-           "fov": fov_of(row["link"]), "movie": stem, "skipped_no_locs": row["link"] in failed}
+           "fov": fov_of(row["link"]), "movie": stem,
+           "skipped_no_locs": (row["session"], row["slide"], row["link"]) in failed}
     lp = folder / f"{stem}_locs.hdf5"
     if lp.exists():
         with h5py.File(lp, "r") as h:
@@ -256,8 +258,9 @@ def main() -> None:
         R, tag = run["run"], f"gt{run['gt']}_g{run['gradient']}"
         print(f"{tag}: {R.name} ({run['n_candidates']} candidate runs)", flush=True)
         lm = pd.read_csv(R / "link_map.tsv", sep="\t")
+        # (session, slide, link name): DFK786 and DFK787 share file names, so the name alone is ambiguous
         with open(R / "FileLists" / "failed_file_list.pkl", "rb") as fh:
-            failed = {Path(p).name for p in pickle.load(fh)}
+            failed = {(Path(p).parent.parent.name, Path(p).parent.name, Path(p).name) for p in pickle.load(fh)}
         gtok = f"_{run['gt']}nm_"
         gt_links = {(r["session"], r["slide"], fov_of(r["link"])): r["link"] for _, r in lm.iterrows() if gtok in r["link"]}
         m640 = lm[lm["link"].str.contains(CH640)]
@@ -279,7 +282,7 @@ def main() -> None:
             "every_640_movie_has_locs": bool(fov["n_locs"].notna().all()),
             "skipped_movies_have_zero_locs": bool((fov.loc[fov["skipped_no_locs"], "n_locs"] == 0).all()),
             "zero_locs_movies_are_skipped": bool((fov.loc[fov["n_locs"] == 0, "skipped_no_locs"]).all()),
-            "failed_list_only_640_movies_of_this_run": failed <= set(m640["link"]),
+            "failed_list_only_640_movies_of_this_run": failed <= set(zip(m640["session"], m640["slide"], m640["link"])),
             "n_skipped": int(fov["skipped_no_locs"].sum()),
             "single_in_matches_uniqueids": int(fov["n_single_in"].sum()) == int((tr["where"] == "IN").sum()) if not tr.empty else int(fov["n_single_in"].sum()) == 0,
             "single_out_matches_uniqueids": int(fov["n_single_out"].sum()) == int((tr["where"] == "OUT").sum()) if not tr.empty else int(fov["n_single_out"].sum()) == 0,
