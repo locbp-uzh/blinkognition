@@ -1,0 +1,44 @@
+# Revisions/BlankSurface: blank coverslips and empty vesicles through the paper's extraction (R3.1).
+# Design confirmed by the user 2026-11-20 (Revisions/ReviewRound1/README.md, decisions log).
+
+# Raw data (S3IT, read in place; never written to)
+source_root: /shares/locbp.chem.uzh/dkossm/Blinkognition
+# Staging (symlinks; Picasso writes its _locs files next to them) and run configs, S3IT scratch
+stage_root: /scratch/pabriv/blanksurface
+# The paper's extraction config; only the keys in `overrides` and the per-run keys below change
+base_config: Extraction/config.yaml
+overrides:
+  start_from: localize            # fixed gradients from this config; no parameter finder
+  has_ground_truth: true
+  n_workers: 32
+
+# Slides. name = the pipeline's protein folder; prefix = the files' name prefix (pairing key).
+slides:
+  - {name: Blank, session: DFK786, folder: 20260930_DFK786/blank, prefix: blank, role: blank, gt: "488",
+     note: "coated, no vesicles, 400 uL PB; 640 nm 13 mW"}
+  - {name: EmptyATTO520, session: DFK786, folder: 20260930_DFK786/ATTO520, prefix: blank, role: empty_vesicles, gt: "488",
+     note: "folder ATTO520, files named blank_*, readme says ATTO390 for slides 2 and 3; dye checked by dye_check.py; 13 mW"}
+  - {name: EmptyATTO390, session: DFK786, folder: 20260930_DFK786/ATT390, prefix: ATTO390, role: empty_vesicles, gt: "405",
+     note: "readme: 640 nm background signal observed on slide 3; 13 mW"}
+  - {name: Blank, session: DFK787, folder: 20261002_DFK787/blank, prefix: blank, role: blank, gt: "488",
+     note: "coated, no vesicles, 600 uL PB; 640 nm 15 mW"}
+  - {name: EmptyATTO390, session: DFK787, folder: 20261002_DFK787/ATTO390, prefix: ATTO390, role: empty_vesicles, gt: "405",
+     note: "15 mW"}
+  - {name: EmptyATTO425, session: DFK787, folder: 20261002_DFK787/ATTO425, prefix: ATTO425, role: empty_vesicles, gt: "405",
+     note: "15 mW"}
+  - {name: SNAP520, session: DFK788, folder: 20261005_DFK788/SNAP520/day1, prefix: SNAP520, role: protein, gt: "488",
+     note: "same-power control: SNAP-HMSiR-IA in ATTO520 vesicles; 640 nm 14-15 mW"}
+  - {name: HT390, session: DFK788, folder: 20261005_DFK788/HT390/day1, prefix: HT390, role: protein, gt: "405",
+     note: "same-power control: HT7-HMSiR-HTL in ATTO390 vesicles; 14-15 mW"}
+
+# Gradients (Picasso minimum net gradient). Protein: 10000 is the main setting (the paper's most
+# permissive, used in 5 of its 10 sessions); 20000 and 40000 the sensitivity check (the paper's range).
+# Vesicle channel: 488 nm 2000 (the paper's most common), 405 nm 4000 (DualColor DFK788 ATTO390).
+gradient_protein: [10000, 20000, 40000]
+gradient_ground_truth: {"488": 2000, "405": 4000}
+
+# Picasso 0.9.3 (picasso-env, as the published run) reads MLE fits once the last spot is handed to a
+# thread, not fitted; sparse movies can lose spots. picasso_sync/sitecustomize.py makes the fit synchronous.
+picasso_sync_env: BLANKSURFACE_PICASSO_SYNC_MLE
+
+output_root: Results/Revisions/BlankSurface
