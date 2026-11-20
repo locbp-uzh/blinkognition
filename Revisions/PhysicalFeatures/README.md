@@ -6,7 +6,7 @@ truth for the models. Plan and decisions in `../ReviewRound1/README.md`.
 
 ## Choices (confirmed by the user 2026-11-20)
 
-- Features per molecule from the R3.3a event table (`../PhotonsFrames/events.py` run_001; the
+- Features per molecule from the R3.3a event table (`../PhotonsFrames/events.py` run_002; the
   paper's ON classification, reproduces Figs. 5D and 6C exactly): median photons per ON event, mean
   ON, mean OFF (34.49 ms per frame), duty cycle; all published filtered traces inside vesicles, not
   only the networks' confident ones.
@@ -70,14 +70,20 @@ Reading:
   Fig. 6C (here 82 vs 155 ms) exists only in the 84 test traces the TCN classified confidently
   (WD >= 0.7). Selecting traces by the classifier's confidence and then comparing their features
   is circular: the network is confident where the classes look most different. Discarding dim
-  events (>= 300 or >= 600 photons) does not create a population difference (54 vs 52, 64 vs 58 ms).
+  events (>= 300 or >= 600 photons at the first conversion, 0.053 per ADU; 349 and 698 at 0.062)
+  does not create a population difference (54 vs 52, 64 vs 58 ms).
   What does differ on the population: scGrx1-AcK20 has more photons per event (r = -0.42) and a
   higher duty cycle (r = -0.28), consistently across days. Since most events are shorter than a
   frame (R3.3a), more photons per event could reflect longer sub-frame ON periods; not tested.
   Fig. 5D is not affected this way: its differences hold on all traces.
 - Caveat: ON/OFF features come from the paper's frame classifier, which marks low-level stretches as
   ON in some traces (R2.1; scGrx1 in R3.3a); half of scGrx1's events of >= 3 frames are below 600
-  photons per frame against 6 % for scGrx1-AcK20.
+  photons per frame (0.053 per ADU; 698 at 0.062) against 6 % for scGrx1-AcK20.
 
 Not done: the networks' confident traces overlaid on the PCA (optional, not requested); a test of
 the sub-frame ON-time idea for acetylation (would need a choice by the user).
+- 2026-11-20, `analysis` run_002: the same analysis on events run_002 (0.062 photons per ADU, user
+  decision). Every AUC, balanced accuracy, ARI, PCA variance and effect size equals run_001 within
+  0.0001 (rank-based and standardized log features are scale-free; 3 of 19,271 molecules changed ON
+  classification by a few frames, see `../PhotonsFrames/README.md`). Figure R3.2 rebuilt from it
+  (photon axes x 1.1625).

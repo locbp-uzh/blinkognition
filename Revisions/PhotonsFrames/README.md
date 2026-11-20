@@ -32,7 +32,7 @@ figure folder `/Volumes/MediumBerth/SalomePaperData/Püntener2026/revisions_figu
 
 ```bash
 /Users/privera/opt/anaconda3/envs/locbplots/bin/python Revisions/PhotonsFrames/events.py
-/Users/privera/opt/anaconda3/envs/locbplots/bin/python Revisions/PhotonsFrames/figure_R3.3a.py --build --events Results/Revisions/PhotonsFrames/events/run_001 --out "/Volumes/MediumBerth/SalomePaperData/Püntener2026/revisions_figures/R3.3a"
+/Users/privera/opt/anaconda3/envs/locbplots/bin/python Revisions/PhotonsFrames/figure_R3.3a.py --build --events Results/Revisions/PhotonsFrames/events/run_002 --out "/Volumes/MediumBerth/SalomePaperData/Püntener2026/revisions_figures/R3.3a"
 ```
 
 ## R3.3a choices (confirmed by the user 2026-11-20)
@@ -82,16 +82,21 @@ sessions); per-session values; Halo-D106 vs Halo-K117 only within the shared ses
 
 ## R3.3a results
 
+Photons are detected photons at 0.062 per ADU (measured, `../PaperData/`; user decision 2026-11-20):
+events run_002 and the figures built from it. Log entries before that decision (events run_001,
+flagged_features run_001 and the exploratory notes) used 16.0 / 300 = 0.053, so their photon values
+are 1.1625 times lower; nothing else differs (see the log).
+
 Per construct (all sessions pooled; medians over molecules of per-molecule values, IQR in the
 figure folder's tables):
 
 | Construct | Molecules | Events | 1-frame events | Mean ON per molecule | Photons per event | Photons per fully-ON frame | Photons per molecule |
 |---|---|---|---|---|---|---|---|
-| Halo-D106 | 2580 | 47176 | 51.5 % | 3.3 frames (115 ms) | 2903 | 2483 (2239 molecules) | 67,745 |
-| SNAP-C148 | 9647 | 250064 | 81.3 % | 1.2 frames (41 ms) | 656 | 1375 (4849) | 19,804 |
-| Halo-K117 | 2384 | 83286 | 91.2 % | 1.1 frames (37 ms) | 469 | 1871 (919) | 20,474 |
-| scGrx1 | 3400 | 51891 | 69.4 % | 1.5 frames (52 ms) | 655 | 952 (2176) | 15,554 |
-| scGrx1-AcK20 | 1260 | 15513 | 65.5 % | 1.5 frames (52 ms) | 1060 | 1714 (776) | 18,424 |
+| Halo-D106 | 2580 | 47176 | 51.5 % | 3.3 frames (115 ms) | 3374 | 2886 (2239 molecules) | 78,754 |
+| SNAP-C148 | 9647 | 250064 | 81.3 % | 1.2 frames (41 ms) | 763 | 1598 (4849) | 23,022 |
+| Halo-K117 | 2384 | 83288 | 91.2 % | 1.1 frames (37 ms) | 546 | 2175 (919) | 23,801 |
+| scGrx1 | 3400 | 51893 | 69.4 % | 1.5 frames (52 ms) | 761 | 1106 (2176) | 18,081 |
+| scGrx1-AcK20 | 1260 | 15513 | 65.5 % | 1.5 frames (52 ms) | 1233 | 1992 (776) | 21,418 |
 
 Short events against fully-ON frames (median photons of events of that length / full-frame value):
 
@@ -104,8 +109,8 @@ Short events against fully-ON frames (median photons of events of that length / 
 | scGrx1-AcK20 | 36 % | 59 % | 79 % |
 
 Halo-D106 and Halo-K117 measured the same day (photons per fully-ON frame, median [IQR], molecules):
-Exp1 2514 [1832-3125] (460) vs 1463 [840-2280] (155); Exp2 2279 [1529-2797] (599) vs 1966
-[928-2769] (764).
+Exp1 2923 [2130-3633] (460) vs 1701 [976-2651] (155); Exp2 2650 [1777-3252] (599) vs 2286
+[1079-3219] (764).
 
 Reading:
 - Photons grow in proportion to duration and approach the full-frame line from about three frames
@@ -114,19 +119,19 @@ Reading:
   events are single frames carrying a median 24 % of a fully-ON frame's photons. Most K117 ON
   periods are therefore shorter than one frame, and the 35 ms of the paper (37 ms at 34.49 ms per
   frame) is the frame limit, not a resolved ON time. Adding one frame on each side raises the
-  median photons per event by 4-13 % (469 to 500 for K117), so little signal hides in neighboring
+  median photons per event by 4-13 % (546 to 581 for K117), so little signal hides in neighboring
   frames below the ON threshold.
 - Halo-K117's fully-ON frames are dimmer than Halo-D106's on the same days. With 34.49 ms frames this
   cannot separate a lower emission rate from switching faster than the frame within an ON stretch.
-- scGrx1: long events fall below the full-frame line, and its full-frame value (952) is the lowest;
+- scGrx1: long events fall below the full-frame line, and its full-frame value (1106) is the lowest;
   consistent with low-level stretches classified as ON (seen in R2.1). Not yet quantified.
 - Across constructs, photons per event and per molecule mix construct and session (laser power
   differed between sessions); only the within-session comparison is clean.
 
 Not done: tests (none requested); R3.3c. Camera mode (user, 2026-11-20): no frame transfer, so
 each 34.49 ms frame is 30 ms of exposure plus 4.49 ms of readout with no light recorded. A
-fully-ON frame's photons are 30 ms of emission (Halo-D106 2483 photons, about 83 per ms; Halo-K117
-1871, about 62 per ms), and ON periods inside a readout gap are invisible.
+fully-ON frame's photons are 30 ms of emission (Halo-D106 2886 photons, about 96 per ms; Halo-K117
+2175, about 73 per ms), and ON periods inside a readout gap are invisible.
 
 ## R3.3b results (2026-11-20)
 
@@ -182,22 +187,22 @@ Reading:
 - The gain is an upper bound: flagged traces were not tested against the later peak-number and
   timing criteria.
 
-Bias check (`flagged_features.py`, run_001): events of every molecule-like rejected trace (the
+Bias check (`flagged_features.py`, run_002; run_001 with 0.053 photons per ADU): events of every molecule-like rejected trace (the
 paper's classifier without the separation gate, as in R3.3a) against the passed traces of the same
 construct and session; medians over molecules, sessions with >= 20 flagged traces:
 
 | Construct, session | Group | Molecules | Events | 1-frame events | Mean ON (frames) | Photons per event | Mean OFF (frames) |
 |---|---|---|---|---|---|---|---|
-| Halo-K117 Exp1 | passed | 638 | 24 | 95 % | 1.05 | 460 | 128 |
-| | flagged | 41 | 46 | 98 % | 1.02 | 341 | 113 |
-| Halo-K117 Exp2 | passed | 1746 | 30 | 93 % | 1.08 | 474 | 113 |
-| | flagged | 58 | 45 | 97 % | 1.03 | 343 | 117 |
-| scGrx1 Exp9 | passed | 768 | 11 | 86 % | 1.18 | 630 | 290 |
-| | flagged | 712 | 157 | 96 % | 1.05 | 141 | 37 |
-| scGrx1-AcK20 Exp10 | passed | 324 | 8 | 75 % | 1.33 | 881 | 249 |
-| | flagged | 363 | 194 | 94 % | 1.07 | 135 | 30 |
+| Halo-K117 Exp1 | passed | 638 | 24 | 95 % | 1.05 | 535 | 128 |
+| | flagged | 41 | 46 | 98 % | 1.02 | 397 | 113 |
+| Halo-K117 Exp2 | passed | 1746 | 30 | 93 % | 1.08 | 551 | 113 |
+| | flagged | 58 | 45 | 97 % | 1.03 | 399 | 117 |
+| scGrx1 Exp9 | passed | 768 | 11 | 86 % | 1.18 | 733 | 290 |
+| | flagged | 712 | 157 | 96 % | 1.05 | 164 | 37 |
+| scGrx1-AcK20 Exp10 | passed | 324 | 8 | 75 % | 1.33 | 1024 | 249 |
+| | flagged | 363 | 194 | 94 % | 1.07 | 157 | 30 |
 
-(all sessions in `flagged_features/run_001/comparison.csv`; Halo-D106 Exp3, SNAP-C148 Exp1-3 and the
+(all sessions in `flagged_features/run_002/comparison.csv`; Halo-D106 Exp3, SNAP-C148 Exp1-3 and the
 other scGrx1 / scGrx1-AcK20 sessions look like the last two rows.)
 
 - Halo-K117: the flagged traces are the same kind of molecule as the passed ones, fast single-frame
@@ -205,7 +210,17 @@ other scGrx1 / scGrx1-AcK20 sessions look like the last two rows.)
   move Halo-K117 toward shorter and dimmer events, i.e. widen the difference from Halo-D106; at
   3-6 % of the passed traces they would barely move its medians.
 - Everywhere else the flagged traces are unlike the analyzed molecules: hundreds of tiny "events" of
-  about 140 photons (about 2.5 x the per-frame noise of 55-60 photons), short OFF gaps, a few frames
+  about 160 photons (about 2.5 x the per-frame noise of 62-72 photons), short OFF gaps, a few frames
   above 5 sigma. Noise-dominated traces, not lost molecules of the analyzed kind. Where the
   background threshold is low (1-8 frames) the flag is not specific, so the 22 % "molecule-like"
   share of scGrx1 and scGrx1-AcK20 overstates the loss.
+- 2026-11-20, photon conversion changed to the measured 0.062 photons per ADU (user decision;
+  `../PaperData/README.md`): `events` run_002 (8 min, 16 cores) and `flagged_features` run_002 replace
+  run_001 for every photon number; figures R3.3a and R3.3b rebuilt. Check against run_001: every
+  photon column is exactly 1.1625 x the old value, every other column identical, except 3 of 19,271
+  passed molecules (Halo-K117 5671, 6247; scGrx1 6914) and 33 of 2853 flagged traces whose ON
+  classification moved by a few frames (median 0.8 % of their events): min-max normalizing x 1.1625
+  changes the last floating-point bit, which flips frames that sit at the 0.9 posterior cutoff. Event
+  totals +4 (447,934); every reported median unchanged in the non-photon columns. run_002's code
+  copies equal commit 5bf026c (it was started a minute before that commit; the manifest records the
+  commit).
