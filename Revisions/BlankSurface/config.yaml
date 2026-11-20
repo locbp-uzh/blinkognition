@@ -21,7 +21,8 @@ slides:
   - {name: EmptyATTO520, session: DFK786, folder: 20260930_DFK786/ATTO520, prefix: blank, role: empty_vesicles, gt: "488",
      note: "folder ATTO520, files named blank_*, readme says ATTO390 for slides 2 and 3; dye checked by dye_check.py; 13 mW"}
   - {name: EmptyATTO390, session: DFK786, folder: 20260930_DFK786/ATT390, prefix: ATTO390, role: empty_vesicles, gt: "405",
-     note: "readme: 640 nm background signal observed on slide 3; 13 mW"}
+     note: "readme slide 3: 640 nm background signal observed; 13 mW",
+     excluded: "experimental mix-up (user, 2026-11-20); extracted and counted, not used in any result"}
   - {name: Blank, session: DFK787, folder: 20261002_DFK787/blank, prefix: blank, role: blank, gt: "488",
      note: "coated, no vesicles, 600 uL PB; 640 nm 15 mW"}
   - {name: EmptyATTO390, session: DFK787, folder: 20261002_DFK787/ATTO390, prefix: ATTO390, role: empty_vesicles, gt: "405",

@@ -112,6 +112,11 @@ Outputs: `Results/Revisions/BlankSurface/Extraction_gt<ch>_g<gradient>/<run>/` (
 
 ## Results (count run_003, 2026-11-20; all checks pass)
 
+DFK786's ATTO390 slide (folder ATT390, readme slide 3) is not used: the user reports an experimental
+mix-up on that slide (2026-11-20). It was extracted and counted with the others (no cross-slide
+dependence in the pipeline: combine, background and filter act per trace), and is left out of every
+number below, the figure and the response.
+
 `Results/Revisions/BlankSurface/s3it/count/run_003/` (S3IT job 8608552). Every 640 nm movie has its
 localizations; skipped movies are exactly those without a linked emitter (counted as zero); the filter
 replay reproduces the pipeline's filtered set trace by trace; the run's filter parameters equal the
@@ -124,7 +129,6 @@ Per field at gradient 10000:
 | Blank DFK786 | 10 | 3 | 1.5 | 1.7 | 0 | 0 | 0 | 1.7 |
 | Blank DFK787 | 20 | 14 | 0 | 0.35 | 0 | 0 | 0 | 0.35 |
 | Empty ATTO520 DFK786 | 25 | 1 | 19 | 5.8 | 595 | 0.45 | 2.6 | 3.0 |
-| Empty ATTO390 DFK786 | 25 | 0 | 138 | 27.3 | 659 | 0.50 | 12.4 | 10.7 |
 | Empty ATTO390 DFK787 | 20 | 3 | 4.5 | 2.6 | 361 | 0.29 | 1.0 | 1.5 |
 | Empty ATTO425 DFK787 | 20 | 3 | 5.5 | 3.0 | 212 | 0.17 | 0.65 | 2.2 |
 | SNAP-tag DFK788 (protein) | 26 | 0 | 195 | 13.0 | 108 | 0.09 | 5.3 | 5.5 |
@@ -141,66 +145,34 @@ Traces passing the quality filter (all fields; IN / OUT) at gradients 10000, 200
 | Blank DFK786 | 0 / 0 | 0 / 0 | 0 / 0 |
 | Blank DFK787 | 0 / 0 | 0 / 0 | 0 / 0 |
 | Empty ATTO520 DFK786 | 1 / 0 | 2 / 0 | 1 / 0 |
-| Empty ATTO390 DFK786 | 3 / 1 | 12 / 6 | 3 / 2 |
 | Empty ATTO390 DFK787 | 0 / 0 | 0 / 0 | 0 / 0 |
 | Empty ATTO425 DFK787 | 0 / 0 | 0 / 1 | 0 / 0 |
 | SNAP-tag DFK788 | 54 / 29 | 71 / 37 | 55 / 30 |
 | HaloTag7 DFK788 | 97 / 10 | 114 / 13 | 105 / 11 |
 
-Passing IN traces per field: blank 0; empty ATTO520 0.04-0.08; empty ATTO390 DFK787 and ATTO425 0;
-empty ATTO390 DFK786 0.12-0.48; same-power protein 2.1-2.7 (SNAP-tag) and 3.7-4.4 (HaloTag7); the
-paper's movies 3.9 (scGrx1-AcK20) to 41 (Halo-K117) on average (Halo-D106 9.1, scGrx1 9.6, SNAP-C148 34).
+Passing IN traces per field: blank 0; empty ATTO520 0.04-0.08; empty ATTO390 and ATTO425 0; same-power
+protein 2.1-2.7 (SNAP-tag) and 3.7-4.4 (HaloTag7); the paper's movies 3.9 (scGrx1-AcK20) to 41
+(Halo-K117) on average (Halo-D106 9.1, scGrx1 9.6, SNAP-C148 34).
 
 Reading:
 - Coated coverslips without vesicles carry almost no emitters (median 0-1.5 localizations per field;
   17 of 30 fields without a single linked emitter) and none passes the filter at any gradient.
-- Of the four empty-vesicle slides, three give 0-2 passing traces in 20-25 fields. The ATTO520 slide,
-  the paper's vesicle dye, gives 1-2 (0.04-0.08 per field, about 2-3 % of the same-power SNAP-tag
-  slide's rate although it has 5.5 times as many vesicles per field).
-- DFK786's ATTO390 slide is the exception, and the one whose readme notes background signal at
-  640 nm: 27 emitters per field and 3-12 passing IN traces (0.12-0.48 per field, at most 11 % of the
-  same-power HaloTag7 rate). It also has the most vesicles (659 per field, half the field area counted
-  as inside), 3.7 times the HaloTag7 slide and 1.8-5.6 times the paper's movies; impurities that sit
-  on or in vesicles scale with vesicle number. The gradient dependence is not monotonic (more passing
-  traces at 20000 than at 10000): at 10000 its many dim emitters overlap and the overlapping ROIs are
-  excluded.
+- Empty vesicles: three emitters in 65 fields pass at any gradient (two inside ATTO520 vesicles, one
+  outside vesicles on the ATTO425 slide). The ATTO520 slide, the paper's vesicle dye, gives 0.04-0.08
+  passing IN traces per field: 2-3 % of the same-power SNAP-tag slide's rate although it has 5.5 times
+  as many vesicles per field, and at most 2 % of the sparsest paper dataset (scGrx1-AcK20, 3.9 per
+  movie). Two of the three look unlike protein blinking (R3.1b: a 25-s plateau, a burst then nothing).
 - Caveat: these slides were imaged at 13-15 mW, the paper at 20-21 mW; the same-power protein slides
   give the like-for-like reference.
 
-Final models on the passing traces (`classify_blank.py`, run_001, local MPS, 2026-11-20; ML/classify.py
-unchanged, first 4000 frames, both channels, n_mc 100, WD threshold 0.7). Each emitter counted once
-across gradients (24 from blank or empty slides: 15 IN and 6 OUT on DFK786 ATTO390, 2 IN on ATTO520,
-1 OUT on ATTO425; 274 from the same-power protein slides):
+Not reported (user, 2026-11-20): how the final models call these traces. `classify_blank.py` run_001
+exists (the Halo model calls blank, empty and SNAP-tag traces Halo-D106 with confidence, as a
+two-class model must; HaloTag7 with the HaloTag ligand, the paper's Halo-D106 labeling, is called
+D106), but the paper claims only the distinction between its two classes, so out-of-distribution
+behavior is not discussed. Photon numbers are reported descriptively only.
 
-| Model | Blank or empty: kept, called | SNAP-tag (DFK788): kept, called | HaloTag7 (DFK788): kept, called |
-|---|---|---|---|
-| Halo-D106 vs Halo-K117 (CNN-GRU) | 24/24 (100 %); D106 24 | 99/120 (82 %); D106 98, K117 1 | 127/154 (82 %); D106 124, K117 3 |
-| scGrx1 vs scGrx1-AcK20 (TCN) | 11/24 (46 %); scGrx1 11 | 49/120 (41 %); scGrx1 49 | 72/154 (47 %); scGrx1 69, AcK20 3 |
+Figure: `revisions_figures/R3.1/` (R3.1a: fields and counts; R3.1b: every passing blank or empty trace
+next to one protein trace per same-power slide; caption, CSVs, script; standalone replot checked).
 
-What the slides are for each model: the HaloTag7 slide (HT7-HMSiR-HTL) is HaloTag7 labeled with the
-HaloTag ligand, i.e. the paper's Halo-D106 labeling, measured on another day at lower power: for the
-Halo model these traces have a true class, and 98 % of the kept ones are called Halo-D106 (published
-test set: 73 % of Halo-D106 kept, 90.5 % of those called correctly). The SNAP-tag slide (SNAP-HMSiR-IA)
-is a class of neither model; the blank and empty traces are no protein at all. (Corrected 2026-11-20: a
-first version of this note and the first R3.1b panel c pooled SNAP-tag and HaloTag7 as proteins the
-model "never saw"; HaloTag7 with the HaloTag ligand is Halo-D106.)
-
-- The uncertainty filter does not reject traces from outside a model's classes: the Halo model keeps
-  82 % of the SNAP-tag traces and all 24 blank or empty traces and calls nearly all of them
-  Halo-D106; the TCN keeps 41-47 % of every group and calls them scGrx1. A two-class model has no
-  "neither" answer, and the Wasserstein distance measures how consistent the dropout passes are, not
-  whether a trace resembles the training data (as for DFK785, where SNAP-tag traces were called Halo
-  by the D106 vs SNAP model). What keeps impurities out of the paper's numbers is how rare they are,
-  not the classifier. (Random background positions, in contrast, are almost all rejected:
-  MANUSCRIPT_FIXES item 4.)
-- The passing impurity traces are not separable from protein traces by simple properties (median 19
-  ON events and 770 photons per event against 18 and 1000; GMM separation 6.4 against 10.3; R3.1b b).
-  Some look unlike protein blinking (a bright first seconds then nothing, or a few isolated spikes;
-  R3.1b a), but one outside-vesicle trace on DFK786 ATTO390 blinks throughout.
-
-Figure: `revisions_figures/R3.1/` (R3.1a, R3.1b, caption, CSVs, script; standalone replot checked,
-provenance at commit 18272a9).
-
-Not done: no normalization of the contamination bound by vesicle density (a choice for the user; the
-paper's vesicles per movie are in `edge_groups` run_001), no test of the gradient the paper used per
-session (all three gradients reported instead), and the laser power differs (13-15 against 20-21 mW).
+Not done: no test of the gradient the paper used per session (all three gradients reported
+instead), and the laser power differs (13-15 against 20-21 mW).
