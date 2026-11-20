@@ -29,6 +29,18 @@ filter:
   last_peak_time: 100
   delta_first_second: 1000
 
+# Molecule-like traces among those the SNR gates reject (R3.3b; user confirmed 2026-11-20).
+# Bright frames: frames above the trace's median + k x sigma, sigma = 1.4826 x MAD of the trace.
+# Threshold: per session, the reference_quantile of the bright-frame counts of that session's
+# unfiltered background traces; a trace rejected at separation < separation_cut is molecule-like if
+# its count exceeds it. k_main is the reported rule; the other k values are the sensitivity check.
+bright_frames:
+  k_values: [4, 5, 6]
+  k_main: 5
+  mad_to_sigma: 1.4826
+  reference_quantile: 0.99
+  separation_cut: 3.0
+
 constructs: [HaloD106, SNAPC148, HaloK117, scGrx1, scGrx1AcK20]
 n_jobs: 16
 output_root: Results/Revisions/PhotonsFrames
