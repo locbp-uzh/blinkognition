@@ -15,7 +15,7 @@ frame timing (needs the camera mode).
 - `events.py`: every ON event of every published filtered trace in vesicles, with photons
   (`events.csv.gz`) and per-molecule summaries (`molecules.csv`); reused by R3.2.
 - `check_fig5d6c.py`: the event definition against the published Figs. 5D and 6C.
-- `figure_R3.3a.py`: figure R3.3a from an events run (`--build --events <run> --out <folder>`), or
+- `figure_R3.3.py` (first `figure_R3.3a.py`): figure R3.3 from an events run (`--build --events <run> --out <folder>`), or
   replot from the CSVs next to it.
 - `filter_audit.py` (+ `s3it/filter_audit.sbatch`): replay of the paper's quality filter with the
   first failing criterion per trace, IN or background traces, local mirror or S3IT (`--remote`).
@@ -32,7 +32,7 @@ figure folder `/Volumes/MediumBerth/SalomePaperData/Püntener2026/revisions_figu
 
 ```bash
 /Users/privera/opt/anaconda3/envs/locbplots/bin/python Revisions/PhotonsFrames/events.py
-/Users/privera/opt/anaconda3/envs/locbplots/bin/python Revisions/PhotonsFrames/figure_R3.3a.py --build --events Results/Revisions/PhotonsFrames/events/run_002 --out "/Volumes/MediumBerth/SalomePaperData/Püntener2026/revisions_figures/R3.3a"
+/Users/privera/opt/anaconda3/envs/locbplots/bin/python Revisions/PhotonsFrames/figure_R3.3.py --build --events Results/Revisions/PhotonsFrames/events/run_002 --out "/Volumes/MediumBerth/SalomePaperData/Püntener2026/revisions_figures/R3.3"
 ```
 
 ## R3.3a choices (confirmed by the user 2026-11-20)

@@ -158,7 +158,7 @@ def plot(out: Path) -> Path:
                for c in ("HaloD106", "SNAPC148", "HaloK117", "scGrx1", "scGrx1AcK20")]
     handles += [Line2D([], [], color=BLACK, lw=1.3, label="50 % of molecules"),
                 Line2D([], [], color=BLACK, lw=0.8, label="90 % of molecules")]
-    fig.legend(handles=handles, loc="upper center", ncol=7, frameon=False, bbox_to_anchor=(0.5, 0.0))
+    fig.legend(handles=handles, loc="upper center", ncol=7, frameon=False, bbox_to_anchor=(0.5, -0.05))
     path = out / f"{FIG}.pdf"
     fig.savefig(path)
     plt.close(fig)

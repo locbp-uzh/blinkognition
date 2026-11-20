@@ -4,8 +4,10 @@
 # __copyright_ = "Copyright 2026, UZH, Switzerland"
 
 """
-Figure R3.3a (first-round review, Reviewer 3, point 3): detected photons per ON event against ON time,
-and photon numbers per molecule, for every construct.
+Figure R3.3 (first-round review, Reviewer 3, point 3): detected photons per ON event against ON time, and
+photon numbers per molecule, for every construct. Trimmed to the request (user, 2026-11-20): the same-day
+photons per fully-ON frame panel of the first version (R3.3a h) and the quality-filter analysis (R3.3b) are not
+part of the revision (revisions_figures/not_in_revision/; git history, commit 5bf026c).
 
 Data: every ON event of every published filtered trace inside vesicles (events.py run): ON frames from the
 paper's classifier (as for Figs. 5D and 6C), photons = background-removed 5 x 5 pixel sum x 0.062 photons
@@ -18,15 +20,15 @@ a-e) Per construct, 2D histogram of photons per event against ON duration (perce
      emitting through whole frames would give).
 f)   Median photons per event, one point per molecule.
 g)   Total detected photons per molecule over the ON frames of the 207 s trace, one point per molecule.
-h)   Photons per fully-ON frame (inner frames of events >= 3 frames), one point per molecule, Halo-D106
-     and Halo-K117 in the two sessions where both were measured (same day, same laser power).
+Table (R3.3_table_construct.csv): photon budget per construct (photons per event, per fully-ON frame, per
+molecule; median and quartiles over molecules).
 Boxes: median and quartiles, whiskers 1.5 x IQR (Tukey). Summaries are per molecule first, then over
 molecules; events are never treated as independent. No statistical tests.
 
 Usage:
-    python figure_R3.3a.py
+    python figure_R3.3.py
         Replot from the CSVs next to this script (works in the figure folder as distributed).
-    python figure_R3.3a.py --build --events <events run> [--out <dir>]
+    python figure_R3.3.py --build --events <events run> [--out <dir>]
         From the blinkognition repo: build the CSVs from the events run, replot, copy this script and the
         color map into --out.
 """
@@ -53,7 +55,7 @@ from matplotlib.colors import ListedColormap, LogNorm  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
 # --- Constants ---
-FIG = "R3.3a"
+FIG = "R3.3"
 FRAME_MS = 34.49
 CONSTRUCTS = ["HaloD106", "SNAPC148", "HaloK117", "scGrx1", "scGrx1AcK20"]
 LABELS = {"HaloD106": "Halo-D106", "HaloK117": "Halo-K117", "SNAPC148": "SNAP-C148",
@@ -64,8 +66,7 @@ BLACK = "#000000"
 MAX_FRAMES = 300                     # events up to 300 frames (10.3 s) shown; longer ones counted
 PHOTON_EDGES = np.logspace(2, 6, 41)  # 100 to 10^6 photons per event
 MIN_MOLECULES = 20                   # per-duration median shown when this many molecules contribute
-SHARED_SESSIONS = ["20231130_SP_Exp1", "20231201_SP_Exp2"]   # Halo-D106 and Halo-K117 on the same day
-COLORMAP_FILE = "R3.3a_colormap_batlow.txt"  # Crameri batlow (assets/colormaps/batlow.txt in the repo)
+COLORMAP_FILE = "R3.3_colormap_batlow.txt"  # Crameri batlow (assets/colormaps/batlow.txt in the repo)
 JITTER = 0.32
 RNG_SEED = 42
 
@@ -158,9 +159,8 @@ def build(events_run: Path, out: Path) -> list[Path]:
     pd.DataFrame(med).to_csv(out / f"{FIG}_panels_a-e_medians.csv", index=False)
     cols = ["construct", "session", "uniqueID", "movie", "n_events", "mean_on_frames", "median_photons_per_event",
             "median_photons_per_event_padded", "photons_per_full_frame", "n_interior_frames", "total_photons_on"]
-    mol[cols].to_csv(out / f"{FIG}_panels_f-h_molecules.csv", index=False)
+    mol[cols].to_csv(out / f"{FIG}_panels_f-g_molecules.csv", index=False)
     summarize(mol, ev, ["construct"]).to_csv(out / f"{FIG}_table_construct.csv", index=False)
-    summarize(mol, ev, ["construct", "session"]).to_csv(out / f"{FIG}_table_session.csv", index=False)
     repo = Path(__file__).resolve().parents[2]
     shutil.copy(repo / "assets" / "colormaps" / "batlow.txt", out / COLORMAP_FILE)
     return [ev_p, mol_p, events_run / "manifest.yaml"]
@@ -185,7 +185,7 @@ def plot(out: Path) -> Path:
     apply_style()
     hist = pd.read_csv(out / f"{FIG}_panels_a-e_histogram.csv")
     med = pd.read_csv(out / f"{FIG}_panels_a-e_medians.csv")
-    mol = pd.read_csv(out / f"{FIG}_panels_f-h_molecules.csv")
+    mol = pd.read_csv(out / f"{FIG}_panels_f-g_molecules.csv")
     cmap = ListedColormap(np.loadtxt(out / COLORMAP_FILE), name="batlow")
     rng = np.random.default_rng(RNG_SEED)
 
@@ -194,7 +194,7 @@ def plot(out: Path) -> Path:
     norm = LogNorm(vmin=1e-3, vmax=vmax)
     fig = plt.figure(figsize=(FIG_WIDTH_IN, FIG_HEIGHT_IN))
     gs = fig.add_gridspec(2, 4, hspace=0.62, wspace=0.55, left=0.07, right=0.97, top=0.93, bottom=0.12)
-    axes = [fig.add_subplot(gs[i // 4, i % 4]) for i in range(8)]
+    axes = [fig.add_subplot(gs[i // 4, i % 4]) for i in range(7)]
     mesh = None
     for k, c in enumerate(CONSTRUCTS):
         ax = axes[k]
@@ -233,19 +233,6 @@ def plot(out: Path) -> Path:
         axis_standards(ax)
         _letter(ax, letter)
 
-    ax = axes[7]
-    groups, cols, ticks = [], [], []
-    for s in SHARED_SESSIONS:
-        for c in ("HaloD106", "HaloK117"):
-            v = mol.loc[(mol["construct"] == c) & (mol["session"] == s), "photons_per_full_frame"].dropna().to_numpy()
-            groups.append(v)
-            cols.append(PROTEIN_COLORS[c])
-            ticks.append(f"{LABELS[c]}, {s.split('_')[-1]}")
-    _box_strip(ax, groups, cols, rng)
-    ax.set(ylabel="Photons per fully-ON frame", xlim=(-0.6, len(groups) - 0.4), ylim=(0, None))
-    ax.set_xticks(range(len(groups)), ticks, rotation=40, ha="right")
-    axis_standards(ax)
-    _letter(ax, "h")
 
     pdf = out / f"{FIG}.pdf"
     fig.savefig(pdf)
@@ -257,13 +244,10 @@ def plot(out: Path) -> Path:
 
 def caption(out: Path) -> str:
     t = pd.read_csv(out / f"{FIG}_table_construct.csv").set_index("construct")
-    mol = pd.read_csv(out / f"{FIG}_panels_f-h_molecules.csv")
     n = ", ".join(f"{LABELS[c]} {int(t.loc[c, 'n_molecules'])} molecules / {int(t.loc[c, 'n_events'])} events"
                   for c in CONSTRUCTS)
-    nh = ", ".join(f"{LABELS[c]} {s.split('_')[-1]} {int(mol.loc[(mol['construct'] == c) & (mol['session'] == s), 'photons_per_full_frame'].notna().sum())}"
-                   for s in SHARED_SESSIONS for c in ("HaloD106", "HaloK117"))
     return (
-        "Figure R3.3a. Detected photons per ON event and per molecule. a-e) Photons per ON event against "
+        "Figure R3.3. Detected photons per ON event and per molecule. a-e) Photons per ON event against "
         "ON duration for every event of every filtered single-molecule trace inside vesicles (Halo-D106, "
         "SNAP-C148, Halo-K117, scGrx1, scGrx1-AcK20); color, percentage of the construct's events per bin "
         "(log scale); solid line, median over molecules of each molecule's median photons per event of that "
@@ -272,13 +256,10 @@ def caption(out: Path) -> str:
         "ON frames as classified for Figures 5D and 6C; an event lasting n frames lasted between n - 1 and "
         "n + 1 frames (34.49 ms per frame; 30 ms exposure). Events with zero or negative photon sums or "
         f"longer than {MAX_FRAMES} frames are not shown (table). f) Median photons per event and g) total "
-        "detected photons over the ON frames of the 207 s trace, one point per molecule. h) Photons per "
-        "fully-ON frame, one point per molecule, for Halo-D106 and Halo-K117 measured on the same days. "
-        "Photons are detected photons (background-removed 5 x 5 pixel sum x 0.062 photons per ADU, measured "
+        "detected photons over the ON frames of the 207 s trace, one point per molecule. Photons are detected photons (background-removed 5 x 5 pixel sum x 0.062 photons per ADU, measured "
         "from the camera noise by mean-variance analysis of the raw movies; no quantum-efficiency correction). Boxes, median and quartiles; whiskers, 1.5 x IQR. "
         "Molecules are distinct; sessions differ in excitation power, so f and g mix construct and session "
-        f"effects. n (a-g): {n}. n (h, molecules with events of three or more frames): {nh}. No statistical "
-        "comparisons were performed."
+        f"effects. n: {n}. Photon budget per construct: Table SX. No statistical comparisons were performed."
     )
 
 
