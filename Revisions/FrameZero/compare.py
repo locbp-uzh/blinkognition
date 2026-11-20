@@ -7,7 +7,9 @@
 FrameZero: compare the rerun that keeps molecules ON in the first frame with the published extraction.
 
 Every ROI of both runs is identified by (session, folder, movie, x, y) (box corner; linking forms the same
-groups in both runs, only the removal of groups starting in frame 0 differs). Per construct:
+groups in both runs, only the removal of groups starting in frame 0 differs). Some movies have several groups at
+the same box corner (a molecule linked into two groups); within a run these are numbered in uniqueID order and
+matched one to one (`dup`), so no ROI is counted twice. Per construct:
   - matched ROIs: in both runs. Checks: same overlap and IN/OUT status unless a recovered neighbor now
     overlaps it; for single IN ROIs in both, raw and background-removed traces identical to the published ones
     and the same quality-filter fate (the rerun must reproduce the paper wherever nothing changed);
@@ -81,7 +83,11 @@ def main() -> None:
         print(f"{name} ({key})", flush=True)
         pa, na = ids(pub, key, "all"), ids(new, key, "all")
         dup_p, dup_n = int(pa.duplicated(KEY).sum()), int(na.duplicated(KEY).sum())
-        m = na.merge(pa, on=KEY, how="outer", suffixes=("_new", "_pub"), indicator=True)
+        for d in (pa, na):
+            d.sort_values("uniqueID", inplace=True)
+            d["dup"] = d.groupby(KEY).cumcount()
+        m = na.merge(pa, on=KEY + ["dup"], how="outer", suffixes=("_new", "_pub"), indicator=True,
+                     validate="one_to_one")
         pin = [float(u) for u in ids(pub, key, "IN")["uniqueID"]]
         nin = [float(u) for u in ids(new, key, "IN")["uniqueID"]]
         m["single_in_pub"] = m["uniqueID_pub"].isin(pin)
@@ -103,6 +109,10 @@ def main() -> None:
         # verification on matched single IN: identical traces and filter fate
         both = m[m["status"] == "matched_single_in"]
         ck = {"duplicate_keys_published": dup_p, "duplicate_keys_rerun": dup_n,
+              "single_in_pub_equals_published_ids": int(m["single_in_pub"].sum()) == len(pin),
+              "single_in_new_equals_rerun_ids": int(m["single_in_new"].sum()) == len(nin),
+              "passed_pub_equals_published_filtered": int(m["passed_pub"].sum()) == len(pf),
+              "passed_new_equals_rerun_filtered": int(m["passed_new"].sum()) == len(nf),
               "missing_in_rerun": int((m["status"] == "missing_in_rerun").sum()),
               "matched_status_changed_without_overlap": int(
                   ((m["_merge"] == "both") & (m["ground_truth_new"] != m["ground_truth_pub"])).sum())}
@@ -164,6 +174,10 @@ def main() -> None:
     checks["all_matched_identical"] = all(
         c["raw_max_abs_diff"] == 0 and c["bg_rm_max_abs_diff"] == 0 and c["filter_fate_same_for_matched"]
         and c["missing_in_rerun"] == 0 and c["matched_status_changed_without_overlap"] == 0
+        for k, c in checks.items() if isinstance(c, dict))
+    checks["all_counts_consistent"] = all(
+        c["single_in_pub_equals_published_ids"] and c["single_in_new_equals_rerun_ids"]
+        and c["passed_pub_equals_published_filtered"] and c["passed_new_equals_rerun_filtered"]
         for k, c in checks.items() if isinstance(c, dict))
     (out / "checks.json").write_text(json.dumps(checks, indent=2))
     write_manifest(out, cfg, Path(__file__), [], hash_inputs=False,
