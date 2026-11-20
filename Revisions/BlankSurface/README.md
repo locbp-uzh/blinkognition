@@ -72,8 +72,12 @@ Outputs: `Results/Revisions/BlankSurface/Extraction_gt<ch>_g<gradient>/<run>/` (
   | DFK788 HT390 (reference) | 7851 | 337 | 210 |
   | DFK788 SNAP520 (reference) | 611 | 28811 | 55600 |
 
-  The ATTO520 folder holds ATTO520 vesicles and the ATT390 folder ATTO390 vesicles; the readme's
-  "ATTO390" for slide 3 and the `blank_` file names in the ATTO520 folder are labeling slips. The
+  The ATTO520 folder holds ATTO520 vesicles and the ATT390 folder ATTO390 vesicles. Acquisition times
+  (ND2 dates, `projections` run_001) order the slides blank 16:57-17:29, ATTO520 folder 18:18-19:44,
+  ATT390 folder 20:06-21:32: slide 2 is the ATTO520 folder, so the readme's "ATTO390" for slide 2 and
+  the `blank_` file names in that folder are labeling slips; slide 3, with the readme's note of
+  background at 640 nm, is the ATT390 folder (EmptyATTO390, DFK786). (Corrected 2026-11-20: an earlier
+  version named slide 3 as the slip.) The
   blank slides show no vesicles in any channel. (488 and 515 nm on ATTO520 vesicles are close to
   the camera's saturation, about 56,800 ADU per pixel; irrelevant for detection.)
 - 2026-11-20: six extraction jobs submitted (S3IT 8604886, 8604887, 8604889 for 488 nm at gradients
@@ -168,16 +172,27 @@ unchanged, first 4000 frames, both channels, n_mc 100, WD threshold 0.7). Each e
 across gradients (24 from blank or empty slides: 15 IN and 6 OUT on DFK786 ATTO390, 2 IN on ATTO520,
 1 OUT on ATTO425; 274 from the same-power protein slides):
 
-| Model | Blank or empty: kept | Called | Protein slides: kept | Called |
-|---|---|---|---|---|
-| Halo-D106 vs Halo-K117 (CNN-GRU) | 24 of 24 (100 %) | Halo-D106 24 | 226 of 274 (82 %) | Halo-D106 222, Halo-K117 4 |
-| scGrx1 vs scGrx1-AcK20 (TCN) | 11 of 24 (46 %) | scGrx1 11 | 121 of 274 (44 %) | scGrx1 118, AcK20 3 |
+| Model | Blank or empty: kept, called | SNAP-tag (DFK788): kept, called | HaloTag7 (DFK788): kept, called |
+|---|---|---|---|
+| Halo-D106 vs Halo-K117 (CNN-GRU) | 24/24 (100 %); D106 24 | 99/120 (82 %); D106 98, K117 1 | 127/154 (82 %); D106 124, K117 3 |
+| scGrx1 vs scGrx1-AcK20 (TCN) | 11/24 (46 %); scGrx1 11 | 49/120 (41 %); scGrx1 49 | 72/154 (47 %); scGrx1 69, AcK20 3 |
 
-- The uncertainty filter does not reject these traces: the Halo model calls every one of them
-  Halo-D106 with confidence, as it does with the SNAP-tag and HaloTag7 traces it never saw (the same
-  default-class behavior as DFK785, where SNAP-tag traces were called Halo). What keeps impurities out
-  of the paper's numbers is how rare they are, not the classifier. (Random background positions, in
-  contrast, are almost all rejected: MANUSCRIPT_FIXES item 4.)
+What the slides are for each model: the HaloTag7 slide (HT7-HMSiR-HTL) is HaloTag7 labeled with the
+HaloTag ligand, i.e. the paper's Halo-D106 labeling, measured on another day at lower power: for the
+Halo model these traces have a true class, and 98 % of the kept ones are called Halo-D106 (published
+test set: 73 % of Halo-D106 kept, 90.5 % of those called correctly). The SNAP-tag slide (SNAP-HMSiR-IA)
+is a class of neither model; the blank and empty traces are no protein at all. (Corrected 2026-11-20: a
+first version of this note and the first R3.1b panel c pooled SNAP-tag and HaloTag7 as proteins the
+model "never saw"; HaloTag7 with the HaloTag ligand is Halo-D106.)
+
+- The uncertainty filter does not reject traces from outside a model's classes: the Halo model keeps
+  82 % of the SNAP-tag traces and all 24 blank or empty traces and calls nearly all of them
+  Halo-D106; the TCN keeps 41-47 % of every group and calls them scGrx1. A two-class model has no
+  "neither" answer, and the Wasserstein distance measures how consistent the dropout passes are, not
+  whether a trace resembles the training data (as for DFK785, where SNAP-tag traces were called Halo
+  by the D106 vs SNAP model). What keeps impurities out of the paper's numbers is how rare they are,
+  not the classifier. (Random background positions, in contrast, are almost all rejected:
+  MANUSCRIPT_FIXES item 4.)
 - The passing impurity traces are not separable from protein traces by simple properties (median 19
   ON events and 770 photons per event against 18 and 1000; GMM separation 6.4 against 10.3; R3.1b b).
   Some look unlike protein blinking (a bright first seconds then nothing, or a few isolated spikes;

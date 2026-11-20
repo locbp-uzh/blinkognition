@@ -434,23 +434,27 @@ def plot_b(out: Path) -> Path:
     ax.legend(frameon=False, loc="lower left", bbox_to_anchor=(-0.05, 1.02), handletextpad=0.2, borderaxespad=0)
     axis_standards(ax)
     _letter(ax, "b", x=-0.32, y=1.25)
-    # c) classification
+    # c) classification: blank/empty, SNAP-tag (a class of neither model), HaloTag7 (labeled with the HaloTag
+    #    ligand, i.e. the Halo-D106 labeling of the paper; a class of the Halo model)
     ax = fig.add_subplot(right[1])
     models = list(MODEL_LABELS)
-    width = 0.36
-    for j, imp_flag in enumerate((True, False)):
-        vals, ns = [], []
+    groups = [("blank/empty", "Blank or empty slides", "#56B4E9"), ("SNAP520", "SNAP-tag, same power", "#FFFFFF"),
+              ("HT390", "HaloTag7 (HaloTag ligand), same power", "#BBBBBB")]
+    cl = cl.copy()
+    cl["group"] = np.where(cl["impurity"].astype(bool), "blank/empty", cl.get("slide", pd.Series(dtype=str)))
+    width = 0.26
+    for j, (gkey, glab, gcol) in enumerate(groups):
+        vals, ns, d106 = [], [], []
         for mdl in models:
-            g = cl[(cl["model"] == mdl) & (cl["impurity"] == imp_flag)]
-            vals.append(100 * g["kept"].mean() if len(g) else np.nan)
+            g = cl[(cl["model"] == mdl) & (cl["group"] == gkey)]
+            vals.append(100 * g["kept"].astype(bool).mean() if len(g) else np.nan)
             ns.append(len(g))
-        x = np.arange(len(models)) + (j - 0.5) * width
-        ax.bar(x, vals, width=width, color="#56B4E9" if imp_flag else "#BBBBBB", edgecolor="#000000", lw=0.6,
-               label="Blank or empty slides" if imp_flag else "Protein, same power")
+        x = np.arange(len(models)) + (j - 1) * width
+        ax.bar(x, vals, width=width, color=gcol, edgecolor="#000000", lw=0.6, label=glab)
         for xx, v, nn in zip(x, vals, ns):
-            ax.text(xx, (0 if np.isnan(v) else v) + 2, f"n={nn}", ha="center", va="bottom", fontsize=5)
+            ax.text(xx, (0 if np.isnan(v) else v) + 2, f"{nn}", ha="center", va="bottom", fontsize=5)
     ax.set_xticks(np.arange(len(models)), ["Halo-D106 vs\nHalo-K117", "scGrx1 vs\nscGrx1-AcK20"])
-    ax.set(ylabel="Kept at WD ≥ 0.7 (%)", ylim=(0, 100))
+    ax.set(ylabel="Kept at WD ≥ 0.7 (%)", ylim=(0, 108))
     ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.32), ncol=1)
     axis_standards(ax)
     _letter(ax, "c", x=-0.32, y=1.05)
@@ -501,11 +505,15 @@ def caption(out: Path) -> str:
         f"gradient (an emitter found at several gradients counted once; blank or empty slides n = "
         f"{int(pt['impurity'].sum())}, protein slides n = {int((~pt['impurity']).sum())}). c) The final models of "
         "Figures 5D and 6C on the same traces (first 4000 frames, as trained): percentage kept at the paper's "
-        "Wasserstein-distance threshold of 0.7 (n = traces). No statistical comparisons were performed."
-        + (f" Calls among kept blank or empty traces: " + "; ".join(
-            f"{MODEL_LABELS[mdl]}: " + (", ".join(f"{LABELS.get(k, k)} {v}" for k, v in
-                                                  cl[(cl['model'] == mdl) & cl['impurity'] & cl['kept']]['prediction']
-                                                  .value_counts().items()) or "none")
+        "Wasserstein-distance threshold of 0.7 (numbers, traces). SNAP-tag is a class of neither model; HaloTag7 "
+        "labeled with the HaloTag ligand is the Halo-D106 labeling of Figure 5, measured on another day. No "
+        "statistical comparisons were performed."
+        + (" Calls among kept traces, blank or empty / SNAP-tag / HaloTag7: " + "; ".join(
+            f"{MODEL_LABELS[mdl]}: " + " / ".join(
+                ", ".join(f"{LABELS.get(k, k)} {v}" for k, v in
+                          cl[(cl['model'] == mdl) & sel & cl['kept'].astype(bool)]['prediction'].value_counts().items())
+                or "none"
+                for sel in (cl['impurity'].astype(bool), cl['slide'] == 'SNAP520', cl['slide'] == 'HT390'))
             for mdl in MODEL_LABELS) + "." if len(cl) else ""),
     ])
 
