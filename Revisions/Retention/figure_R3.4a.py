@@ -4,44 +4,29 @@
 # __copyright_ = "Copyright 2026, UZH, Switzerland"
 
 """
-Figure R3.4a (first-round review, Reviewer 3, point 4, first half): how many traces the uncertainty
-(Wasserstein distance, WD) filter keeps, and what accuracy it buys.
+Table R3.4a (first-round review, Reviewer 3, point 4, first half): the percentage of the data retained by the
+quality filter and by the uncertainty (Wasserstein distance, WD) filter, with the accuracy before and after.
 
-Rows a-c: for the cross-validation runs behind Figs. 4C, 5B and 6B (4 folds each), the percentage of
-  test traces kept as a function of the WD threshold, for protein traces and for the matching
-  background-trace control; the paper's threshold (0.7) is marked.
-Rows d-f: balanced accuracy against the percentage of protein test traces kept (the same sweeps), with
-  each fold's value at WD = 0.7.
-Panels g-h: the final models behind Figs. 5D and 6C (single train/validation/test split), percentage
-  of test traces kept per protein against the WD threshold.
-
-Every number is read from the paper's published outputs; nothing is retrained.
-  - Cross-validation stores the sweep on 50 thresholds per fold (0 to the fold's largest WD), not at
-    0.7. The kept fraction can only fall as the threshold rises, so the grid points on either side
-    of 0.7 bound the true value; the single value is the straight-line interpolation between them
-    (bounds in R3.4a_wd07_by_fold.csv). Folds whose largest WD is below 0.7 keep nothing (0 %).
-  - Test folds are balanced (the larger class subsampled to the smaller), so kept fractions are of a
-    balanced test set and pooled over both proteins. Per-protein values exist only for the final
-    models, whose per-trace WD is stored.
-  - Fold summaries: mean +/- SD with SD over the 4 folds dividing by 4 (population SD), as in the
-    paper's figures.
-  - Approximate yield per construct = quality-filter pass rate (step 0 of the review) x the pair's
-    mean kept fraction at WD 0.7. Approximate because the kept fraction is pooled over both proteins
-    and measured on balanced test folds.
-  No statistical tests.
+Trimmed to the request (user, 2026-11-20): one table instead of the first version's figure (threshold sweeps and
+trade-off curves; revisions_figures/not_in_revision/R3.4a_full_20261120 and git history, commit
+e4dc7fb). Rows: per comparison of the paper (Figs. 4C, 5B, 6B) and protein.
+  - Single molecules inside vesicles and those passing the quality filter: the published extraction (step 0).
+  - Kept by the uncertainty filter at the paper's threshold (WD >= 0.7): four-fold cross-validation behind Figs.
+    4C, 5B, 6B (mean +/- SD over folds, pooled over both proteins of the balanced test folds; the stored 50-point
+    threshold grid interpolated at 0.7), and per protein for the final models behind Figs. 5D and 6C.
+  - Approximate overall yield = quality-filter pass rate x cross-validation kept fraction.
+  - Balanced accuracy in cross-validation on all test traces and on those kept (mean +/- SD over folds).
+Every number is read from the paper's published outputs; nothing is retrained. No statistical tests.
 
 Usage:
     python figure_R3.4a.py
-        Replot from the CSVs next to this script (works in the figure folder as distributed).
+        Re-render the table from the CSVs next to this script (works in the figure folder as distributed).
     python figure_R3.4a.py --build --general-data <GeneralData> --step0 <PaperData check run> [--out <dir>]
-        Rebuild the CSVs from the published outputs, replot, and copy this script into --out.
-        <GeneralData>: the Zenodo GeneralData folder (MLresults/). <PaperData check run>: the review's
-        step 0 output (funnel.csv, rois.csv; blinkognition Revisions/PaperData/check_data.py).
+        Rebuild the CSVs from the published outputs, render, and copy this script into --out.
 
-Outputs (in --out, default: this script's folder): R3.4a.pdf, R3.4a_panels_a-c.csv,
-R3.4a_panels_d-f.csv, R3.4a_panels_g-h.csv, R3.4a_wd07_by_fold.csv, R3.4a_table_cv.csv,
-R3.4a_table_final.csv, R3.4a_table_funnel.csv, R3.4a_caption.txt, R3.4a_provenance.yaml (build only),
-figure_R3.4a.py (build only).
+Outputs: R3.4a.pdf (the table, rendered), R3.4a_table.csv (the table), R3.4a_table_cv.csv, R3.4a_table_final.csv,
+R3.4a_table_funnel.csv, R3.4a_wd07_by_fold.csv (sources), R3.4a_caption.txt, R3.4a_provenance.yaml,
+figure_R3.4a.py.
 """
 
 from __future__ import annotations
@@ -62,7 +47,6 @@ import matplotlib.font_manager as fm  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-from matplotlib.lines import Line2D  # noqa: E402
 
 # --- Constants ---
 FIG = "R3.4a"
@@ -97,12 +81,6 @@ AUG_FACTOR = 0
 FINAL_CLASS_KEYS = {"HTHTL": "HaloD106", "HTIA": "HaloK117", "Grx1": "scGrx1", "K20Ac": "scGrx1AcK20"}
 
 FIG_WIDTH_IN = 180 / 25.4            # double column
-FIG_HEIGHT_IN = 6.3
-LW_FOLD = 0.8
-PANEL_LETTERS = "abcdefgh"
-TEXT_CLEAR_YMAX = 0.80               # the WD 0.7 line in panels a-c stops below the kept-percentage label
-TEXT_CLEAR_YMIN = 0.28               # and in panels g-h starts above it
-ACC_YLIM = (45, 100)                 # balanced accuracy is 50 % by definition when one class is left
 
 
 # --- Style ---
@@ -264,115 +242,68 @@ def build_funnel(step0: Path, cv_table: pd.DataFrame, final_table: pd.DataFrame,
     return pd.DataFrame(rows)
 
 
-# --- Plot ---
+# --- Table ---
 
-def _panel_letter(ax, letter: str) -> None:
-    ax.text(-0.28, 1.12, letter, transform=ax.transAxes, fontsize=8, fontweight="bold", va="top", ha="left")
+COLUMNS = ["Comparison", "Protein", "Single molecules in vesicles", "Passing quality filter",
+           "Kept at WD >= 0.7, cross-validation", "Kept at WD >= 0.7, final model", "Approximate overall yield",
+           "Balanced accuracy, all", "Balanced accuracy, kept"]
+
+
+def compose(out: Path) -> pd.DataFrame:
+    cv = pd.read_csv(out / f"{FIG}_table_cv.csv")
+    cv = cv[cv["traces"] == "protein"].set_index("pair")
+    fun = pd.read_csv(out / f"{FIG}_table_funnel.csv")
+    rows = []
+    for r in fun.itertuples():
+        c = cv.loc[r.pair]
+        rows.append({
+            "Comparison": f"Fig. {r.figure} ({c['model']})", "Protein": LABELS[r.construct],
+            "Single molecules in vesicles": f"{int(r.rois_single_in)}",
+            "Passing quality filter": f"{int(r.traces_quality_filtered_in)} ({r.quality_filter_pass_pct:.0f} %)",
+            "Kept at WD >= 0.7, cross-validation": f"{c['kept_pct_wd07_mean']:.0f} ± {c['kept_pct_wd07_sd']:.0f} %",
+            "Kept at WD >= 0.7, final model": ("-" if pd.isna(r.final_model_kept_pct_wd07)
+                                                else f"{r.final_model_kept_pct_wd07:.0f} %"),
+            "Approximate overall yield": f"{r.approx_yield_pct:.0f} %",
+            "Balanced accuracy, all": f"{c['bal_acc_all_pct_mean']:.1f} ± {c['bal_acc_all_pct_sd']:.1f} %",
+            "Balanced accuracy, kept": f"{c['bal_acc_kept_wd07_pct_mean']:.1f} ± {c['bal_acc_kept_wd07_pct_sd']:.1f} %"})
+    return pd.DataFrame(rows, columns=COLUMNS)
 
 
 def plot(out: Path) -> Path:
-    sweeps = pd.read_csv(out / f"{FIG}_panels_a-c.csv")
-    at07 = pd.read_csv(out / f"{FIG}_wd07_by_fold.csv")
-    cv = pd.read_csv(out / f"{FIG}_table_cv.csv")
-    final = pd.read_csv(out / f"{FIG}_panels_g-h.csv")
-    ftab = pd.read_csv(out / f"{FIG}_table_final.csv")
-
-    fig = plt.figure(figsize=(FIG_WIDTH_IN, FIG_HEIGHT_IN))
-    gs = fig.add_gridspec(3, 3, hspace=0.75, wspace=0.42, left=0.08, right=0.98, top=0.93, bottom=0.07)
-    letters = iter(PANEL_LETTERS)
-
-    for j, p in enumerate(PAIRS):
-        a = fig.add_subplot(gs[0, j])
-        for traces, color, ls in (("background", COLOR_BACKGROUND_TRACES, "--"), ("protein", COLOR_PROTEIN_TRACES, "-")):
-            s = sweeps[(sweeps["pair"] == p["pair"]) & (sweeps["traces"] == traces)]
-            for _, g in s.groupby("fold"):
-                a.plot(g["wd_threshold"], g["kept_pct"], color=color, ls=ls, lw=LW_FOLD)
-        a.axvline(WD_PAPER, ymax=TEXT_CLEAR_YMAX, color=COLORS["black"], ls=":", lw=0.8)
-        o = at07[(at07["pair"] == p["pair"]) & (at07["traces"] == "protein")]
-        a.plot(np.full(len(o), WD_PAPER), o["kept_pct"], ls="none", marker="o", ms=3.5, mfc="white",
-               mec=COLOR_PROTEIN_TRACES, mew=0.8, zorder=3)
-        a.set(xlim=(0, 1), ylim=(0, 102), xlabel="Wasserstein distance threshold", ylabel="Test traces kept (%)")
-        names = " vs ".join(LABELS[c] for c in p["proteins"])
-        a.set_title(f"{names}\n(Fig. {p['figure']}, {p['model_label']}, 4 folds)", pad=4)
-        r_p = cv[(cv["pair"] == p["pair"]) & (cv["traces"] == "protein")].iloc[0]
-        r_b = cv[(cv["pair"] == p["pair"]) & (cv["traces"] == "background")].iloc[0]
-        a.text(0.99, 0.99, f"Protein {r_p['kept_pct_wd07_mean']:.0f} ± {r_p['kept_pct_wd07_sd']:.0f} %\n"
-               f"Background {r_b['kept_pct_wd07_mean']:.1f} ± {r_b['kept_pct_wd07_sd']:.1f} %",
-               transform=a.transAxes, fontsize=6, color="black", va="top", ha="right")
-        axis_standards(a)
-        _panel_letter(a, next(letters))
-
-    for j, p in enumerate(PAIRS):
-        b = fig.add_subplot(gs[1, j])
-        s = sweeps[(sweeps["pair"] == p["pair"]) & (sweeps["traces"] == "protein")]
-        for _, g in s.groupby("fold"):
-            b.plot(g["kept_pct"], g["balanced_accuracy_pct"], color=COLOR_PROTEIN_TRACES, lw=LW_FOLD)
-        o = at07[(at07["pair"] == p["pair"]) & (at07["traces"] == "protein")]
-        b.plot(o["kept_pct"], o["bal_acc_kept"], ls="none", marker="o", ms=3.5, mfc="white",
-               mec=COLOR_PROTEIN_TRACES, mew=0.8, zorder=3)
-        b.set(xlim=(0, 102), ylim=ACC_YLIM, xlabel="Test traces kept (%)", ylabel="Balanced accuracy (%)")
-        b.set_yticks(np.arange(50, 101, 10))
-        r = cv[(cv["pair"] == p["pair"]) & (cv["traces"] == "protein")].iloc[0]
-        b.text(0.97, 0.04, f"All traces: {r['bal_acc_all_pct_mean']:.1f} ± {r['bal_acc_all_pct_sd']:.1f} %\n"
-               f"WD ≥ 0.7: {r['bal_acc_kept_wd07_pct_mean']:.1f} ± {r['bal_acc_kept_wd07_pct_sd']:.1f} %",
-               transform=b.transAxes, fontsize=6, color="black", va="bottom", ha="right")
-        axis_standards(b)
-        _panel_letter(b, next(letters))
-
-    leg = fig.add_subplot(gs[2, 0])
-    leg.axis("off")
-    handles = [
-        Line2D([], [], color=COLOR_PROTEIN_TRACES, lw=LW_FOLD, label="Protein test traces (one line per fold)"),
-        Line2D([], [], color=COLOR_BACKGROUND_TRACES, lw=LW_FOLD, ls="--", label="Background test traces (one line per fold)"),
-        Line2D([], [], color=COLORS["black"], lw=0.8, ls=":", label="WD = 0.7 (paper's threshold)"),
-        Line2D([], [], ls="none", marker="o", ms=3.5, mfc="white", mec=COLOR_PROTEIN_TRACES, mew=0.8,
-               label="Fold value at WD = 0.7"),
-    ] + [Line2D([], [], color=PROTEIN_COLORS[c], lw=1.0, label=f"{LABELS[c]} (final model)")
-         for c in ("HaloD106", "HaloK117", "scGrx1", "scGrx1AcK20")]
-    leg.legend(handles=handles, loc="center left", frameon=False, handlelength=2.2, borderaxespad=0)
-
-    for j, p in enumerate(PAIRS):
-        if p["final"] is None:
-            continue
-        c_ax = fig.add_subplot(gs[2, j])
-        f = final[final["pair"] == p["pair"]]
-        lines = []
-        for prot in p["proteins"]:
-            g = f[f["protein"] == prot]
-            c_ax.plot(g["wd_threshold"], g["kept_pct"], color=PROTEIN_COLORS[prot], lw=1.0)
-            t = ftab[(ftab["pair"] == p["pair"]) & (ftab["protein"] == prot)].iloc[0]
-            lines.append(f"{LABELS[prot]} {t['kept_pct_wd07']:.0f} % ({t['n_kept_wd07']}/{t['n_test_traces']})")
-        c_ax.axvline(WD_PAPER, ymin=TEXT_CLEAR_YMIN, color=COLORS["black"], ls=":", lw=0.8)
-        c_ax.set(xlim=(0, 1), ylim=(0, 102), xlabel="Wasserstein distance threshold", ylabel="Test traces kept (%)")
-        c_ax.set_title(f"Final {p['model_label']} model (Fig. {p['final'][0]}), test split", pad=4)
-        c_ax.text(0.03, 0.04, "Kept at WD 0.7:\n" + "\n".join(lines), transform=c_ax.transAxes, fontsize=6,
-                  color="black", va="bottom", ha="left")
-        axis_standards(c_ax)
-        _panel_letter(c_ax, next(letters))
-
-    pdf = out / f"{FIG}.pdf"
-    fig.savefig(pdf)
+    t = pd.read_csv(out / f"{FIG}_table.csv", dtype=str).fillna("-")
+    fig, ax = plt.subplots(figsize=(FIG_WIDTH_IN, 0.35 + 0.2 * (len(t) + 2)))
+    ax.axis("off")
+    headers = [h.replace(", ", ",\n").replace("Single molecules in vesicles", "Single molecules\nin vesicles")
+               .replace("Passing quality filter", "Passing\nquality filter")
+               .replace("Approximate overall yield", "Approximate\noverall yield") for h in COLUMNS]
+    tab = ax.table(cellText=t.values, colLabels=headers, loc="center", cellLoc="center", colLoc="center")
+    tab.auto_set_font_size(False)
+    tab.set_fontsize(6)
+    tab.scale(1.0, 1.35)
+    for (i, j), cell in tab.get_celld().items():
+        cell.set_linewidth(0.0 if i > 0 else 0.6)
+        cell.visible_edges = "B" if i == 0 else ""
+        if i == 0:
+            cell.set_height(cell.get_height() * 2.0)
+            cell.set_text_props(fontweight="bold")
+    path = out / f"{FIG}.pdf"
+    fig.savefig(path)
     plt.close(fig)
-    return pdf
+    return path
 
 
 # --- Caption and provenance ---
 
 CAPTION = (
-    "Figure R3.4a. Fraction of single-molecule traces kept by the uncertainty filter. "
-    "a-c) Percentage of test traces with a Wasserstein distance (WD) at or above each threshold in the "
-    "four-fold cross-validations behind Figures 4C (Halo-D106 vs SNAP-C148, CNN-GRU), 5B (Halo-D106 vs "
-    "Halo-K117, CNN-GRU) and 6B (scGrx1 vs scGrx1-AcK20, TCN), for protein traces (solid) and the "
-    "corresponding background-trace controls (dashed); one line per fold; dotted line, WD = 0.7, the "
-    "threshold used in the paper; circles, each fold's protein traces at WD = 0.7; numbers, percentage "
-    "kept at WD = 0.7. d-f) Balanced accuracy against the percentage of protein test traces kept, for the "
-    "same sweeps; circles, each fold at WD = 0.7; numbers, balanced accuracy on all test traces and on "
-    "those kept at WD = 0.7. g, h) Percentage of test traces kept per protein for the final models behind "
-    "Figures 5D and 6C (single test split); numbers, kept at WD = 0.7. Test folds were balanced "
-    "by subsampling the larger class; the test traces of a fold are distinct molecules, and folds are "
-    "disjoint. Kept percentages at WD = 0.7 are mean ± SD over the four folds (SD with n in the "
-    "denominator), interpolated between the stored threshold grid points that bracket 0.7. No statistical "
-    "comparisons were performed."
+    "Table R3.4a. Data retained by the quality filter and by the uncertainty filter. Single molecules inside "
+    "vesicles: single regions of interest of the published extraction within 4 pixels of a vesicle; passing "
+    "quality filter: traces used for classification. Kept at WD >= 0.7: traces whose Monte Carlo dropout "
+    "prediction has a Wasserstein distance of at least 0.7 (the threshold of the paper); cross-validation, four "
+    "folds behind Figures 4C, 5B and 6B, mean ± SD over folds, pooled over the two proteins of the balanced test "
+    "folds; final model, the models behind Figures 5D and 6C, per protein (single test split). Approximate overall "
+    "yield: quality-filter pass rate x cross-validation kept fraction. Balanced accuracy in cross-validation on all "
+    "test traces and on the kept ones, mean ± SD over folds. All numbers from the published outputs; nothing was "
+    "retrained."
 )
 
 
@@ -422,13 +353,11 @@ def main() -> None:
         final_curves, final_table = build_final(args.general_data, inputs)
         cv_table = summarize_cv(at07)
         funnel = build_funnel(args.step0, cv_table, final_table, inputs)
-        sweeps.to_csv(out / f"{FIG}_panels_a-c.csv", index=False)
-        sweeps[sweeps["traces"] == "protein"].to_csv(out / f"{FIG}_panels_d-f.csv", index=False)
-        final_curves.to_csv(out / f"{FIG}_panels_g-h.csv", index=False)
         at07.to_csv(out / f"{FIG}_wd07_by_fold.csv", index=False)
         cv_table.to_csv(out / f"{FIG}_table_cv.csv", index=False)
         final_table.to_csv(out / f"{FIG}_table_final.csv", index=False)
         funnel.to_csv(out / f"{FIG}_table_funnel.csv", index=False)
+        compose(out).to_csv(out / f"{FIG}_table.csv", index=False)
         (out / f"{FIG}_caption.txt").write_text(CAPTION + "\n")
         if Path(__file__).resolve() != (out / Path(__file__).name).resolve():
             shutil.copy(Path(__file__).resolve(), out / Path(__file__).name)
