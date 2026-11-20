@@ -1,0 +1,20 @@
+# Revisions/FrameZero: the paper's extraction rerun with one change, so that molecules ON in the movie's first
+# frame are kept (user, 2026-11-20: "Yes, test them"; finding in Revisions/PaperData/README.md, edge_groups).
+# Extraction/utils.py get_and_link_locs calls Picasso postprocess.link with its default
+# remove_ambiguous_lengths=True, which drops every linked group starting in frame 0. keep_edges/sitecustomize.py
+# sets it to False when FRAMEZERO_KEEP_EDGE_GROUPS=1; nothing in Extraction/ changes.
+
+# The published run (read only): its run_info.yaml and every *_locs.hdf5 / *_locs.yaml are linked into the new
+# run folder; the raw movies are read in place from its input_folder.
+published_run: /shares/locbp.chem.uzh/pabriv/AllRawMovies/GT/FinalTraces/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001
+# New run folder on S3IT scratch (about the published run's 60 GB, less without the control images)
+run_root: /scratch/pabriv/framezero
+run_name: Grx1_HTHTL_HTIA_K20Ac_snap_keepedges_001
+# The paper's extraction parameters; overrides only switch off control images and set the workers
+base_config: Extraction/config.yaml
+overrides:
+  draw_maxprojection_control: false
+  draw_coloc_control: false
+  n_workers: 32
+patch_env: FRAMEZERO_KEEP_EDGE_GROUPS
+output_root: Results/Revisions/FrameZero
