@@ -15,6 +15,20 @@ pad_frames: 1
 # Full-frame emission: inner frames (first and last excluded) of events of at least this many frames.
 interior_min_frames: 3
 
+# The paper's quality filter as run for the published extraction (Extraction/config.yaml and the
+# defaults of Extraction/filter.py), replayed by filter_audit.py. gmm_min_separation is not in
+# config.yaml; filter.py defaults it to 3.0: traces with GMM separation below 3 get no ON frames.
+filter:
+  gmm_proba_threshold: 0.9
+  gmm_min_separation: 3.0
+  snr_min_separation: 2.0
+  max_duty_cycle: 0.3
+  min_peak_number: 3
+  min_peak_width: 1
+  first_peak_time: 1000
+  last_peak_time: 100
+  delta_first_second: 1000
+
 constructs: [HaloD106, SNAPC148, HaloK117, scGrx1, scGrx1AcK20]
 n_jobs: 16
 output_root: Results/Revisions/PhotonsFrames
