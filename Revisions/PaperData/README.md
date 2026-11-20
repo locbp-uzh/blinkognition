@@ -26,6 +26,30 @@ scGrx1AcK20 = K20Ac.
 - `check_data.py`: step 0 checks and per-trace index (docstring lists every check).
 - `s3it/check_data.sbatch`: the CPU job on S3IT (picasso-env).
 
+## Photon conversion check (conversion run_001, 2026-11-20)
+
+`conversion_check.py` (choices confirmed by the user): mean-variance analysis of 20 raw movies (two
+per session): 640 nm background pixels (frames 4000-6000, > 5 px from every published
+localization) and 488 nm snapshot pixels below 20,000 ADU, noise variance from consecutive-frame
+differences, binned weighted linear fit; photons per ADU = 2 / slope (EM excess noise factor F^2 = 2).
+
+| Pixels | Photons per ADU, median of 20 movies (range) | Implied sensitivity at gain 300 |
+|---|---|---|
+| all (main) | 0.062 (0.059-0.065) | 18.6 e-/ADU |
+| 640 nm background | 0.062 (0.058-0.063) | 18.5 |
+| 488 nm snapshots | 0.059 (0.057-0.062) | 17.6 |
+| config (Picasso) 16.0 / 300 | 0.053 | 16.0 |
+
+The binned pixels of every movie lie on one line from about 600 to 20,000 ADU
+(`conversion_fits.pdf`); stable across 2023-2025 sessions (SP 0.060-0.062, DK 0.060-0.065, all
+pixels). The empirical factor is 10-16 % above the configured one: detected photon numbers computed
+with 16.0 / 300 (R2.1, R3.3, R3.2 photons) would be 10-16 % higher with the empirical factor; ratios,
+rankings and all non-photon results are unaffected. The fits cross zero variance near 530 ADU, the
+camera's per-pixel offset (Picasso's baseline is 79); irrelevant for the bg_rm photon numbers, which
+subtract each trace's own background. Caveat: F^2 = 2 is the high-gain limit; clock-induced charge
+and any departure of F^2 shift the factor by a few percent. Not changed anywhere; the user decides
+which factor the revision reports.
+
 ## Local mirror
 
 `Inputs/PaperData/Grx1_HTHTL_HTIA_K20Ac_snap_optparam_001/` (gitignored), same layout as the
