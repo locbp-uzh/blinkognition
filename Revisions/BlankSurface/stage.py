@@ -9,7 +9,12 @@ config derived from the paper's Extraction/config.yaml.
 
 For a vesicle channel (--gt 488 or 405) and a protein gradient (--gradient), every slide of config.yaml with
 that vesicle channel is linked into <stage_root>/gt<gt>_g<gradient>/<session>/<slide name>/ (only its
-640 nm movies and its vesicle-channel snapshots; Picasso writes its _locs files next to the links), and
+640 nm movies and its vesicle-channel snapshots; Picasso writes its _locs files next to the links). Each link
+is named <slide name>_<original file name>: Extraction/combine.py assigns per-movie traces to a protein by
+matching the protein name in the file name (case-sensitive, bounded by underscores), and the pairing of the
+two channels keys on the first name token and the field number, so the slide name must lead the file name
+(the raw files are named blank_*, ATTO390_*, ...; without the prefix combine finds no files for them). Every
+link name is checked against combine's own patterns before anything is written. Then
 <stage_root>/configs/config_gt<gt>_g<gradient>.yaml is written: the paper's config with config.yaml
 `overrides`, input_folder = the staging folder, output_folder_base = Results/Revisions/BlankSurface/
 Extraction_gt<gt>_g<gradient> in this clone, proteins = the slide names, ground_truth_channel, and the fixed
@@ -33,6 +38,8 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
+sys.path.insert(0, str(REPO_ROOT / "Extraction"))
+from combine import build_compound_patterns  # noqa: E402  (the pipeline's own file-to-protein matcher)
 
 
 def channel_token(ch: str) -> str:
@@ -55,11 +62,11 @@ def main() -> None:
     if stage.exists():
         sys.exit(f"{stage} exists; use a fresh staging folder (old _locs files would be reused)")
     slides = [s for s in cfg["slides"] if s["gt"] == args.gt]
-    links = []
+    patterns = build_compound_patterns(sorted({s["name"] for s in slides}))
+    plan, links = [], []
     for s in slides:
         src = Path(cfg["source_root"]) / s["folder"]
         dst = stage / s["session"] / s["name"]
-        dst.mkdir(parents=True)
         movies = sorted(p for p in src.iterdir() if p.suffix.lower() == ".nd2" and not p.name.startswith("._")
                         and p.name.startswith(s["prefix"] + "_")
                         and (channel_token("640") in p.name or channel_token(args.gt) in p.name))
@@ -68,8 +75,15 @@ def main() -> None:
         if not n640 or n640 != ngt:
             sys.exit(f"{src}: {n640} movies at 640 nm and {ngt} at {args.gt} nm")
         for p in movies:
-            (dst / p.name).symlink_to(p)
-            links.append(f"{s['session']}\t{s['name']}\t{p.name}\t{p}")
+            name = f"{s['name']}_{p.name}"
+            hits = sorted(c for c, pat in patterns.items() if pat.search(name))
+            if hits != [s["name"]] or name.split("_")[0] != s["name"]:
+                sys.exit(f"link name {name} matches proteins {hits}, not only {s['name']}")
+            plan.append((dst / name, p))
+            links.append(f"{s['session']}\t{s['name']}\t{name}\t{p}")
+    for link, target in plan:          # nothing is written until every slide and name has been checked
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(target)
 
     with open(REPO_ROOT / cfg["base_config"]) as f:
         run_cfg = yaml.safe_load(f)

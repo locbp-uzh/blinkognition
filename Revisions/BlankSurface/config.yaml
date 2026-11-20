@@ -3,8 +3,10 @@
 
 # Raw data (S3IT, read in place; never written to)
 source_root: /shares/locbp.chem.uzh/dkossm/Blinkognition
-# Staging (symlinks; Picasso writes its _locs files next to them) and run configs, S3IT scratch
-stage_root: /scratch/pabriv/blanksurface
+# Staging (symlinks; Picasso writes its _locs files next to them) and run configs, S3IT scratch.
+# stage2: links named <slide>_<file> (2026-11-20); the first staging (/scratch/pabriv/blanksurface/gt*) used the
+# raw file names, which combine.py could not assign to the blank and empty-vesicle slides (README log).
+stage_root: /scratch/pabriv/blanksurface/stage2
 # The paper's extraction config; only the keys in `overrides` and the per-run keys below change
 base_config: Extraction/config.yaml
 overrides:
