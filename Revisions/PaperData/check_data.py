@@ -136,6 +136,9 @@ def count_where(cfg: dict, c: str, where: str, run: Path, inputs: list) -> pd.Da
                                   ("unfiltered", len(ucols), int(idx["in_unfiltered"].sum()))):
         if n_cols != n_found:
             logging.warning("%s %s: %d %s columns, %d found in UniqueIDs", c, where, n_cols, what, n_found)
+    n_unparsed = int((idx["session"] == "").sum())
+    if n_unparsed:
+        logging.warning("%s %s: %d IDs without a session", c, where, n_unparsed)
     idx.to_csv(run / f"index_{where}_{c}.csv", index=False)
     return idx
 

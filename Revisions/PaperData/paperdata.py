@@ -95,19 +95,25 @@ def load_traces(cfg: dict, construct: str, kind: str, where: str = "IN", filtere
 
 def parse_origin(origin: str) -> tuple[str, str, str]:
     """(session, protein folder, movie stem) from a UniqueIDs origin path
-    .../<session>/<folder>/<movie>_traces.pkl."""
+    .../<session>/<folder>/<movie>_traces.pkl or .../<movie>_background_traces.pkl."""
     p = Path(str(origin))
     m = SESSION_RE.search(str(origin))
-    movie = p.name[: -len("_traces.pkl")] if p.name.endswith("_traces.pkl") else p.stem
+    movie = p.stem
+    for suffix in ("_background_traces.pkl", "_traces.pkl"):
+        if p.name.endswith(suffix):
+            movie = p.name[: -len(suffix)]
+            break
     return (m.group(1) if m else ""), p.parent.name, movie
 
 
 def load_ids(cfg: dict, construct: str, where: str = "IN") -> pd.DataFrame:
     """UniqueIDs table without the stored trace arrays, plus session, folder and movie.
-    x and y are as stored by the extraction (integer box coordinates)."""
+    x and y are as stored by the extraction (integer box coordinates). Background tables store the
+    source path in `file_origin` (their `origin` is just "background", combine.py)."""
     u = pd.read_pickle(ids_path(cfg, construct, where))
     u = u.drop(columns=[c for c in ("trace",) if c in u.columns])
-    parsed = [parse_origin(o) for o in u["origin"]]
+    src = "file_origin" if "file_origin" in u.columns else "origin"
+    parsed = [parse_origin(o) for o in u[src]]
     u["session"] = [s for s, _, _ in parsed]
     u["folder"] = [f for _, f, _ in parsed]
     u["movie"] = [m for _, _, m in parsed]
