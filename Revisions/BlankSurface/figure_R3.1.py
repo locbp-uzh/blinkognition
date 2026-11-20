@@ -142,7 +142,7 @@ def plot(out: Path) -> Path:
     cb.ax.tick_params(labelsize=6, width=0.6, length=2)
     handles = [Line2D([], [], ls="none", marker="o", mfc="none", mec="#56B4E9", ms=5, label="Detected emitter"),
                Line2D([], [], ls="none", marker="s", mfc="none", mec="#F0E442", ms=5, label="Passed the quality filter")]
-    fig.legend(handles=handles, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 0.02))
+    fig.legend(handles=handles, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 0.17))
     path = out / f"{FIG}.pdf"
     fig.savefig(path)
     plt.close(fig)
